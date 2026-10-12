@@ -83,9 +83,8 @@ public class QuestGuidanceHud implements HudRenderCallback {
             case CRAFT_STONE_TOOLS -> "§e► Craft any Stone Tool to begin";
             case FIND_AERON -> "§e► Locate Aeron's Camp";
             case LOCATE_SKYFORGE -> "§e► Locate buried Skyforge Spaceship";
-            case SALVAGE_MODULES -> "§e► Salvage: §6" + ClientQuestData.getPistonsSalvaged() + "/4 Pist §8| §b" + ClientQuestData.getAerogelExtracted() + "/2 Aero";
-            case CRAFT_JETPACK -> "§e► Assemble Jetpack at a Weaponer";
-            case RETURN_TO_AERON -> "§e► Return to Aeron with your Jetpack";
+            case SALVAGE_MODULES -> "§e► Salvage: §d" + ClientQuestData.getBlueprintsFound() + "/4 Maps §8| §6" + ClientQuestData.getPistonsSalvaged() + "/4 Pist §8| §b" + ClientQuestData.getAerogelExtracted() + "/2 Aero";
+            case CRAFT_JETPACK, RETURN_TO_AERON -> "§e► Deliver 4 Blueprint Maps to Aeron";
             case DESERT_EXPEDITION -> "§e► Journey to Desert (Sunforged Scimitar)";
             case QUEST_COMPLETE -> "§a✔ Wings of the Skyforge Completed";
         };

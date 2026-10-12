@@ -152,6 +152,7 @@ public class ElementalClient implements ClientModInitializer {
 			int stateId = buf.readInt();
 			int pistons = buf.readInt();
 			int aerogel = buf.readInt();
+			int blueprints = buf.readInt();
 			boolean guidance = buf.readBoolean();
 			boolean hasTarget = buf.readBoolean();
 			net.minecraft.util.math.BlockPos target = null;
@@ -165,6 +166,7 @@ public class ElementalClient implements ClientModInitializer {
 						com.elemental.quest.QuestState.fromId(stateId),
 						pistons,
 						aerogel,
+						blueprints,
 						guidance,
 						finalTarget
 				);

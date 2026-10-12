@@ -1,16 +1,13 @@
 {
   "type": "minecraft:crafting_shaped",
   "pattern": [
-    "PBP",
+    "P P",
     "PCP",
     "A A"
   ],
   "key": {
     "P": {
       "item": "elemental:pneumatic_piston"
-    },
-    "B": {
-      "item": "elemental:jetpack_blueprint"
     },
     "C": {
       "item": "elemental:element_core"

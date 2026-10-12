@@ -72,8 +72,6 @@ public class ModItems {
             new Item(new FabricItemSettings()));
     public static final Item AEROGEL_CORE = registerItem("aerogel_core",
             new Item(new FabricItemSettings()));
-    public static final Item JETPACK_BLUEPRINT = registerItem("jetpack_blueprint",
-            new Item(new FabricItemSettings().rarity(Rarity.UNCOMMON)));
     public static final Item ELEMENTAL_JETPACK = registerItem("elemental_jetpack",
             new ElementalJetpackItem(new FabricItemSettings().maxDamage(480).rarity(Rarity.RARE)));
 
@@ -89,7 +87,6 @@ public class ModItems {
             entries.add(FROSTWAKE_PICK);
             entries.add(ROOTBOUND_AXE);
             entries.add(TIDEBREAKER_TRIDENT);
-            entries.add(JETPACK_BLUEPRINT);
             entries.add(ELEMENTAL_JETPACK);
         });
 
@@ -104,7 +101,6 @@ public class ModItems {
             entries.add(FIRE_ELEMENT);
             entries.add(PNEUMATIC_PISTON);
             entries.add(AEROGEL_CORE);
-            entries.add(JETPACK_BLUEPRINT);
         });
 
         ItemGroupEvents.modifyEntriesEvent(ItemGroups.FUNCTIONAL).register(entries -> {

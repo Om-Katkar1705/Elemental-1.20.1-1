@@ -1,5 +1,7 @@
 package com.elemental.entity;
 
+import com.elemental.Elemental;
+import com.elemental.item.BlueprintMaps;
 import com.elemental.item.ModItems;
 import com.elemental.quest.DialogueManager;
 import com.elemental.quest.PlayerQuestData;
@@ -17,6 +19,7 @@ import net.minecraft.entity.mob.PathAwareEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.recipe.Recipe;
 import net.minecraft.registry.tag.DamageTypeTags;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.sound.SoundCategory;
@@ -25,6 +28,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Hand;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
@@ -92,9 +96,9 @@ public class ChronicleGuideEntity extends PathAwareEntity {
 
             if (state == QuestState.CRAFT_STONE_TOOLS || state == QuestState.FIND_AERON) {
                 startPrologueConversation(serverPlayer);
-            } else if (state == QuestState.RETURN_TO_AERON) {
-                startReturnConversation(serverPlayer);
-            } else if (state == QuestState.DESERT_EXPEDITION || state == QuestState.QUEST_COMPLETE) {
+            } else if (state == QuestState.RETURN_TO_AERON || state == QuestState.CRAFT_JETPACK || BlueprintMaps.hasAllBlueprints(serverPlayer)) {
+                startBlueprintDeliveryConversation(serverPlayer);
+            } else if (state == QuestState.DESERT_EXPEDITION || state == QuestState.QUEST_COMPLETE || questData.hasClaimedJetpack()) {
                 startDesertReminderConversation(serverPlayer);
             } else {
                 startReminderConversation(serverPlayer, state);
@@ -152,7 +156,7 @@ public class ChronicleGuideEntity extends PathAwareEntity {
                 SoundEvents.UI_BUTTON_CLICK.value(), 1.3f
         ));
 
-        // 8. Aeron: Buried between stone and dirt layer! Salvage pistons, aerogel, and blueprint!
+        // 8. Aeron: Buried between stone and dirt layer! Salvage pistons, aerogel, and all 4 blueprint maps!
         lines.add(new DialogueManager.DialogueEntry(
                 Text.literal("§6[Aeron] §e").append(Text.translatable("dialogue.elemental.aeron.prologue_ship")),
                 ModSounds.NPC_DIALOGUE, 1.0f
@@ -185,64 +189,77 @@ public class ChronicleGuideEntity extends PathAwareEntity {
         });
     }
 
-    private void startReturnConversation(ServerPlayerEntity player) {
+    private void startBlueprintDeliveryConversation(ServerPlayerEntity player) {
         String name = player.getName().getString();
         List<DialogueManager.DialogueEntry> lines = new ArrayList<>();
 
-        // 1. Player: I've assembled the jetpack!
+        // 1. Player: Aeron! I excavated the buried spaceship and recovered all 4 Blueprint Maps!
         lines.add(new DialogueManager.DialogueEntry(
-                Text.literal("§b<" + name + "> §a").append(Text.translatable("dialogue.elemental.player.complete")),
+                Text.literal("§b<" + name + "> §a").append(Text.translatable("dialogue.elemental.player.deliver_blueprints")),
                 SoundEvents.UI_BUTTON_CLICK.value(), 1.3f
         ));
 
-        // 2. Aeron: Splendid craftsmanship!
+        // 2. Aeron: Splendid! The schematics are intact!
         lines.add(new DialogueManager.DialogueEntry(
-                Text.literal("§6[Aeron] §a").append(Text.translatable("dialogue.elemental.aeron.return_1")),
+                Text.literal("§6[Aeron] §a").append(Text.translatable("dialogue.elemental.aeron.blueprints_received")),
                 ModSounds.NPC_DIALOGUE, 1.1f
         ));
 
-        // 3. Multiplayer check: Give extra jetpacks if more than 1 player is online
-        int onlinePlayers = player.getServer().getPlayerManager().getCurrentPlayerCount();
-        if (onlinePlayers > 1) {
-            lines.add(new DialogueManager.DialogueEntry(
-                    Text.literal("§6[Aeron] §6").append(Text.translatable("dialogue.elemental.aeron.multiplayer_bonus")),
-                    ModSounds.NPC_DIALOGUE, 1.15f
-            ));
-        }
-
-        // 4. Aeron: Sunforged Scimitar lore
+        // 3. Player: Can you decipher them?
         lines.add(new DialogueManager.DialogueEntry(
-                Text.literal("§6[Aeron] §e").append(Text.translatable("dialogue.elemental.aeron.scimitar_lore_1")),
+                Text.literal("§b<" + name + "> §f").append(Text.translatable("dialogue.elemental.player.ask_recipes")),
+                SoundEvents.UI_BUTTON_CLICK.value(), 1.3f
+        ));
+
+        // 4. Aeron: I have transcribed every recipe to your crafting knowledge!
+        lines.add(new DialogueManager.DialogueEntry(
+                Text.literal("§6[Aeron] §e").append(Text.translatable("dialogue.elemental.aeron.recipes_unlocked")),
                 ModSounds.NPC_DIALOGUE, 1.0f
         ));
 
+        // 5. Aeron: Take this prototype Elemental Jetpack!
         lines.add(new DialogueManager.DialogueEntry(
-                Text.literal("§6[Aeron] §e").append(Text.translatable("dialogue.elemental.aeron.scimitar_lore_2")),
+                Text.literal("§6[Aeron] §b§l").append(Text.translatable("dialogue.elemental.aeron.give_jetpack")),
+                ModSounds.NPC_DIALOGUE, 1.15f
+        ));
+
+        // 6. Aeron: Sunforged Scimitar lore
+        lines.add(new DialogueManager.DialogueEntry(
+                Text.literal("§6[Aeron] §6").append(Text.translatable("dialogue.elemental.aeron.scimitar_lore_1")),
                 ModSounds.NPC_DIALOGUE, 1.0f
         ));
 
-        // 5. Aeron: Desert waypoint calibrated!
+        // 7. Aeron: Desert waypoint calibrated!
         lines.add(new DialogueManager.DialogueEntry(
                 Text.literal("§6[Aeron] §d§l").append(Text.translatable("dialogue.elemental.aeron.desert_waypoint")),
                 ModSounds.NPC_DIALOGUE, 1.2f
         ));
 
-        // 6. Player: Heading to the desert!
+        // 8. Player: Heading to the desert!
         lines.add(new DialogueManager.DialogueEntry(
                 Text.literal("§b<" + name + "> §f").append(Text.translatable("dialogue.elemental.player.desert_ready")),
                 SoundEvents.UI_BUTTON_CLICK.value(), 1.3f
         ));
 
         DialogueManager.startConversation(player, lines, () -> {
-            // Supply bonus jetpacks if multiplayer
-            if (onlinePlayers > 1) {
-                int extraCount = onlinePlayers - 1;
-                ItemStack extraStack = new ItemStack(ModItems.ELEMENTAL_JETPACK, extraCount);
-                if (!player.getInventory().insertStack(extraStack)) {
-                    player.dropItem(extraStack, false);
+            PlayerQuestData qData = QuestManager.getPlayerData(player);
+
+            // 1. Give ONLY 1 jetpack to this individual player if they haven't claimed it yet!
+            if (!qData.hasClaimedJetpack()) {
+                qData.setClaimedJetpack(true);
+                ItemStack jetpackStack = new ItemStack(ModItems.ELEMENTAL_JETPACK, 1);
+                if (!player.getInventory().insertStack(jetpackStack)) {
+                    player.dropItem(jetpackStack, false);
                 }
+                player.sendMessage(Text.translatable("message.elemental.jetpack_received").formatted(Formatting.GREEN, Formatting.BOLD), false);
+            } else {
+                player.sendMessage(Text.translatable("message.elemental.already_claimed").formatted(Formatting.GRAY), false);
             }
 
+            // 2. Unlock every recipe required to make a jetpack to the player's crafting menu
+            unlockJetpackRecipes(player);
+
+            // 3. Advance state to DESERT_EXPEDITION
             QuestManager.setQuestState(player, QuestState.DESERT_EXPEDITION);
             player.getWorld().playSound(
                     null,
@@ -257,6 +274,20 @@ public class ChronicleGuideEntity extends PathAwareEntity {
         });
     }
 
+    public static void unlockJetpackRecipes(ServerPlayerEntity player) {
+        var recipeManager = player.server.getRecipeManager();
+        List<Recipe<?>> recipesToUnlock = new ArrayList<>();
+
+        recipeManager.get(new Identifier(Elemental.MOD_ID, "pneumatic_piston")).ifPresent(recipesToUnlock::add);
+        recipeManager.get(new Identifier(Elemental.MOD_ID, "aerogel_core")).ifPresent(recipesToUnlock::add);
+        recipeManager.get(new Identifier(Elemental.MOD_ID, "element_core")).ifPresent(recipesToUnlock::add);
+        recipeManager.get(new Identifier(Elemental.MOD_ID, "elemental_jetpack")).ifPresent(recipesToUnlock::add);
+
+        if (!recipesToUnlock.isEmpty()) {
+            player.unlockRecipes(recipesToUnlock);
+        }
+    }
+
     private void startReminderConversation(ServerPlayerEntity player, QuestState state) {
         String name = player.getName().getString();
         List<DialogueManager.DialogueEntry> lines = new ArrayList<>();
@@ -266,8 +297,9 @@ public class ChronicleGuideEntity extends PathAwareEntity {
                 SoundEvents.UI_BUTTON_CLICK.value(), 1.3f
         ));
 
+        int blueprintsCount = BlueprintMaps.countUniqueBlueprints(player);
         lines.add(new DialogueManager.DialogueEntry(
-                Text.literal("§6[Aeron] §e").append(Text.translatable("dialogue.elemental.aeron.reminder_recipe")),
+                Text.literal("§6[Aeron] §e").append(Text.translatable("dialogue.elemental.aeron.reminder_recipe", blueprintsCount)),
                 ModSounds.NPC_DIALOGUE, 1.0f
         ));
 

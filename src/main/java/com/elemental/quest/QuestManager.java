@@ -1,7 +1,7 @@
 package com.elemental.quest;
 
 import com.elemental.Elemental;
-import com.elemental.block.ModBlocks;
+import com.elemental.item.BlueprintMaps;
 import com.elemental.item.ModItems;
 import com.elemental.network.QuestNetworking;
 import com.elemental.sound.ModSounds;
@@ -41,23 +41,13 @@ public class QuestManager {
             case CRAFT_STONE_TOOLS -> {
                 data.setTargetWaypoint(null);
             }
-            case FIND_AERON, RETURN_TO_AERON -> {
+            case FIND_AERON, RETURN_TO_AERON, CRAFT_JETPACK -> {
                 BlockPos campPos = saveData.getAeronsTentLocation();
                 data.setTargetWaypoint(campPos != null ? campPos : player.getBlockPos());
             }
             case LOCATE_SKYFORGE, SALVAGE_MODULES -> {
                 BlockPos airshipPos = SkyforgeAirshipGenerator.findOrGenerateAirship(world, player.getBlockPos());
                 data.setTargetWaypoint(airshipPos);
-            }
-            case CRAFT_JETPACK -> {
-                BlockPos nearestWeaponer = findNearestWeaponer(world, player.getBlockPos(), 64);
-                if (nearestWeaponer != null) {
-                    data.setTargetWaypoint(nearestWeaponer);
-                } else if (saveData.getAeronsTentLocation() != null) {
-                    data.setTargetWaypoint(saveData.getAeronsTentLocation());
-                } else {
-                    data.setTargetWaypoint(player.getBlockPos());
-                }
             }
             case DESERT_EXPEDITION -> {
                 BlockPos desertPos = saveData.getDesertLocation();
@@ -103,21 +93,6 @@ public class QuestManager {
         return center.add(1000, 0, 800);
     }
 
-    private static BlockPos findNearestWeaponer(ServerWorld world, BlockPos center, int radius) {
-        BlockPos best = null;
-        double bestDistSq = Double.MAX_VALUE;
-        for (BlockPos pos : BlockPos.iterate(center.add(-radius, -10, -radius), center.add(radius, 10, radius))) {
-            if (world.getBlockState(pos).isOf(ModBlocks.WEAPONER)) {
-                double distSq = pos.getSquaredDistance(center);
-                if (distSq < bestDistSq) {
-                    bestDistSq = distSq;
-                    best = pos.toImmutable();
-                }
-            }
-        }
-        return best;
-    }
-
     /**
      * Periodic server-side check for inventory items, proximity, and objective advancement.
      */
@@ -142,7 +117,8 @@ public class QuestManager {
         // Count quest items in player inventory
         int pistonCount = countItem(player, ModItems.PNEUMATIC_PISTON);
         int aerogelCount = countItem(player, ModItems.AEROGEL_CORE);
-        boolean hasBlueprint = countItem(player, ModItems.JETPACK_BLUEPRINT) > 0;
+        int blueprintsCount = BlueprintMaps.countUniqueBlueprints(player);
+        boolean hasAllBlueprints = BlueprintMaps.hasAllBlueprints(player);
         boolean hasJetpack = hasItemOrWorn(player, ModItems.ELEMENTAL_JETPACK);
 
         if (pistonCount != data.getPistonsSalvaged()) {
@@ -153,15 +129,15 @@ public class QuestManager {
             data.setAerogelExtracted(aerogelCount);
             updated = true;
         }
-        if (hasBlueprint != data.isBlueprintFound()) {
-            data.setBlueprintFound(hasBlueprint);
+        if (blueprintsCount != data.getBlueprintsFound()) {
+            data.setBlueprintsFound(blueprintsCount);
             updated = true;
         }
 
         // 2. Proximity check for LOCATE_SKYFORGE -> SALVAGE_MODULES
         if (state == QuestState.LOCATE_SKYFORGE) {
             BlockPos target = data.getTargetWaypoint();
-            if (target != null && player.squaredDistanceTo(target.getX(), target.getY(), target.getZ()) <= 28 * 28) {
+            if (target != null && player.squaredDistanceTo(target.getX(), target.getY(), target.getZ()) <= 32 * 32) {
                 data.setState(QuestState.SALVAGE_MODULES);
                 player.sendMessage(Text.translatable("quest.elemental.airship_reached").formatted(Formatting.GOLD), false);
                 player.getWorld().playSound(null, player.getX(), player.getY(), player.getZ(),
@@ -170,12 +146,12 @@ public class QuestManager {
             }
         }
 
-        // 3. Transition from SALVAGE_MODULES to CRAFT_JETPACK
+        // 3. Transition from SALVAGE_MODULES to RETURN_TO_AERON once all 4 blueprints are found
         if (state == QuestState.SALVAGE_MODULES) {
-            if (pistonCount >= 4 && aerogelCount >= 2 && hasBlueprint) {
-                data.setState(QuestState.CRAFT_JETPACK);
+            if (hasAllBlueprints || hasJetpack) {
+                data.setState(QuestState.RETURN_TO_AERON);
                 updateWaypointForState(player, data);
-                player.sendMessage(Text.translatable("quest.elemental.all_components_salvaged").formatted(Formatting.AQUA), false);
+                player.sendMessage(Text.translatable("quest.elemental.all_blueprints_salvaged").formatted(Formatting.AQUA, Formatting.BOLD), false);
                 player.getWorld().playSound(null, player.getX(), player.getY(), player.getZ(),
                         ModSounds.OBJECTIVE_UPDATED, SoundCategory.PLAYERS, 1.0f, 1.2f);
                 updated = true;

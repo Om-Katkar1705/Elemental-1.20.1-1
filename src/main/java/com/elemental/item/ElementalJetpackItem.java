@@ -126,7 +126,7 @@ public class ElementalJetpackItem extends Item {
         player.velocityModified = true;
         player.fallDistance = 0.0f;
 
-        if (player.getWorld() instanceof ServerWorld serverWorld) {
+        if (player.age % 3 == 0 && player.getWorld() instanceof ServerWorld serverWorld) {
             serverWorld.spawnParticles(ParticleTypes.CLOUD, player.getX(), player.getY() + 0.1, player.getZ(), 2, 0.1, 0.05, 0.1, 0.02);
             serverWorld.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, player.getX(), player.getY() + 0.1, player.getZ(), 2, 0.08, 0.02, 0.08, 0.03);
         }

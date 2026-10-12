@@ -37,6 +37,7 @@ public class QuestNetworking {
         buf.writeInt(data.getState().getId());
         buf.writeInt(data.getPistonsSalvaged());
         buf.writeInt(data.getAerogelExtracted());
+        buf.writeInt(data.getBlueprintsFound());
         buf.writeBoolean(data.isGuidanceActive());
 
         BlockPos target = data.getTargetWaypoint();

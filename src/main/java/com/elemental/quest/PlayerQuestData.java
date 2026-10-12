@@ -10,7 +10,8 @@ public class PlayerQuestData {
     private QuestState state = QuestState.CRAFT_STONE_TOOLS;
     private int pistonsSalvaged = 0;
     private int aerogelExtracted = 0;
-    private boolean blueprintFound = false;
+    private int blueprintsFound = 0;
+    private boolean claimedJetpack = false;
     private BlockPos targetWaypoint = null;
     private boolean guidanceActive = true;
 
@@ -46,12 +47,30 @@ public class PlayerQuestData {
         this.aerogelExtracted = aerogelExtracted;
     }
 
-    public boolean isBlueprintFound() {
-        return blueprintFound;
+    public int getBlueprintsFound() {
+        return blueprintsFound;
     }
 
-    public void setBlueprintFound(boolean blueprintFound) {
-        this.blueprintFound = blueprintFound;
+    public void setBlueprintsFound(int blueprintsFound) {
+        this.blueprintsFound = blueprintsFound;
+    }
+
+    public boolean isBlueprintFound() {
+        return blueprintsFound >= 4;
+    }
+
+    public void setBlueprintFound(boolean found) {
+        if (found && this.blueprintsFound == 0) {
+            this.blueprintsFound = 4;
+        }
+    }
+
+    public boolean hasClaimedJetpack() {
+        return claimedJetpack;
+    }
+
+    public void setClaimedJetpack(boolean claimedJetpack) {
+        this.claimedJetpack = claimedJetpack;
     }
 
     public BlockPos getTargetWaypoint() {
@@ -75,7 +94,8 @@ public class PlayerQuestData {
         nbt.putInt("State", this.state.getId());
         nbt.putInt("Pistons", this.pistonsSalvaged);
         nbt.putInt("Aerogel", this.aerogelExtracted);
-        nbt.putBoolean("Blueprint", this.blueprintFound);
+        nbt.putInt("BlueprintsFound", this.blueprintsFound);
+        nbt.putBoolean("ClaimedJetpack", this.claimedJetpack);
         nbt.putBoolean("GuidanceActive", this.guidanceActive);
         if (this.targetWaypoint != null) {
             nbt.putInt("TargetX", this.targetWaypoint.getX());
@@ -94,8 +114,13 @@ public class PlayerQuestData {
         if (nbt.contains("Aerogel")) {
             this.aerogelExtracted = nbt.getInt("Aerogel");
         }
-        if (nbt.contains("Blueprint")) {
-            this.blueprintFound = nbt.getBoolean("Blueprint");
+        if (nbt.contains("BlueprintsFound")) {
+            this.blueprintsFound = nbt.getInt("BlueprintsFound");
+        } else if (nbt.contains("Blueprint")) {
+            this.blueprintsFound = nbt.getBoolean("Blueprint") ? 4 : 0;
+        }
+        if (nbt.contains("ClaimedJetpack")) {
+            this.claimedJetpack = nbt.getBoolean("ClaimedJetpack");
         }
         if (nbt.contains("GuidanceActive")) {
             this.guidanceActive = nbt.getBoolean("GuidanceActive");

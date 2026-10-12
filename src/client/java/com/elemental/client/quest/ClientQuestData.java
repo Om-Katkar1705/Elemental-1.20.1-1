@@ -7,13 +7,15 @@ public class ClientQuestData {
     private static QuestState state = QuestState.CRAFT_STONE_TOOLS;
     private static int pistonsSalvaged = 0;
     private static int aerogelExtracted = 0;
+    private static int blueprintsFound = 0;
     private static boolean guidanceActive = true;
     private static BlockPos targetWaypoint = null;
 
-    public static void update(QuestState newState, int pistons, int aerogel, boolean guidance, BlockPos target) {
+    public static void update(QuestState newState, int pistons, int aerogel, int blueprints, boolean guidance, BlockPos target) {
         state = newState;
         pistonsSalvaged = pistons;
         aerogelExtracted = aerogel;
+        blueprintsFound = blueprints;
         guidanceActive = guidance;
         targetWaypoint = target;
     }
@@ -28,6 +30,10 @@ public class ClientQuestData {
 
     public static int getAerogelExtracted() {
         return aerogelExtracted;
+    }
+
+    public static int getBlueprintsFound() {
+        return blueprintsFound;
     }
 
     public static boolean isGuidanceActive() {

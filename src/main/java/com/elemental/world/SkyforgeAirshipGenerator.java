@@ -1,6 +1,7 @@
 package com.elemental.world;
 
 import com.elemental.Elemental;
+import com.elemental.item.BlueprintMaps;
 import com.elemental.item.ModItems;
 import com.elemental.quest.QuestSaveData;
 import net.minecraft.block.Blocks;
@@ -10,12 +11,11 @@ import net.minecraft.item.Items;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.Heightmap;
 
 public class SkyforgeAirshipGenerator {
 
     /**
-     * Resolves or generates the Crashed Skyforge Spaceship / Airship landmark buried between stone and dirt layer.
+     * Resolves or generates the Crashed Skyforge Spaceship landmark buried between stone and dirt layer.
      */
     public static BlockPos findOrGenerateAirship(ServerWorld world, BlockPos nearPos) {
         QuestSaveData saveData = QuestSaveData.getServerState(world.getServer());
@@ -28,26 +28,23 @@ public class SkyforgeAirshipGenerator {
         int targetX = nearPos.getX() + 200;
         int targetZ = nearPos.getZ() + 150;
 
-        // Force chunk loading and find surface
-        world.getChunk(targetX >> 4, targetZ >> 4);
-        int surfaceY = world.getTopY(Heightmap.Type.WORLD_SURFACE, targetX, targetZ);
-        if (surfaceY <= world.getBottomY() + 10 || surfaceY > 250) {
-            surfaceY = 70;
-        }
+        // Force chunk loading and find true solid ground surface (never trees/leaves)
+        BlockPos groundPos = AeronsCampHelper.findTrueGroundSurface(world, targetX, targetZ);
+        int surfaceY = groundPos.getY();
 
-        // Spawn between stone and dirt layer (dirt layer is top ~3-4 blocks, so surfaceY - 3 is the stone/dirt interface)
-        int crashY = surfaceY - 3;
+        // Spawn genuinely buried between stone and dirt layer (~4 blocks beneath the surface)
+        int crashY = surfaceY - 4;
         BlockPos crashPos = new BlockPos(targetX, crashY, targetZ);
 
-        generateBuriedSpaceship(world, crashPos);
+        generateBuriedSpaceship(world, crashPos, surfaceY);
         saveData.setSkyforgeAirshipLocation(crashPos);
         saveData.markDirty();
-        Elemental.LOGGER.info("Generated Crashed Spaceship buried at stone/dirt layer: {}", crashPos);
+        Elemental.LOGGER.info("Generated Crashed Spaceship buried at stone/dirt layer: {} (Surface: {})", crashPos, surfaceY);
 
         return crashPos;
     }
 
-    private static void generateBuriedSpaceship(ServerWorld world, BlockPos center) {
+    private static void generateBuriedSpaceship(ServerWorld world, BlockPos center, int surfaceY) {
         // 1. Excavate an impact crater revealing the stone/dirt layer interface
         for (int dx = -5; dx <= 5; dx++) {
             for (int dz = -5; dz <= 5; dz++) {
@@ -63,9 +60,10 @@ public class SkyforgeAirshipGenerator {
                         world.setBlockState(groundPos, Blocks.MOSSY_COBBLESTONE.getDefaultState());
                     }
 
-                    // Clear crater chamber above up to surface
-                    for (int dy = 1; dy <= 4; dy++) {
-                        world.setBlockState(center.add(dx, dy, dz), Blocks.AIR.getDefaultState());
+                    // Clear crater chamber above up through surface and any tree canopies
+                    int maxY = Math.max(surfaceY + 6, center.getY() + 8);
+                    for (int y = center.getY() + 1; y <= maxY; y++) {
+                        world.setBlockState(new BlockPos(center.getX() + dx, y, center.getZ() + dz), Blocks.AIR.getDefaultState());
                     }
                 }
             }
@@ -94,30 +92,47 @@ public class SkyforgeAirshipGenerator {
         world.setBlockState(center.add(-2, 1, 0), Blocks.COPPER_BLOCK.getDefaultState());
         world.setBlockState(center.add(-2, 1, 1), Blocks.SOUL_CAMPFIRE.getDefaultState());
 
-        // Chest 1: Engine Compartment (4 Pneumatic Pistons + Jetpack Blueprint + salvage)
+        // Chest 1: Engine Compartment (4 Pneumatic Pistons + Blueprint: Pneumatic Piston + Blueprint: Element Core + Iron/Redstone)
         BlockPos engineChestPos = center.add(-1, 1, 1);
         world.setBlockState(engineChestPos, Blocks.CHEST.getDefaultState());
         if (world.getBlockEntity(engineChestPos) instanceof ChestBlockEntity chest) {
             chest.setCustomName(Text.translatable("container.elemental.engine_compartment"));
             // 4 Pneumatic Pistons
             chest.setStack(11, new ItemStack(ModItems.PNEUMATIC_PISTON, 4));
-            // 1 Jetpack Blueprint!
-            chest.setStack(13, new ItemStack(ModItems.JETPACK_BLUEPRINT, 1));
+            // Blueprint: Pneumatic Piston
+            chest.setStack(12, BlueprintMaps.createBlueprintMap(world, engineChestPos, BlueprintMaps.Type.PNEUMATIC_PISTON));
+            // Blueprint: Element Core
+            chest.setStack(13, BlueprintMaps.createBlueprintMap(world, engineChestPos, BlueprintMaps.Type.ELEMENT_CORE));
             // Iron & Redstone
             chest.setStack(15, new ItemStack(Items.IRON_INGOT, 4));
             chest.setStack(16, new ItemStack(Items.REDSTONE, 8));
             chest.markDirty();
         }
 
-        // Chest 2: Flotation Chamber (2 Aerogel Cores + salvage)
+        // Chest 2: Flotation Chamber (2 Aerogel Cores + Blueprint: Aerogel Core + Feathers/Glass)
         BlockPos flotationChestPos = center.add(1, 1, 0);
         world.setBlockState(flotationChestPos, Blocks.CHEST.getDefaultState());
         if (world.getBlockEntity(flotationChestPos) instanceof ChestBlockEntity chest) {
             chest.setCustomName(Text.translatable("container.elemental.flotation_chamber"));
             // 2 Aerogel Cores
-            chest.setStack(13, new ItemStack(ModItems.AEROGEL_CORE, 2));
-            chest.setStack(11, new ItemStack(Items.FEATHER, 4));
-            chest.setStack(15, new ItemStack(Items.GLASS, 2));
+            chest.setStack(11, new ItemStack(ModItems.AEROGEL_CORE, 2));
+            // Blueprint: Aerogel Core
+            chest.setStack(13, BlueprintMaps.createBlueprintMap(world, flotationChestPos, BlueprintMaps.Type.AEROGEL_CORE));
+            chest.setStack(14, new ItemStack(Items.FEATHER, 4));
+            chest.setStack(15, new ItemStack(Items.GLASS, 4));
+            chest.markDirty();
+        }
+
+        // Chest 3: Cockpit Flight Deck Archive (Blueprint: Elemental Jetpack + Copper/Coal/Compass)
+        BlockPos cockpitChestPos = center.add(0, 1, -1);
+        world.setBlockState(cockpitChestPos, Blocks.CHEST.getDefaultState());
+        if (world.getBlockEntity(cockpitChestPos) instanceof ChestBlockEntity chest) {
+            chest.setCustomName(Text.translatable("container.elemental.cockpit_archive"));
+            // Blueprint: Elemental Jetpack
+            chest.setStack(13, BlueprintMaps.createBlueprintMap(world, cockpitChestPos, BlueprintMaps.Type.ELEMENTAL_JETPACK));
+            chest.setStack(11, new ItemStack(Items.COPPER_INGOT, 6));
+            chest.setStack(12, new ItemStack(Items.COAL, 8));
+            chest.setStack(15, new ItemStack(Items.COMPASS, 1));
             chest.markDirty();
         }
     }

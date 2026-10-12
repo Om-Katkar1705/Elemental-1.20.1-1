@@ -1,19 +1,21 @@
 package com.elemental.world;
 
 import com.elemental.Elemental;
-import com.elemental.block.ModBlocks;
 import com.elemental.config.ElementalConfig;
 import com.elemental.entity.ChronicleGuideEntity;
 import com.elemental.entity.ModEntities;
 import com.elemental.quest.QuestSaveData;
+import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.entity.ChestBlockEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
 import net.minecraft.world.Heightmap;
 
 import java.util.List;
@@ -45,35 +47,88 @@ public class AeronsCampHelper {
         saveData.setAeronsTentLocation(safeCampPos);
         saveData.setTentGenerated(true);
         saveData.markDirty();
-        Elemental.LOGGER.info("Generated Aeron's Tent Camp at safe location: {}", safeCampPos);
+        Elemental.LOGGER.info("Generated Aeron's Tent Camp at safe ground location: {}", safeCampPos);
     }
 
-    public static BlockPos findSafeSurface(ServerWorld world, BlockPos pos) {
-        // Force chunk generation & loading
-        world.getChunk(pos.getX() >> 4, pos.getZ() >> 4);
+    public static boolean isFoliageOrTree(BlockState state) {
+        if (state.isAir()) return true;
+        if (state.isLiquid()) return true;
+        if (state.isIn(BlockTags.LEAVES)) return true;
+        if (state.isIn(BlockTags.LOGS)) return true;
+        if (state.isIn(BlockTags.FLOWERS)) return true;
+        if (state.isIn(BlockTags.SAPLINGS)) return true;
+        if (state.isIn(BlockTags.WART_BLOCKS)) return true;
+        if (state.isOf(Blocks.MUSHROOM_STEM) || state.isOf(Blocks.RED_MUSHROOM_BLOCK) || state.isOf(Blocks.BROWN_MUSHROOM_BLOCK)) return true;
+        if (state.isOf(Blocks.VINE) || state.isOf(Blocks.GLOW_LICHEN) || state.isOf(Blocks.HANGING_ROOTS) || state.isOf(Blocks.MANGROVE_ROOTS)) return true;
+        if (state.isOf(Blocks.GRASS) || state.isOf(Blocks.TALL_GRASS) || state.isOf(Blocks.FERN) || state.isOf(Blocks.LARGE_FERN) || state.isOf(Blocks.DEAD_BUSH)) return true;
+        if (state.isOf(Blocks.BAMBOO) || state.isOf(Blocks.BAMBOO_SAPLING) || state.isOf(Blocks.SUGAR_CANE) || state.isOf(Blocks.CACTUS)) return true;
+        if (state.isOf(Blocks.SNOW)) return true;
+        return false;
+    }
 
-        int topY = world.getTopY(Heightmap.Type.WORLD_SURFACE, pos.getX(), pos.getZ());
-        if (topY <= world.getBottomY() + 4 || topY > 250) {
-            topY = 70;
+    public static BlockPos findTrueGroundSurface(ServerWorld world, int x, int z) {
+        world.getChunk(x >> 4, z >> 4);
+        int topY = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, x, z);
+        if (topY <= world.getBottomY() + 5 || topY > 250) {
+            topY = 80;
         }
 
-        BlockPos checkPos = new BlockPos(pos.getX(), topY, pos.getZ());
+        BlockPos.Mutable checkPos = new BlockPos.Mutable(x, topY, z);
+        while (checkPos.getY() > world.getBottomY() + 5) {
+            BlockState belowState = world.getBlockState(checkPos.down());
+            if (!isFoliageOrTree(belowState)) {
+                return checkPos.toImmutable();
+            }
+            checkPos.move(Direction.DOWN);
+        }
+        return new BlockPos(x, Math.max(topY, 64), z);
+    }
 
-        // Descend to solid ground
-        while (checkPos.getY() > world.getBottomY() + 5 && (world.getBlockState(checkPos.down()).isAir() || world.getBlockState(checkPos.down()).isLiquid())) {
-            checkPos = checkPos.down();
+    public static BlockPos findSafeSurface(ServerWorld world, BlockPos centerPos) {
+        BlockPos bestPos = null;
+        int bestScore = -100;
+
+        // Search in a spiral / grid around centerPos within 32 blocks
+        for (int r = 0; r <= 32; r += 8) {
+            for (int dx = -r; dx <= r; dx += 8) {
+                for (int dz = -r; dz <= r; dz += 8) {
+                    if (r > 0 && Math.abs(dx) != r && Math.abs(dz) != r) continue;
+
+                    int testX = centerPos.getX() + dx;
+                    int testZ = centerPos.getZ() + dz;
+                    BlockPos surface = findTrueGroundSurface(world, testX, testZ);
+                    BlockState ground = world.getBlockState(surface.down());
+
+                    // Must be on solid ground (not water, not tree leaves/logs)
+                    if (ground.isLiquid() || isFoliageOrTree(ground)) continue;
+
+                    int score = 0;
+                    if (ground.isIn(BlockTags.DIRT) || ground.isOf(Blocks.GRASS_BLOCK)) {
+                        score += 10;
+                    } else if (ground.isIn(BlockTags.BASE_STONE_OVERWORLD) || ground.isIn(BlockTags.SAND)) {
+                        score += 5;
+                    }
+
+                    // Check corners of camp footprint
+                    BlockPos p1 = findTrueGroundSurface(world, testX - 2, testZ - 2);
+                    BlockPos p2 = findTrueGroundSurface(world, testX + 2, testZ + 2);
+                    int heightDiff = Math.abs(p1.getY() - surface.getY()) + Math.abs(p2.getY() - surface.getY());
+                    score -= heightDiff;
+
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestPos = surface;
+                    }
+                }
+            }
+            if (bestScore >= 8) break; // Found a great flat clearing
         }
 
-        // Ascend if inside solid block
-        while (checkPos.getY() < world.getTopY() && !world.getBlockState(checkPos).isAir()) {
-            checkPos = checkPos.up();
-        }
-
-        return checkPos;
+        return bestPos != null ? bestPos : findTrueGroundSurface(world, centerPos.getX(), centerPos.getZ());
     }
 
     public static void buildTentAndCamp(ServerWorld world, BlockPos center) {
-        // 1. Flatten camp clearing (7x7)
+        // 1. Flatten camp clearing (7x7) on true ground
         for (int dx = -3; dx <= 3; dx++) {
             for (int dz = -3; dz <= 3; dz++) {
                 BlockPos ground = center.add(dx, -1, dz);
@@ -82,8 +137,8 @@ public class AeronsCampHelper {
                 } else {
                     world.setBlockState(ground, Blocks.COARSE_DIRT.getDefaultState());
                 }
-                // Clear air above
-                for (int dy = 0; dy <= 4; dy++) {
+                // Clear air & foliage above up to 6 blocks high
+                for (int dy = 0; dy <= 6; dy++) {
                     world.setBlockState(center.add(dx, dy, dz), Blocks.AIR.getDefaultState());
                 }
             }
@@ -133,8 +188,8 @@ public class AeronsCampHelper {
         // Lantern hanging from tent entrance
         world.setBlockState(center.add(0, 2, -1), Blocks.LANTERN.getDefaultState());
 
-        // 4. Weaponer station beside tent
-        world.setBlockState(center.add(2, 0, 0), ModBlocks.WEAPONER.getDefaultState());
+        // 4. Crafting Table beside tent (Weaponer completely removed from camp)
+        world.setBlockState(center.add(2, 0, 0), Blocks.CRAFTING_TABLE.getDefaultState());
 
         // 5. Aeron's Supply Stash Chest inside tent
         BlockPos chestPos = center.add(1, 0, -1);
