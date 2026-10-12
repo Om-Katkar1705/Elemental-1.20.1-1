@@ -21,6 +21,7 @@ import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -76,15 +77,15 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
     // 3 Cores System (100 -> 66 -> 32 -> 0)
     public static final int MAX_CORE_INTEGRITY = 100;
     public static final int CORE_DAMAGE_PER_THORN_CAGE = 34; // 3 hits break the 3 cores
-    public static final int CORE_DAMAGE_PER_EXPOSED_HIT = 17; // 2 weapon hits during core exposure destroy a core
+    public static final int CORE_DAMAGE_PER_EXPOSED_HIT = 34; // 1 Rootbound Axe strike during core exposure destroys a core
 
     // Core Exposure & Stagger
     public static final int CORE_EXPOSURE_DURATION = 90; // 3 seconds exposure after Core Pulse
     public static final int STAGGER_DURATION = 100; // 5 seconds vulnerability after all cores break
     public static final int ENRAGE_COUNTDOWN_TICKS = 600; // 30 seconds
 
-    // Arena boundary
-    public static final double ARENA_RADIUS = 14.0;
+    // Arena boundary (10 block radius center fighting zone)
+    public static final double ARENA_RADIUS = 10.0;
 
     // ==================== ATTACK ENUMS ====================
     public enum AttackType {
@@ -469,9 +470,13 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
 
         if (this.getWorld() instanceof ServerWorld world) {
             world.playSound(null, this.getX(), this.getY(), this.getZ(),
-                    SoundEvents.BLOCK_ANVIL_LAND, SoundCategory.HOSTILE, 1.0f, 1.4f);
+                    SoundEvents.BLOCK_ANVIL_LAND, SoundCategory.HOSTILE, 1.2f, 1.3f);
+            world.playSound(null, this.getX(), this.getY(), this.getZ(),
+                    SoundEvents.ENTITY_ITEM_BREAK, SoundCategory.HOSTILE, 1.5f, 0.85f);
             world.spawnParticles(ParticleTypes.CRIT, this.getX(), this.getY() + 1.5, this.getZ(),
-                    25, 0.4, 0.4, 0.4, 0.15);
+                    35, 0.4, 0.4, 0.4, 0.15);
+            world.spawnParticles(ParticleTypes.FLASH, this.getX(), this.getY() + 1.4, this.getZ(),
+                    2, 0.1, 0.1, 0.1, 0.0);
         }
 
         if (newIntegrity <= 0) {
@@ -482,16 +487,34 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
     // ==================== ELEMENTAL REACTION API ====================
     /**
      * Applies the Thorn Cage elemental reaction.
-     * Directly breaks 1 core (shreds 34 integrity), slows regeneration,
-     * and shatters all cores if integrity reaches 0.
+     * Slows regeneration to 40% for 100 ticks (5s).
+     * If Sir Solvane's radiant core is actively exposed, directly shreds a core (34 integrity).
+     * If the core is guarded/unexposed, armor deflects core damage.
      */
     public void applyThornCageReaction() {
+        applyThornCageReaction(null);
+    }
+
+    public void applyThornCageReaction(PlayerEntity player) {
         if (this.getWorld().isClient()) return;
 
         this.thornCagedTicks = THORN_CAGE_DURATION_TICKS;
         triggerAnimation("thorn_cage_reaction");
 
-        damageCore(CORE_DAMAGE_PER_THORN_CAGE, null);
+        // The Rootbound Axe only destroys the core when it is actively exposed!
+        if (this.coreExposureTicks > 0 && !isCoreBroken()) {
+            damageCore(CORE_DAMAGE_PER_THORN_CAGE, player);
+            this.coreExposureTicks = 0;
+            this.dataTracker.set(DATA_CORE_EXPOSED_ACTIVE, false);
+        } else {
+            // Armor deflects core damage
+            if (this.getWorld() instanceof ServerWorld world) {
+                world.playSound(null, this.getX(), this.getY(), this.getZ(),
+                        SoundEvents.ITEM_SHIELD_BLOCK, SoundCategory.HOSTILE, 1.3f, 0.8f);
+                world.spawnParticles(ParticleTypes.CRIT, this.getX(), this.getY() + 1.2, this.getZ(),
+                        15, 0.3, 0.3, 0.3, 0.05);
+            }
+        }
     }
 
     /**
@@ -877,9 +900,18 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
     // ==================== DAMAGE & IMMORTAL CORE ====================
     @Override
     public boolean damage(DamageSource source, float amount) {
-        // When core is exposed to be destroyed, incoming player attacks damage core integrity!
+        // When core is exposed to be destroyed, incoming player attacks damage core integrity ONLY with Rootbound Axe!
         if (this.coreExposureTicks > 0 && !isCoreBroken() && source.getAttacker() instanceof PlayerEntity player) {
-            damageCore(CORE_DAMAGE_PER_EXPOSED_HIT, player);
+            ItemStack main = player.getMainHandStack();
+            ItemStack off = player.getOffHandStack();
+            boolean isHoldingRootboundAxe = (main != null && main.getItem() instanceof com.elemental.item.RootboundAxeItem)
+                    || (off != null && off.getItem() instanceof com.elemental.item.RootboundAxeItem);
+
+            if (isHoldingRootboundAxe) {
+                damageCore(CORE_DAMAGE_PER_THORN_CAGE, player);
+                this.coreExposureTicks = 0;
+                this.dataTracker.set(DATA_CORE_EXPOSED_ACTIVE, false);
+            }
         }
 
         // Immortal Core mechanic: cannot die while core is unbroken!

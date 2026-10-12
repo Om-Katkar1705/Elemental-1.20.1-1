@@ -68,15 +68,30 @@ public class ModItems {
     public static final Item FIRE_ELEMENT = registerItem("fire_element",
             new Item(new FabricItemSettings()));
 
+    public static final Item PNEUMATIC_PISTON = registerItem("pneumatic_piston",
+            new Item(new FabricItemSettings()));
+    public static final Item AEROGEL_CORE = registerItem("aerogel_core",
+            new Item(new FabricItemSettings()));
+    public static final Item JETPACK_BLUEPRINT = registerItem("jetpack_blueprint",
+            new Item(new FabricItemSettings().rarity(Rarity.UNCOMMON)));
+    public static final Item ELEMENTAL_JETPACK = registerItem("elemental_jetpack",
+            new ElementalJetpackItem(new FabricItemSettings().maxDamage(480).rarity(Rarity.RARE)));
+
     public static void registerModItems() {
-        ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(entries -> entries.add(SUNFORGED_SCIMITAR));
-        ItemGroupEvents.modifyEntriesEvent(ItemGroups.TOOLS).register(entries -> entries.add(SUNFORGED_SCIMITAR));
-        ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(entries -> entries.add(FROSTWAKE_PICK));
-        ItemGroupEvents.modifyEntriesEvent(ItemGroups.TOOLS).register(entries -> entries.add(FROSTWAKE_PICK));
-        ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(entries -> entries.add(ROOTBOUND_AXE));
-        ItemGroupEvents.modifyEntriesEvent(ItemGroups.TOOLS).register(entries -> entries.add(ROOTBOUND_AXE));
-        ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(entries -> entries.add(TIDEBREAKER_TRIDENT));
-        ItemGroupEvents.modifyEntriesEvent(ItemGroups.TOOLS).register(entries -> entries.add(TIDEBREAKER_TRIDENT));
+        ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(entries -> {
+            entries.add(SUNFORGED_SCIMITAR);
+            entries.add(ROOTBOUND_AXE);
+            entries.add(TIDEBREAKER_TRIDENT);
+            entries.add(ELEMENTAL_JETPACK);
+        });
+        ItemGroupEvents.modifyEntriesEvent(ItemGroups.TOOLS).register(entries -> {
+            entries.add(SUNFORGED_SCIMITAR);
+            entries.add(FROSTWAKE_PICK);
+            entries.add(ROOTBOUND_AXE);
+            entries.add(TIDEBREAKER_TRIDENT);
+            entries.add(JETPACK_BLUEPRINT);
+            entries.add(ELEMENTAL_JETPACK);
+        });
 
         ItemGroupEvents.modifyEntriesEvent(ItemGroups.INGREDIENTS).register(entries -> {
             entries.add(STENCIL);
@@ -87,9 +102,15 @@ public class ModItems {
             entries.add(OCEAN_ELEMENT);
             entries.add(MOUNTAIN_ELEMENT);
             entries.add(FIRE_ELEMENT);
+            entries.add(PNEUMATIC_PISTON);
+            entries.add(AEROGEL_CORE);
+            entries.add(JETPACK_BLUEPRINT);
         });
 
-        ItemGroupEvents.modifyEntriesEvent(ItemGroups.FUNCTIONAL).register(entries -> entries.add(ModBlocks.WEAPONER));
+        ItemGroupEvents.modifyEntriesEvent(ItemGroups.FUNCTIONAL).register(entries -> {
+            entries.add(ModBlocks.WEAPONER);
+            entries.add(ModBlocks.EVERLIVING_ALTAR);
+        });
     }
 
     private static Item registerItem(String name, Item item) {

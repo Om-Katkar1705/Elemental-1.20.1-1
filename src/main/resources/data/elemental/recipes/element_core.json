@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    " C ",
+    "CRC",
+    " C "
+  ],
+  "key": {
+    "C": [
+      {
+        "item": "minecraft:copper_ingot"
+      },
+      {
+        "item": "minecraft:cobblestone"
+      }
+    ],
+    "R": {
+      "tag": "minecraft:coals"
+    }
+  },
+  "result": {
+    "item": "elemental:element_core",
+    "count": 2
+  }
+}

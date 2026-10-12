@@ -93,3 +93,13 @@ publishing {
 		// retrieving dependencies.
 	}
 }
+
+tasks.register('copyToModsFolder', Copy) {
+	dependsOn remapJar
+	from remapJar.archiveFile
+	into "C:/Users/omkat/AppData/Roaming/.minecraft/versions/Elemental/mods"
+}
+
+build.finalizedBy(copyToModsFolder)
+remapJar.finalizedBy(copyToModsFolder)
+

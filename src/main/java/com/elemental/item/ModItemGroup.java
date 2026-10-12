@@ -23,6 +23,8 @@ public class ModItemGroup {
                         entries.add(ModItems.MOUNTAIN_ELEMENT);
                         entries.add(ModItems.FIRE_ELEMENT);
                         entries.add(ModItems.ELEMENT_CORE);
+                        entries.add(ModItems.PNEUMATIC_PISTON);
+                        entries.add(ModItems.AEROGEL_CORE);
                     }).build());
 
     public static final ItemGroup ELEMENTAL_WEAPON_GROUP = Registry.register(Registries.ITEM_GROUP,
@@ -30,10 +32,12 @@ public class ModItemGroup {
             FabricItemGroup.builder().displayName(Text.translatable("itemgroup.elemental_weapon_group"))
                     .icon(() -> new ItemStack(ModItems.SUNFORGED_SCIMITAR)).entries((displayContext, entries) -> {
                         entries.add(ModBlocks.WEAPONER);
+                        entries.add(ModBlocks.EVERLIVING_ALTAR);
                         entries.add(ModItems.SUNFORGED_SCIMITAR);
                         entries.add(ModItems.FROSTWAKE_PICK);
                         entries.add(ModItems.ROOTBOUND_AXE);
                         entries.add(ModItems.TIDEBREAKER_TRIDENT);
+                        entries.add(ModItems.ELEMENTAL_JETPACK);
                     }).build());
 
     public static void registerItemGroups() {

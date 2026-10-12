@@ -1,0 +1,26 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "PBP",
+    "PCP",
+    "A A"
+  ],
+  "key": {
+    "P": {
+      "item": "elemental:pneumatic_piston"
+    },
+    "B": {
+      "item": "elemental:jetpack_blueprint"
+    },
+    "C": {
+      "item": "elemental:element_core"
+    },
+    "A": {
+      "item": "elemental:aerogel_core"
+    }
+  },
+  "result": {
+    "item": "elemental:elemental_jetpack",
+    "count": 1
+  }
+}

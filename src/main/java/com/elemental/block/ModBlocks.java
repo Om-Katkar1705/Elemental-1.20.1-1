@@ -21,6 +21,15 @@ public class ModBlocks {
                     .nonOpaque()
             ));
 
+    public static final Block EVERLIVING_ALTAR = registerBlock("everliving_altar",
+            new EverlivingAltarBlock(FabricBlockSettings.create()
+                    .mapColor(MapColor.BLACK)
+                    .strength(5.0f, 1200.0f)
+                    .sounds(BlockSoundGroup.DEEPSLATE)
+                    .luminance(state -> 10)
+                    .requiresTool()
+            ));
+
     private static Block registerBlock(String name, Block block) {
         registerBlockItem(name, block);
         return Registry.register(Registries.BLOCK, new Identifier(Elemental.MOD_ID, name), block);

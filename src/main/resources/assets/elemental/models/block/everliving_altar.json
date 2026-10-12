@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:block/cube",
+  "textures": {
+    "down": "elemental:block/everliving_altar_bottom",
+    "up": "elemental:block/everliving_altar_top",
+    "north": "elemental:block/everliving_altar_side",
+    "south": "elemental:block/everliving_altar_side",
+    "east": "elemental:block/everliving_altar_side",
+    "west": "elemental:block/everliving_altar_side",
+    "particle": "elemental:block/everliving_altar_top"
+  }
+}

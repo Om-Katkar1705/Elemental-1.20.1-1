@@ -3,7 +3,11 @@
 	"package": "com.elemental.mixin",
 	"compatibilityLevel": "JAVA_17",
 	"mixins": [
-		"ExampleMixin"
+		"ExampleMixin",
+		"PlayerEntityMixin",
+		"PlayerScreenHandlerMixin",
+		"ServerPlayerEntityMixin",
+		"SlotAccessor"
 	],
 	"injectors": {
 		"defaultRequire": 1

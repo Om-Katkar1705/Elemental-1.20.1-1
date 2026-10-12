@@ -1,0 +1,31 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "GFG",
+    "FSF",
+    "GFG"
+  ],
+  "key": {
+    "G": {
+      "item": "minecraft:glass"
+    },
+    "F": {
+      "item": "minecraft:feather"
+    },
+    "S": [
+      {
+        "item": "minecraft:snowball"
+      },
+      {
+        "item": "minecraft:slime_ball"
+      },
+      {
+        "item": "minecraft:quartz"
+      }
+    ]
+  },
+  "result": {
+    "item": "elemental:aerogel_core",
+    "count": 1
+  }
+}

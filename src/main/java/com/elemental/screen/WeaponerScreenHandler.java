@@ -48,11 +48,11 @@ public class WeaponerScreenHandler extends ScreenHandler {
         this.player = playerInventory.player;
         inventory.onOpen(playerInventory.player);
 
-        // Slot 0: Base Stencil (Input)
+        // Slot 0: Base Stencil / Element Core (Input)
         this.addSlot(new Slot(inventory, STENCIL_SLOT, 27, 47) {
             @Override
             public boolean canInsert(ItemStack stack) {
-                return stack.isOf(ModItems.STENCIL);
+                return WeaponerRecipes.isValidBase(stack) || WeaponerRecipes.isValidIngredient(stack);
             }
 
             @Override
@@ -62,11 +62,11 @@ public class WeaponerScreenHandler extends ScreenHandler {
             }
         });
 
-        // Slot 1: Element Item (Input)
+        // Slot 1: Element Item / Catalyst Block (Input)
         this.addSlot(new Slot(inventory, ELEMENT_SLOT, 76, 47) {
             @Override
             public boolean canInsert(ItemStack stack) {
-                return WeaponerRecipes.isElementIngredient(stack);
+                return WeaponerRecipes.isValidIngredient(stack) || WeaponerRecipes.isValidBase(stack);
             }
 
             @Override
@@ -184,24 +184,28 @@ public class WeaponerScreenHandler extends ScreenHandler {
                 }
             } else {
                 // Moving from player inventory / hotbar into crafting slots
-                if (originalStack.isOf(ModItems.STENCIL)) {
+                if (WeaponerRecipes.isValidBase(originalStack)) {
                     if (!this.insertItem(originalStack, STENCIL_SLOT, STENCIL_SLOT + 1, false)) {
-                        if (invSlot < HOTBAR_START) {
-                            if (!this.insertItem(originalStack, HOTBAR_START, HOTBAR_END, false)) {
+                        if (!this.insertItem(originalStack, ELEMENT_SLOT, ELEMENT_SLOT + 1, false)) {
+                            if (invSlot < HOTBAR_START) {
+                                if (!this.insertItem(originalStack, HOTBAR_START, HOTBAR_END, false)) {
+                                    return ItemStack.EMPTY;
+                                }
+                            } else if (!this.insertItem(originalStack, INV_START, INV_END, false)) {
                                 return ItemStack.EMPTY;
                             }
-                        } else if (!this.insertItem(originalStack, INV_START, INV_END, false)) {
-                            return ItemStack.EMPTY;
                         }
                     }
-                } else if (WeaponerRecipes.isElementIngredient(originalStack)) {
+                } else if (WeaponerRecipes.isValidIngredient(originalStack)) {
                     if (!this.insertItem(originalStack, ELEMENT_SLOT, ELEMENT_SLOT + 1, false)) {
-                        if (invSlot < HOTBAR_START) {
-                            if (!this.insertItem(originalStack, HOTBAR_START, HOTBAR_END, false)) {
+                        if (!this.insertItem(originalStack, STENCIL_SLOT, STENCIL_SLOT + 1, false)) {
+                            if (invSlot < HOTBAR_START) {
+                                if (!this.insertItem(originalStack, HOTBAR_START, HOTBAR_END, false)) {
+                                    return ItemStack.EMPTY;
+                                }
+                            } else if (!this.insertItem(originalStack, INV_START, INV_END, false)) {
                                 return ItemStack.EMPTY;
                             }
-                        } else if (!this.insertItem(originalStack, INV_START, INV_END, false)) {
-                            return ItemStack.EMPTY;
                         }
                     }
                 } else if (invSlot >= INV_START && invSlot < HOTBAR_START) {

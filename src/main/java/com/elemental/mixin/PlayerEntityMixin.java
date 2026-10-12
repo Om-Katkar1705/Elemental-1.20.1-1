@@ -1,0 +1,87 @@
+package com.elemental.mixin;
+
+import com.elemental.util.JetpackSlotHolder;
+import net.minecraft.entity.EntityType;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.world.GameRules;
+import net.minecraft.world.World;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+@Mixin(PlayerEntity.class)
+public abstract class PlayerEntityMixin extends LivingEntity implements JetpackSlotHolder {
+
+    @Unique
+    private ItemStack elemental$jetpackStack = ItemStack.EMPTY;
+
+    protected PlayerEntityMixin(EntityType<? extends LivingEntity> entityType, World world) {
+        super(entityType, world);
+    }
+
+    @Override
+    public ItemStack elemental$getJetpackSlot() {
+        return this.elemental$jetpackStack != null ? this.elemental$jetpackStack : ItemStack.EMPTY;
+    }
+
+    @Override
+    public void elemental$setJetpackSlot(ItemStack stack) {
+        this.elemental$jetpackStack = stack != null ? stack : ItemStack.EMPTY;
+    }
+
+    @Inject(method = "writeCustomDataToNbt", at = @At("TAIL"))
+    private void elemental$writeJetpackSlot(NbtCompound nbt, CallbackInfo ci) {
+        if (this.elemental$jetpackStack != null && !this.elemental$jetpackStack.isEmpty()) {
+            nbt.put("ElementalJetpackSlot", this.elemental$jetpackStack.writeNbt(new NbtCompound()));
+        }
+    }
+
+    @Inject(method = "readCustomDataFromNbt", at = @At("TAIL"))
+    private void elemental$readJetpackSlot(NbtCompound nbt, CallbackInfo ci) {
+        if (nbt.contains("ElementalJetpackSlot")) {
+            this.elemental$jetpackStack = ItemStack.fromNbt(nbt.getCompound("ElementalJetpackSlot"));
+        } else {
+            this.elemental$jetpackStack = ItemStack.EMPTY;
+        }
+    }
+
+    @Inject(method = "dropInventory", at = @At("TAIL"))
+    private void elemental$dropJetpackSlot(CallbackInfo ci) {
+        PlayerEntity player = (PlayerEntity) (Object) this;
+        if (!player.getWorld().getGameRules().getBoolean(GameRules.KEEP_INVENTORY)) {
+            if (this.elemental$jetpackStack != null && !this.elemental$jetpackStack.isEmpty()) {
+                player.dropItem(this.elemental$jetpackStack, true, false);
+                this.elemental$jetpackStack = ItemStack.EMPTY;
+            }
+        }
+    }
+
+    @Inject(method = "tick", at = @At("TAIL"))
+    private void elemental$tickJetpackSlot(CallbackInfo ci) {
+        if (this.elemental$jetpackStack != null && !this.elemental$jetpackStack.isEmpty()) {
+            this.elemental$jetpackStack.inventoryTick(this.getWorld(), this, -1, true);
+        }
+    }
+
+    @Inject(method = "handleFallDamage", at = @At("HEAD"), cancellable = true)
+    private void elemental$cancelJetpackFallDamage(float fallDistance, float damageMultiplier, net.minecraft.entity.damage.DamageSource damageSource, org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<Boolean> cir) {
+        if (this.elemental$jetpackStack != null && this.elemental$jetpackStack.getItem() instanceof com.elemental.item.ElementalJetpackItem) {
+            cir.setReturnValue(false);
+        }
+    }
+
+    @Inject(method = "updatePose", at = @At("HEAD"), cancellable = true)
+    private void elemental$preventFlightCrouch(CallbackInfo ci) {
+        if (!this.isOnGround() && !this.isTouchingWater() && !this.isSwimming() && !this.isFallFlying()) {
+            if (this.elemental$jetpackStack != null && this.elemental$jetpackStack.getItem() instanceof com.elemental.item.ElementalJetpackItem) {
+                this.setPose(net.minecraft.entity.EntityPose.STANDING);
+                ci.cancel();
+            }
+        }
+    }
+}

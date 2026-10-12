@@ -50,8 +50,19 @@ public class ModEntities {
                     .build()
     );
 
+    public static final EntityType<ChronicleGuideEntity> CHRONICLE_GUIDE = Registry.register(
+            Registries.ENTITY_TYPE,
+            Elemental.id("chronicle_guide"),
+            FabricEntityTypeBuilder.<ChronicleGuideEntity>create(SpawnGroup.CREATURE, ChronicleGuideEntity::new)
+                    .dimensions(EntityDimensions.fixed(0.6f, 1.8f))
+                    .trackRangeBlocks(64)
+                    .trackedUpdateRate(3)
+                    .build()
+    );
+
     public static void registerModEntities() {
         Elemental.LOGGER.info("Registering mod entities for " + Elemental.MOD_ID);
         FabricDefaultAttributeRegistry.register(EVERLIVING_KNIGHT, EverlivingKnightEntity.createKnightAttributes());
+        FabricDefaultAttributeRegistry.register(CHRONICLE_GUIDE, ChronicleGuideEntity.createGuideAttributes());
     }
 }

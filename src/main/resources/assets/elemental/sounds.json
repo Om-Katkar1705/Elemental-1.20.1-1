@@ -1,0 +1,53 @@
+{
+  "npc_dialogue": {
+    "subtitle": "subtitles.elemental.npc_dialogue",
+    "sounds": [
+      "item/book/page_turn1",
+      "mob/villager/idle1"
+    ]
+  },
+  "quest_accepted": {
+    "subtitle": "subtitles.elemental.quest_accepted",
+    "sounds": [
+      {
+        "name": "random/levelup",
+        "pitch": 1.5,
+        "volume": 0.6
+      }
+    ]
+  },
+  "objective_updated": {
+    "subtitle": "subtitles.elemental.objective_updated",
+    "sounds": [
+      {
+        "name": "random/orb",
+        "pitch": 1.4
+      }
+    ]
+  },
+  "quest_completed": {
+    "subtitle": "subtitles.elemental.quest_completed",
+    "sounds": [
+      "ui/toast/challenge_complete"
+    ]
+  },
+  "jetpack_guidance": {
+    "subtitle": "subtitles.elemental.jetpack_guidance",
+    "sounds": [
+      {
+        "name": "block/beacon/activate",
+        "pitch": 1.3
+      }
+    ]
+  },
+  "jetpack_thrust": {
+    "subtitle": "subtitles.elemental.jetpack_thrust",
+    "sounds": [
+      {
+        "name": "item/firecharge/use",
+        "volume": 0.4,
+        "pitch": 1.6
+      }
+    ]
+  }
+}

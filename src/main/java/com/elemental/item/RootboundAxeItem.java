@@ -337,7 +337,7 @@ public class RootboundAxeItem extends AxeItem implements GeoItem {
         for (Entity entity : world.getOtherEntities(user, area)) {
             if (entity instanceof LivingEntity living) {
                 if (living instanceof com.elemental.entity.EverlivingKnightEntity knight) {
-                    knight.applyThornCageReaction();
+                    knight.applyThornCageReaction(user);
                 } else {
                     // Apply piercing damage to regular entities
                     living.damage(user.getDamageSources().thorns(user), THORN_CAGE_DAMAGE_PER_TICK);
