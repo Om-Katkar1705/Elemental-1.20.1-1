@@ -12,6 +12,7 @@ public class PlayerQuestData {
     private int aerogelExtracted = 0;
     private int blueprintsFound = 0;
     private boolean claimedJetpack = false;
+    private boolean completedPhase1Dialogue = false;
     private BlockPos targetWaypoint = null;
     private boolean guidanceActive = true;
 
@@ -73,6 +74,14 @@ public class PlayerQuestData {
         this.claimedJetpack = claimedJetpack;
     }
 
+    public boolean hasCompletedPhase1Dialogue() {
+        return completedPhase1Dialogue;
+    }
+
+    public void setCompletedPhase1Dialogue(boolean completedPhase1Dialogue) {
+        this.completedPhase1Dialogue = completedPhase1Dialogue;
+    }
+
     public BlockPos getTargetWaypoint() {
         return targetWaypoint;
     }
@@ -96,6 +105,7 @@ public class PlayerQuestData {
         nbt.putInt("Aerogel", this.aerogelExtracted);
         nbt.putInt("BlueprintsFound", this.blueprintsFound);
         nbt.putBoolean("ClaimedJetpack", this.claimedJetpack);
+        nbt.putBoolean("CompletedPhase1", this.completedPhase1Dialogue);
         nbt.putBoolean("GuidanceActive", this.guidanceActive);
         if (this.targetWaypoint != null) {
             nbt.putInt("TargetX", this.targetWaypoint.getX());
@@ -121,6 +131,11 @@ public class PlayerQuestData {
         }
         if (nbt.contains("ClaimedJetpack")) {
             this.claimedJetpack = nbt.getBoolean("ClaimedJetpack");
+        }
+        if (nbt.contains("CompletedPhase1")) {
+            this.completedPhase1Dialogue = nbt.getBoolean("CompletedPhase1");
+        } else if (this.state.getId() >= QuestState.LOCATE_SKYFORGE.getId()) {
+            this.completedPhase1Dialogue = true;
         }
         if (nbt.contains("GuidanceActive")) {
             this.guidanceActive = nbt.getBoolean("GuidanceActive");

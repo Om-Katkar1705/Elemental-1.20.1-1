@@ -11,14 +11,27 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 /**
  * Manages timed, sequential two-way chat dialogue between the player and NPCs.
- * Delivers one line every 1.5 seconds (30 ticks) with sound feedback.
+ * Supports configurable per-line delays, action hooks, and skippable conversations.
  */
 public class DialogueManager {
 
-    public record DialogueEntry(Text text, SoundEvent sound, float pitch) {}
+    public record DialogueEntry(Text text, SoundEvent sound, float pitch, int delayTicks, Consumer<ServerPlayerEntity> onDisplay) {
+        public DialogueEntry(Text text, SoundEvent sound, float pitch) {
+            this(text, sound, pitch, 30, null);
+        }
+
+        public DialogueEntry(Text text, SoundEvent sound, float pitch, int delayTicks) {
+            this(text, sound, pitch, delayTicks, null);
+        }
+
+        public DialogueEntry(Text text, SoundEvent sound, float pitch, Consumer<ServerPlayerEntity> onDisplay) {
+            this(text, sound, pitch, 30, onDisplay);
+        }
+    }
 
     public static class ActiveConversation {
         private final UUID playerUuid;
@@ -47,6 +60,23 @@ public class DialogueManager {
 
     public static void cancelConversation(ServerPlayerEntity player) {
         ACTIVE_CONVERSATIONS.remove(player.getUuid());
+    }
+
+    public static void skipConversation(ServerPlayerEntity player) {
+        ActiveConversation conv = ACTIVE_CONVERSATIONS.remove(player.getUuid());
+        if (conv != null) {
+            // Execute any remaining onDisplay actions so rewards or critical triggers are never lost
+            while (conv.currentIndex < conv.lines.size()) {
+                DialogueEntry line = conv.lines.get(conv.currentIndex);
+                if (line.onDisplay() != null) {
+                    line.onDisplay().accept(player);
+                }
+                conv.currentIndex++;
+            }
+            if (conv.onComplete != null) {
+                conv.onComplete.run();
+            }
+        }
     }
 
     public static void tick(MinecraftServer server) {
@@ -85,9 +115,12 @@ public class DialogueManager {
                     );
                 }
 
+                if (line.onDisplay() != null) {
+                    line.onDisplay().accept(player);
+                }
+
                 conv.currentIndex++;
-                // 30 ticks = 1.5 seconds delay before the next line appears
-                conv.timerTicks = 30;
+                conv.timerTicks = line.delayTicks() > 0 ? line.delayTicks() : 30;
             } else {
                 if (conv.onComplete != null) {
                     conv.onComplete.run();

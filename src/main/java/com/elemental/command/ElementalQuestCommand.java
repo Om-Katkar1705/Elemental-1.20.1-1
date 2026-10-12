@@ -19,6 +19,7 @@ import net.minecraft.util.math.BlockPos;
 public class ElementalQuestCommand {
 
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher) {
+        // Admin quest management commands
         dispatcher.register(CommandManager.literal("elementalquest")
                 .requires(source -> source.hasPermissionLevel(2))
                 .then(CommandManager.literal("reset")
@@ -29,7 +30,9 @@ public class ElementalQuestCommand {
                                     data.setState(QuestState.CRAFT_STONE_TOOLS);
                                     data.setPistonsSalvaged(0);
                                     data.setAerogelExtracted(0);
-                                    data.setBlueprintFound(false);
+                                    data.setBlueprintsFound(0);
+                                    data.setCompletedPhase1Dialogue(false);
+                                    data.setClaimedJetpack(false);
                                     data.setTargetWaypoint(null);
                                     com.elemental.quest.DialogueManager.cancelConversation(player);
                                     QuestSaveData saveData = QuestSaveData.getServerState(player.server);
@@ -38,7 +41,7 @@ public class ElementalQuestCommand {
                                     saveData.markDirty();
                                     QuestManager.syncToClient(player);
 
-                                    ctx.getSource().sendFeedback(() -> Text.literal("§aReset quest state and Aeron camp for " + player.getName().getString()), true);
+                                    ctx.getSource().sendFeedback(() -> Text.literal("§aReset quest state, dialogue phase, and Aeron camp for " + player.getName().getString()), true);
                                     return 1;
                                 })))
                 .then(CommandManager.literal("advance")
@@ -112,6 +115,25 @@ public class ElementalQuestCommand {
                             ctx.getSource().sendError(Text.literal("§cFailed to create guide entity."));
                             return 0;
                         }))
+        );
+
+        // Player dialogue choice click handler (no OP permission required)
+        dispatcher.register(CommandManager.literal("elementalask")
+                .then(CommandManager.argument("topic", StringArgumentType.word())
+                        .executes(ctx -> {
+                            ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+                            String topic = StringArgumentType.getString(ctx, "topic");
+                            return ChronicleGuideEntity.handleDialogueChoice(player, topic);
+                        }))
+        );
+
+        // Player dialogue skip button click handler (no OP permission required)
+        dispatcher.register(CommandManager.literal("elementalskip")
+                .executes(ctx -> {
+                    ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+                    com.elemental.quest.DialogueManager.skipConversation(player);
+                    return 1;
+                })
         );
     }
 }
