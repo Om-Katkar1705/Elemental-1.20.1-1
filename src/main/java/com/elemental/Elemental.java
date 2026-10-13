@@ -85,7 +85,7 @@ public class Elemental implements ModInitializer {
 					if (remaining <= 0) {
 						ServerPlayerEntity player = server.getPlayerManager().getPlayer(entry.getKey());
 						if (player != null && !player.isDisconnected()) {
-							com.elemental.world.AeronsCampHelper.initializeWorld(player);
+							com.elemental.world.NbtStructureManager.initializeWorld(player);
 						}
 						it.remove();
 					} else {

@@ -1,0 +1,14 @@
+{
+  "structures": [
+    {
+      "structure": "elemental:crashed_skyforge_ship",
+      "weight": 1
+    }
+  ],
+  "placement": {
+    "type": "minecraft:random_spread",
+    "spacing": 30,
+    "separation": 14,
+    "salt": 83921045
+  }
+}

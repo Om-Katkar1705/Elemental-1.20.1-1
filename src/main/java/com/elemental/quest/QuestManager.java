@@ -5,7 +5,7 @@ import com.elemental.item.BlueprintMaps;
 import com.elemental.item.ModItems;
 import com.elemental.network.QuestNetworking;
 import com.elemental.sound.ModSounds;
-import com.elemental.world.SkyforgeAirshipGenerator;
+import com.elemental.world.NbtStructureManager;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -46,13 +46,13 @@ public class QuestManager {
                 data.setTargetWaypoint(campPos != null ? campPos : player.getBlockPos());
             }
             case LOCATE_SKYFORGE, SALVAGE_MODULES -> {
-                BlockPos airshipPos = SkyforgeAirshipGenerator.findOrGenerateAirship(world, player.getBlockPos());
+                BlockPos airshipPos = NbtStructureManager.findOrGenerateAirship(world, player.getBlockPos());
                 data.setTargetWaypoint(airshipPos);
             }
             case DESERT_EXPEDITION -> {
                 BlockPos desertPos = saveData.getDesertLocation();
                 if (desertPos == null) {
-                    desertPos = com.elemental.world.DesertSanctuaryGenerator.findOrGenerateDesertSanctuary(world, player.getBlockPos());
+                    desertPos = NbtStructureManager.findOrGenerateDesertSanctuary(world, player.getBlockPos());
                 }
                 data.setTargetWaypoint(desertPos);
             }

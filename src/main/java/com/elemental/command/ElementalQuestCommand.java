@@ -6,7 +6,7 @@ import com.elemental.quest.PlayerQuestData;
 import com.elemental.quest.QuestManager;
 import com.elemental.quest.QuestSaveData;
 import com.elemental.quest.QuestState;
-import com.elemental.world.AeronsCampHelper;
+import com.elemental.world.NbtStructureManager;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.minecraft.command.argument.EntityArgumentType;
@@ -93,7 +93,7 @@ public class ElementalQuestCommand {
                 .then(CommandManager.literal("camp")
                         .executes(ctx -> {
                             ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
-                            AeronsCampHelper.initializeWorld(player);
+                            NbtStructureManager.initializeWorld(player);
                             QuestSaveData saveData = QuestSaveData.getServerState(player.server);
                             BlockPos camp = saveData.getAeronsTentLocation();
                             ctx.getSource().sendFeedback(() -> Text.literal("§aAeron's Tent Camp located at: " + (camp != null ? camp.toShortString() : "unknown")), true);
@@ -102,7 +102,7 @@ public class ElementalQuestCommand {
                 .then(CommandManager.literal("spawn_guide")
                         .executes(ctx -> {
                             ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
-                            BlockPos safePos = AeronsCampHelper.findSafeSurface(player.getServerWorld(), player.getBlockPos().add(2, 0, 1));
+                            BlockPos safePos = NbtStructureManager.findSafeSurface(player.getServerWorld(), player.getBlockPos().add(2, 0, 1));
                             ChronicleGuideEntity guide = ModEntities.CHRONICLE_GUIDE.create(player.getServerWorld());
                             if (guide != null) {
                                 guide.refreshPositionAndAngles(safePos.getX() + 0.5, safePos.getY(), safePos.getZ() + 0.5, player.getYaw() + 180.0f, 0.0f);

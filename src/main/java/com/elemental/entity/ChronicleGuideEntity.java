@@ -377,7 +377,7 @@ public class ChronicleGuideEntity extends PathAwareEntity {
                 unlockJetpackRecipes(player);
             }
 
-            BlockPos desertPos = com.elemental.world.DesertSanctuaryGenerator.findOrGenerateDesertSanctuary(player.getServerWorld(), player.getBlockPos());
+            BlockPos desertPos = com.elemental.world.NbtStructureManager.findOrGenerateDesertSanctuary(player.getServerWorld(), player.getBlockPos());
             data.setTargetWaypoint(desertPos);
             QuestManager.setQuestState(player, QuestState.DESERT_EXPEDITION);
             player.sendMessage(Text.translatable("message.elemental.desert_coords", desertPos.getX(), desertPos.getZ()).formatted(Formatting.GOLD, Formatting.BOLD), false);
@@ -508,7 +508,7 @@ public class ChronicleGuideEntity extends PathAwareEntity {
 
     private void startDesertReminderConversation(ServerPlayerEntity player) {
         this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(), ModSounds.NPC_DIALOGUE, SoundCategory.PLAYERS, 0.8f, 1.0f);
-        BlockPos desertPos = com.elemental.world.DesertSanctuaryGenerator.findOrGenerateDesertSanctuary(player.getServerWorld(), player.getBlockPos());
+        BlockPos desertPos = com.elemental.world.NbtStructureManager.findOrGenerateDesertSanctuary(player.getServerWorld(), player.getBlockPos());
         PlayerQuestData qData = QuestManager.getPlayerData(player);
         qData.setTargetWaypoint(desertPos);
         QuestManager.syncToClient(player);
