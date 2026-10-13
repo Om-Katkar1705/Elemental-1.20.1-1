@@ -13,6 +13,12 @@ import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 
+import net.minecraft.structure.StructurePlacementData;
+import net.minecraft.structure.StructureTemplate;
+import net.minecraft.structure.StructureTemplateManager;
+import net.minecraft.util.Identifier;
+import java.util.Optional;
+
 public class SkyforgeAirshipGenerator {
 
     /**
@@ -34,7 +40,34 @@ public class SkyforgeAirshipGenerator {
         int crashY = surfaceY - 6;
         BlockPos crashPos = new BlockPos(bestSurfacePos.getX(), crashY, bestSurfacePos.getZ());
 
-        generateBuriedSpaceship(world, crashPos, surfaceY);
+        StructureTemplateManager templateManager = world.getStructureTemplateManager();
+        Optional<StructureTemplate> templateOpt = templateManager.getTemplate(new Identifier(Elemental.MOD_ID, "crashed_skyforge_ship"));
+        if (templateOpt.isPresent()) {
+            BlockPos placePos = crashPos.add(-6, 0, -6);
+            for (int dx = -5; dx <= 5; dx++) {
+                for (int dz = -5; dz <= 5; dz++) {
+                    int distSq = dx * dx + dz * dz;
+                    if (distSq <= 25) {
+                        for (int fillY = -3; fillY <= -1; fillY++) {
+                            BlockPos underPos = crashPos.add(dx, fillY, dz);
+                            if (world.getBlockState(underPos).isAir() || AeronsCampHelper.isLiquidOrWater(world, underPos)) {
+                                world.setBlockState(underPos, Blocks.STONE.getDefaultState());
+                            }
+                        }
+                        int maxY = Math.max(surfaceY + 6, crashPos.getY() + 8);
+                        for (int y = crashPos.getY() + 1; y <= maxY; y++) {
+                            world.setBlockState(new BlockPos(crashPos.getX() + dx, y, crashPos.getZ() + dz), Blocks.AIR.getDefaultState());
+                        }
+                    }
+                }
+            }
+            templateOpt.get().place(world, placePos, placePos, new StructurePlacementData(), world.getRandom(), net.minecraft.block.Block.NOTIFY_LISTENERS);
+            populateAirshipChests(world, crashPos);
+            Elemental.LOGGER.info("Placed Crashed Spaceship from NBT template at {}", placePos);
+        } else {
+            generateBuriedSpaceship(world, crashPos, surfaceY);
+        }
+
         saveData.setSkyforgeAirshipLocation(crashPos);
         saveData.markDirty();
         Elemental.LOGGER.info("Generated Crashed Spaceship on safe dry highland/cliff: {} (Surface: {})", crashPos, surfaceY);
@@ -174,6 +207,11 @@ public class SkyforgeAirshipGenerator {
             world.setBlockState(center.add(0, y, -4), Blocks.LADDER.getDefaultState().with(LadderBlock.FACING, Direction.SOUTH));
         }
 
+        // Populate the 3 chests
+        populateAirshipChests(world, center);
+    }
+
+    public static void populateAirshipChests(ServerWorld world, BlockPos center) {
         // Chest 1: Engine Compartment (4 Pneumatic Pistons + Blueprint: Pneumatic Piston + Blueprint: Element Core + Iron/Redstone)
         BlockPos engineChestPos = center.add(-1, 1, 1);
         world.setBlockState(engineChestPos, Blocks.CHEST.getDefaultState());

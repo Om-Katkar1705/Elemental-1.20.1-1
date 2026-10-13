@@ -19,7 +19,13 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.world.Heightmap;
 
+import net.minecraft.structure.StructurePlacementData;
+import net.minecraft.structure.StructureTemplate;
+import net.minecraft.structure.StructureTemplateManager;
+import net.minecraft.util.Identifier;
+
 import java.util.List;
+import java.util.Optional;
 
 public class AeronsCampHelper {
 
@@ -37,7 +43,38 @@ public class AeronsCampHelper {
         BlockPos worldSpawn = world.getSpawnPos();
         BlockPos safeCampPos = findSafeSurface(world, worldSpawn);
 
-        buildTentAndCamp(world, safeCampPos);
+        // Try placing from NBT Structure Template with programmatic fallback
+        StructureTemplateManager templateManager = world.getStructureTemplateManager();
+        Optional<StructureTemplate> templateOpt = templateManager.getTemplate(new Identifier(Elemental.MOD_ID, "aerons_camp"));
+        if (templateOpt.isPresent()) {
+            BlockPos placePos = safeCampPos.add(-4, -1, -4);
+            for (int dx = -3; dx <= 3; dx++) {
+                for (int dz = -3; dz <= 3; dz++) {
+                    for (int fillY = -4; fillY <= -2; fillY++) {
+                        BlockPos underPos = safeCampPos.add(dx, fillY, dz);
+                        if (world.getBlockState(underPos).isAir() || isLiquidOrWater(world, underPos)) {
+                            world.setBlockState(underPos, Blocks.DIRT.getDefaultState());
+                        }
+                    }
+                    for (int dy = 0; dy <= 6; dy++) {
+                        world.setBlockState(safeCampPos.add(dx, dy, dz), Blocks.AIR.getDefaultState());
+                    }
+                }
+            }
+            templateOpt.get().place(world, placePos, placePos, new StructurePlacementData(), world.getRandom(), net.minecraft.block.Block.NOTIFY_LISTENERS);
+            BlockPos chestPos = safeCampPos.add(1, 0, -1);
+            if (world.getBlockEntity(chestPos) instanceof ChestBlockEntity chest) {
+                chest.setCustomName(Text.translatable("container.elemental.aerons_chest"));
+                chest.setStack(13, new ItemStack(Items.COOKED_BEEF, 16));
+                chest.setStack(11, new ItemStack(Items.IRON_SWORD));
+                chest.setStack(12, new ItemStack(Items.IRON_PICKAXE));
+                chest.setStack(15, new ItemStack(Items.IRON_AXE));
+                chest.markDirty();
+            }
+            Elemental.LOGGER.info("Placed Aeron's Camp from NBT template at {}", placePos);
+        } else {
+            buildTentAndCamp(world, safeCampPos);
+        }
 
         if (ElementalConfig.get().enableIntroNpc) {
             spawnAeron(world, safeCampPos);
@@ -302,11 +339,6 @@ public class AeronsCampHelper {
         world.setBlockState(center.add(0, 1, -3), Blocks.WHITE_WOOL.getDefaultState());
         world.setBlockState(center.add(1, 1, -3), Blocks.WHITE_WOOL.getDefaultState());
         world.setBlockState(center.add(0, 2, -3), Blocks.ORANGE_WOOL.getDefaultState());
-
-        // Tent floor: carpets
-        world.setBlockState(center.add(-1, 0, -2), Blocks.WHITE_CARPET.getDefaultState());
-        world.setBlockState(center.add(0, 0, -2), Blocks.ORANGE_CARPET.getDefaultState());
-        world.setBlockState(center.add(1, 0, -2), Blocks.WHITE_CARPET.getDefaultState());
 
         // Bed cot
         world.setBlockState(center.add(-1, 0, -1), Blocks.CYAN_BED.getDefaultState());

@@ -52,9 +52,7 @@ public class QuestManager {
             case DESERT_EXPEDITION -> {
                 BlockPos desertPos = saveData.getDesertLocation();
                 if (desertPos == null) {
-                    desertPos = findNearestDesert(world, player.getBlockPos());
-                    saveData.setDesertLocation(desertPos);
-                    saveData.markDirty();
+                    desertPos = com.elemental.world.DesertSanctuaryGenerator.findOrGenerateDesertSanctuary(world, player.getBlockPos());
                 }
                 data.setTargetWaypoint(desertPos);
             }
@@ -173,6 +171,20 @@ public class QuestManager {
             player.getWorld().playSound(null, player.getX(), player.getY(), player.getZ(),
                     ModSounds.OBJECTIVE_UPDATED, SoundCategory.PLAYERS, 1.0f, 1.1f);
             updated = true;
+        }
+
+        // 5. Proximity check for DESERT_EXPEDITION -> arrival at Desert Sanctuary
+        if (state == QuestState.DESERT_EXPEDITION) {
+            BlockPos target = data.getTargetWaypoint();
+            if (target != null && player.squaredDistanceTo(target.getX(), target.getY(), target.getZ()) <= 32 * 32) {
+                data.setState(QuestState.QUEST_COMPLETE);
+                updateWaypointForState(player, data);
+                player.sendMessage(Text.translatable("quest.elemental.desert_sanctuary_reached").formatted(Formatting.GOLD, Formatting.BOLD), false);
+                player.sendMessage(Text.translatable("quest.elemental.quest_complete").formatted(Formatting.GREEN, Formatting.BOLD), false);
+                player.getWorld().playSound(null, player.getX(), player.getY(), player.getZ(),
+                        ModSounds.QUEST_COMPLETED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+                updated = true;
+            }
         }
 
         if (updated) {

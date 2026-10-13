@@ -377,7 +377,10 @@ public class ChronicleGuideEntity extends PathAwareEntity {
                 unlockJetpackRecipes(player);
             }
 
+            BlockPos desertPos = com.elemental.world.DesertSanctuaryGenerator.findOrGenerateDesertSanctuary(player.getServerWorld(), player.getBlockPos());
+            data.setTargetWaypoint(desertPos);
             QuestManager.setQuestState(player, QuestState.DESERT_EXPEDITION);
+            player.sendMessage(Text.translatable("message.elemental.desert_coords", desertPos.getX(), desertPos.getZ()).formatted(Formatting.GOLD, Formatting.BOLD), false);
             player.getWorld().playSound(
                     null,
                     player.getX(),
@@ -505,7 +508,12 @@ public class ChronicleGuideEntity extends PathAwareEntity {
 
     private void startDesertReminderConversation(ServerPlayerEntity player) {
         this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(), ModSounds.NPC_DIALOGUE, SoundCategory.PLAYERS, 0.8f, 1.0f);
-        player.sendMessage(Text.literal("§6[Aeron] §e").append(Text.translatable("dialogue.elemental.aeron.reminder_desert")), false);
+        BlockPos desertPos = com.elemental.world.DesertSanctuaryGenerator.findOrGenerateDesertSanctuary(player.getServerWorld(), player.getBlockPos());
+        PlayerQuestData qData = QuestManager.getPlayerData(player);
+        qData.setTargetWaypoint(desertPos);
+        QuestManager.syncToClient(player);
+        player.sendMessage(Text.literal("§6[Aeron] §e").append(Text.translatable("dialogue.elemental.aeron.reminder_desert", desertPos.getX(), desertPos.getZ())), false);
+        player.sendMessage(Text.translatable("message.elemental.desert_coords", desertPos.getX(), desertPos.getZ()).formatted(Formatting.GOLD, Formatting.BOLD), false);
         showDialogueChoices(player);
     }
 
