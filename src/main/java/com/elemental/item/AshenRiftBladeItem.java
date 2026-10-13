@@ -36,10 +36,20 @@ import net.minecraft.world.RaycastContext;
 import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
 
+import software.bernie.geckolib.animatable.GeoItem;
+import software.bernie.geckolib.animatable.SingletonGeoAnimatable;
+import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
+import software.bernie.geckolib.core.animation.AnimatableManager;
+import software.bernie.geckolib.core.animation.AnimationController;
+import software.bernie.geckolib.core.animation.RawAnimation;
+import software.bernie.geckolib.util.GeckoLibUtil;
+
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
-public class AshenRiftBladeItem extends SwordItem {
+public class AshenRiftBladeItem extends SwordItem implements GeoItem {
 
     public static final int DURABILITY = 1561;
     public static final float BASE_ATTACK_DAMAGE = 4.0f;
@@ -51,16 +61,55 @@ public class AshenRiftBladeItem extends SwordItem {
     public static final String NBT_COLLAPSE_COOLDOWN_END = "AshenCollapseCooldownEnd";
     public static final String NBT_TELEPORT_COOLDOWN_END = "AshenTeleportCooldownEnd";
 
+    // GeckoLib animation definitions
+    private static final RawAnimation IDLE_ANIM = RawAnimation.begin().thenLoop("animation.ashen_rift_blade.idle");
+    private static final RawAnimation COLLAPSE_ANIM = RawAnimation.begin().thenPlay("animation.ashen_rift_blade.collapse");
+    private static final RawAnimation CHARGE_ANIM = RawAnimation.begin().thenLoop("animation.ashen_rift_blade.charge");
+    private static final RawAnimation RELEASE_ANIM = RawAnimation.begin().thenPlay("animation.ashen_rift_blade.release");
+
+    private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
+    private final Supplier<Object> renderProvider = GeoItem.makeRenderer(this);
+
+    public static Consumer<Consumer<Object>> RENDER_PROVIDER_CONSUMER;
+
     private final Multimap<EntityAttribute, EntityAttributeModifier> attributeModifiers;
 
     public AshenRiftBladeItem(Settings settings) {
         super(AshenRiftBladeToolMaterial.INSTANCE, (int) BASE_ATTACK_DAMAGE, BASE_ATTACK_SPEED, settings);
+        SingletonGeoAnimatable.registerSyncedAnimatable(this);
         ImmutableMultimap.Builder<EntityAttribute, EntityAttributeModifier> builder = ImmutableMultimap.builder();
         builder.put(EntityAttributes.GENERIC_ATTACK_DAMAGE, new EntityAttributeModifier(
                 ATTACK_DAMAGE_MODIFIER_ID, "Weapon modifier", 8.0, EntityAttributeModifier.Operation.ADDITION));
         builder.put(EntityAttributes.GENERIC_ATTACK_SPEED, new EntityAttributeModifier(
                 ATTACK_SPEED_MODIFIER_ID, "Weapon modifier", BASE_ATTACK_SPEED, EntityAttributeModifier.Operation.ADDITION));
         this.attributeModifiers = builder.build();
+    }
+
+    @Override
+    public void createRenderer(Consumer<Object> consumer) {
+        if (RENDER_PROVIDER_CONSUMER != null) {
+            RENDER_PROVIDER_CONSUMER.accept(consumer);
+        }
+    }
+
+    @Override
+    public Supplier<Object> getRenderProvider() {
+        return this.renderProvider;
+    }
+
+    @Override
+    public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
+        controllers.add(new AnimationController<>(this, "controller", 4, state -> {
+            return state.setAndContinue(IDLE_ANIM);
+        }).triggerableAnim("collapse", COLLAPSE_ANIM)
+          .triggerableAnim("charge", CHARGE_ANIM)
+          .triggerableAnim("release", RELEASE_ANIM)
+          .triggerableAnim("idle", IDLE_ANIM));
+    }
+
+    @Override
+    public AnimatableInstanceCache getAnimatableInstanceCache() {
+        return this.cache;
     }
 
     @Override
@@ -262,6 +311,11 @@ public class AshenRiftBladeItem extends SwordItem {
         // Then, delegate creation of hole beneath each affected mob, lava spawn after 2s, and refill after 5s
         AshenRiftScheduler.startRiftCollapse(world, player, targets);
 
+        // Trigger GeckoLib collapse animation
+        if (stack.getItem() instanceof AshenRiftBladeItem bladeItem) {
+            bladeItem.triggerAnim(player, GeoItem.getOrAssignId(stack, world), "controller", "collapse");
+        }
+
         // Apply 15-second cooldown and durability loss
         applyCollapseCooldown(world, player, stack, COOLDOWN_COLLAPSE_TICKS);
         Hand finalHand = hand;
@@ -302,6 +356,9 @@ public class AshenRiftBladeItem extends SwordItem {
 
         user.setCurrentHand(hand);
         world.playSound(null, user.getX(), user.getY(), user.getZ(), SoundEvents.BLOCK_RESPAWN_ANCHOR_CHARGE, SoundCategory.PLAYERS, 0.7f, 1.1f);
+        if (!world.isClient() && user instanceof ServerPlayerEntity serverPlayer) {
+            triggerAnim(serverPlayer, GeoItem.getOrAssignId(stack, (ServerWorld) world), "controller", "charge");
+        }
         return TypedActionResult.consume(stack);
     }
 
@@ -394,6 +451,9 @@ public class AshenRiftBladeItem extends SwordItem {
 
         // Schedule falling into initial portal and emergence at destination 5 blocks above
         AshenRiftScheduler.scheduleTeleport(serverWorld, player, initialPos, destPos);
+
+        // Trigger GeckoLib release animation
+        triggerAnim(player, GeoItem.getOrAssignId(stack, serverWorld), "controller", "release");
 
         // Apply cooldown and damage weapon durability
         applyTeleportCooldown(serverWorld, player, stack, COOLDOWN_TELEPORT_TICKS);

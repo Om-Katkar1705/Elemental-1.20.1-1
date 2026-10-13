@@ -1,5 +1,6 @@
 package com.elemental.client;
 
+import com.elemental.client.renderer.AshenRiftBladeRenderer;
 import com.elemental.client.renderer.EverlivingKnightRenderer;
 import com.elemental.client.renderer.FrostwakePickRenderer;
 import com.elemental.client.renderer.RootboundAxeRenderer;
@@ -10,6 +11,7 @@ import com.elemental.client.renderer.TidebreakerTridentEntityRenderer;
 import com.elemental.client.renderer.TidebreakerTridentRenderer;
 import com.elemental.client.screen.WeaponerScreen;
 import com.elemental.entity.ModEntities;
+import com.elemental.item.AshenRiftBladeItem;
 import com.elemental.item.FrostwakePickItem;
 import com.elemental.item.ModItems;
 import com.elemental.item.RootboundAxeItem;
@@ -98,6 +100,21 @@ public class ElementalClient implements ClientModInitializer {
 				public BuiltinModelItemRenderer getCustomRenderer() {
 					if (this.renderer == null) {
 						this.renderer = new TidebreakerTridentRenderer();
+					}
+					return this.renderer;
+				}
+			});
+		};
+
+		// Register GeckoLib custom renderer for the Ashen Rift Blade item
+		AshenRiftBladeItem.RENDER_PROVIDER_CONSUMER = (consumer) -> {
+			consumer.accept(new RenderProvider() {
+				private AshenRiftBladeRenderer renderer;
+
+				@Override
+				public BuiltinModelItemRenderer getCustomRenderer() {
+					if (this.renderer == null) {
+						this.renderer = new AshenRiftBladeRenderer();
 					}
 					return this.renderer;
 				}
