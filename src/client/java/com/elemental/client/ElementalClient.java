@@ -186,7 +186,7 @@ public class ElementalClient implements ClientModInitializer {
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
 			if (client.player == null) return;
 
-			// Tidebreaker dash
+			// Weapon R ability (Tidebreaker dash or Stormcaller thunderclap)
 			while (dashKey.wasPressed()) {
 				ItemStack main = client.player.getMainHandStack();
 				ItemStack off = client.player.getOffHandStack();
@@ -195,6 +195,9 @@ public class ElementalClient implements ClientModInitializer {
 						PacketByteBuf buf = PacketByteBufs.create();
 						ClientPlayNetworking.send(TidebreakerNetworking.DASH_PACKET_ID, buf);
 					}
+				} else if (main.isOf(ModItems.STORMCALLER_HAMMER) || off.isOf(ModItems.STORMCALLER_HAMMER)) {
+					PacketByteBuf buf = PacketByteBufs.create();
+					ClientPlayNetworking.send(com.elemental.network.StormcallerNetworking.THUNDERCLAP_PACKET_ID, buf);
 				}
 			}
 

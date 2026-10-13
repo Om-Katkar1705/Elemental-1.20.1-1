@@ -5,9 +5,11 @@ import com.elemental.block.entity.ModBlockEntities;
 import com.elemental.entity.ModEntities;
 import com.elemental.item.ModItemGroup;
 import com.elemental.item.ModItems;
+import com.elemental.network.StormcallerNetworking;
 import com.elemental.network.TidebreakerNetworking;
 import com.elemental.recipe.WeaponerRecipes;
 import com.elemental.screen.ModScreenHandlers;
+import com.elemental.util.StormcallerLightningScheduler;
 import com.elemental.util.SunforgedHeatHandler;
 import net.fabricmc.api.ModInitializer;
 import net.minecraft.util.Identifier;
@@ -48,6 +50,8 @@ public class Elemental implements ModInitializer {
 		ModEntities.registerModEntities();
 		SunforgedHeatHandler.register();
 		TidebreakerNetworking.registerServerReceivers();
+		StormcallerNetworking.registerServerReceivers();
+		StormcallerLightningScheduler.register();
 		QuestNetworking.registerServerReceivers();
 
 		// Register commands

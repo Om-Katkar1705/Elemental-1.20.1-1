@@ -50,6 +50,14 @@ public class ModItems {
                     new FabricItemSettings().maxDamage(TidebreakerTridentItem.MAX_DURABILITY).rarity(Rarity.RARE)
             )
     );
+    public static final Item STORMCALLER_HAMMER = Registry.register(
+            Registries.ITEM,
+            new Identifier(Elemental.MOD_ID, "stormcaller_hammer"),
+            new StormcallerHammerItem(
+                    new FabricItemSettings().maxDamage(StormcallerHammerItem.DURABILITY).rarity(Rarity.RARE)
+            )
+    );
+
 
     public static final Item STENCIL = registerItem("stencil",
             new Item(new FabricItemSettings()));
@@ -80,6 +88,7 @@ public class ModItems {
             entries.add(SUNFORGED_SCIMITAR);
             entries.add(ROOTBOUND_AXE);
             entries.add(TIDEBREAKER_TRIDENT);
+            entries.add(STORMCALLER_HAMMER);
             entries.add(ELEMENTAL_JETPACK);
         });
         ItemGroupEvents.modifyEntriesEvent(ItemGroups.TOOLS).register(entries -> {
@@ -87,6 +96,7 @@ public class ModItems {
             entries.add(FROSTWAKE_PICK);
             entries.add(ROOTBOUND_AXE);
             entries.add(TIDEBREAKER_TRIDENT);
+            entries.add(STORMCALLER_HAMMER);
             entries.add(ELEMENTAL_JETPACK);
         });
 

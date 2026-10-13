@@ -37,6 +37,7 @@ public class ModItemGroup {
                         entries.add(ModItems.FROSTWAKE_PICK);
                         entries.add(ModItems.ROOTBOUND_AXE);
                         entries.add(ModItems.TIDEBREAKER_TRIDENT);
+                        entries.add(ModItems.STORMCALLER_HAMMER);
                         entries.add(ModItems.ELEMENTAL_JETPACK);
                     }).build());
 
