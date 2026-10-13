@@ -266,7 +266,16 @@ public class ChronicleGuideEntity extends PathAwareEntity {
         // 2. Aeron: Let me see… These are flight schematics. A jetpack—an artificer’s device for rising, hovering, and crossing the highlands.
         lines.add(new DialogueManager.DialogueEntry(
                 Text.literal("§6[Aeron] §a").append(Text.translatable("dialogue.elemental.aeron.phase2_2")),
-                ModSounds.NPC_DIALOGUE, 1.1f
+                ModSounds.NPC_DIALOGUE, 1.1f,
+                30,
+                p -> {
+                    int removed = BlueprintMaps.removeAllBlueprintMaps(p);
+                    if (removed > 0) {
+                        p.sendMessage(Text.translatable("message.elemental.blueprints_taken").formatted(Formatting.YELLOW, Formatting.ITALIC), false);
+                        p.getWorld().playSound(null, p.getX(), p.getY(), p.getZ(),
+                                SoundEvents.ENTITY_ITEM_PICKUP, SoundCategory.PLAYERS, 0.8f, 1.2f);
+                    }
+                }
         ));
 
         // 3. Player: Can you make it work?
@@ -300,6 +309,7 @@ public class ChronicleGuideEntity extends PathAwareEntity {
                 ModSounds.NPC_DIALOGUE, 1.1f,
                 25,
                 p -> {
+                    BlueprintMaps.removeAllBlueprintMaps(p);
                     PlayerQuestData data = QuestManager.getPlayerData(p);
                     if (!data.hasClaimedJetpack()) {
                         data.setClaimedJetpack(true);
@@ -352,6 +362,7 @@ public class ChronicleGuideEntity extends PathAwareEntity {
         ));
 
         DialogueManager.startConversation(player, lines, () -> {
+            BlueprintMaps.removeAllBlueprintMaps(player);
             PlayerQuestData data = QuestManager.getPlayerData(player);
             // Ensure jetpack claimed and recipes unlocked even if skipped
             if (!data.hasClaimedJetpack()) {

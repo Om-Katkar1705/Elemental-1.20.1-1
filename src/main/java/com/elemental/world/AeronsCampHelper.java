@@ -10,6 +10,7 @@ import net.minecraft.block.Blocks;
 import net.minecraft.block.entity.ChestBlockEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.registry.tag.BiomeTags;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -32,10 +33,9 @@ public class AeronsCampHelper {
             return;
         }
 
-        // Generate Aeron's rustic tent camp ~120 blocks away from world spawn
+        // Generate Aeron's rustic tent camp ~90-120 blocks away from world spawn on safe dry land
         BlockPos worldSpawn = world.getSpawnPos();
-        BlockPos rawCampPos = worldSpawn.add(90, 0, 75);
-        BlockPos safeCampPos = findSafeSurface(world, rawCampPos);
+        BlockPos safeCampPos = findSafeSurface(world, worldSpawn);
 
         buildTentAndCamp(world, safeCampPos);
 
@@ -47,12 +47,38 @@ public class AeronsCampHelper {
         saveData.setAeronsTentLocation(safeCampPos);
         saveData.setTentGenerated(true);
         saveData.markDirty();
-        Elemental.LOGGER.info("Generated Aeron's Tent Camp at safe ground location: {}", safeCampPos);
+        Elemental.LOGGER.info("Generated Aeron's Tent Camp at safe dry land location: {}", safeCampPos);
+    }
+
+    public static boolean isLiquidOrWater(ServerWorld world, BlockPos pos) {
+        if (pos == null) return false;
+        BlockState state = world.getBlockState(pos);
+        if (state.isLiquid()) return true;
+        if (!world.getFluidState(pos).isEmpty()) return true;
+        if (state.isOf(Blocks.WATER) || state.isOf(Blocks.LAVA)
+                || state.isOf(Blocks.SEAGRASS) || state.isOf(Blocks.TALL_SEAGRASS)
+                || state.isOf(Blocks.KELP) || state.isOf(Blocks.KELP_PLANT)
+                || state.isOf(Blocks.BUBBLE_COLUMN) || state.isOf(Blocks.ICE)
+                || state.isOf(Blocks.FROSTED_ICE)) {
+            return true;
+        }
+        return false;
+    }
+
+    public static boolean isWaterBiome(ServerWorld world, BlockPos pos) {
+        if (pos == null) return false;
+        try {
+            var biome = world.getBiome(pos);
+            if (biome.isIn(BiomeTags.IS_OCEAN) || biome.isIn(BiomeTags.IS_RIVER)) {
+                return true;
+            }
+        } catch (Exception ignored) {}
+        return false;
     }
 
     public static boolean isFoliageOrTree(BlockState state) {
         if (state.isAir()) return true;
-        if (state.isLiquid()) return true;
+        // Liquids are strictly handled by isLiquidOrWater and must NEVER be treated as foliage
         if (state.isIn(BlockTags.LEAVES)) return true;
         if (state.isIn(BlockTags.LOGS)) return true;
         if (state.isIn(BlockTags.FLOWERS)) return true;
@@ -73,64 +99,164 @@ public class AeronsCampHelper {
             topY = 80;
         }
 
+        int seaLevel = world.getSeaLevel();
+        // If surface or sea level in this column has liquid/water, reject immediately
+        if (isLiquidOrWater(world, new BlockPos(x, topY, z)) ||
+            isLiquidOrWater(world, new BlockPos(x, Math.max(topY - 1, seaLevel), z)) ||
+            isLiquidOrWater(world, new BlockPos(x, seaLevel, z))) {
+            return null;
+        }
+
         BlockPos.Mutable checkPos = new BlockPos.Mutable(x, topY, z);
         while (checkPos.getY() > world.getBottomY() + 5) {
+            if (isLiquidOrWater(world, checkPos) || isLiquidOrWater(world, checkPos.down())) {
+                return null;
+            }
+
             BlockState belowState = world.getBlockState(checkPos.down());
             if (!isFoliageOrTree(belowState)) {
+                if (checkPos.getY() < seaLevel) {
+                    return null;
+                }
+                if (isWaterBiome(world, checkPos)) {
+                    return null;
+                }
                 return checkPos.toImmutable();
             }
             checkPos.move(Direction.DOWN);
         }
-        return new BlockPos(x, Math.max(topY, 64), z);
+        return null;
     }
 
-    public static BlockPos findSafeSurface(ServerWorld world, BlockPos centerPos) {
+    public static boolean isSafeDryLandFootprint(ServerWorld world, BlockPos center, int radius, int maxAllowedElevationDiff) {
+        if (center == null) return false;
+        int seaLevel = world.getSeaLevel();
+        if (center.getY() < seaLevel) return false;
+        if (isWaterBiome(world, center)) return false;
+
+        int centerY = center.getY();
+
+        for (int dx = -radius; dx <= radius; dx += 2) {
+            for (int dz = -radius; dz <= radius; dz += 2) {
+                if (dx * dx + dz * dz > radius * radius) continue;
+                int checkX = center.getX() + dx;
+                int checkZ = center.getZ() + dz;
+
+                if (isLiquidOrWater(world, new BlockPos(checkX, seaLevel, checkZ))) {
+                    return false;
+                }
+                if (isLiquidOrWater(world, new BlockPos(checkX, centerY, checkZ))) {
+                    return false;
+                }
+                if (isWaterBiome(world, new BlockPos(checkX, centerY, checkZ))) {
+                    return false;
+                }
+
+                BlockPos ground = findTrueGroundSurface(world, checkX, checkZ);
+                if (ground == null) {
+                    return false;
+                }
+
+                if (Math.abs(ground.getY() - centerY) > maxAllowedElevationDiff) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    public static BlockPos findSafeSurface(ServerWorld world, BlockPos originPos) {
         BlockPos bestPos = null;
-        int bestScore = -100;
+        int bestScore = Integer.MIN_VALUE;
 
-        // Search in a spiral / grid around centerPos within 32 blocks
-        for (int r = 0; r <= 32; r += 8) {
-            for (int dx = -r; dx <= r; dx += 8) {
-                for (int dz = -r; dz <= r; dz += 8) {
-                    if (r > 0 && Math.abs(dx) != r && Math.abs(dz) != r) continue;
+        // Search concentric rings from 60 to 240 blocks around originPos
+        int[] radii = new int[]{60, 80, 100, 120, 140, 170, 200, 240};
+        int numAngles = 16;
 
-                    int testX = centerPos.getX() + dx;
-                    int testZ = centerPos.getZ() + dz;
-                    BlockPos surface = findTrueGroundSurface(world, testX, testZ);
-                    BlockState ground = world.getBlockState(surface.down());
+        for (int r : radii) {
+            for (int i = 0; i < numAngles; i++) {
+                double angle = (2.0 * Math.PI * i) / numAngles;
+                int testX = originPos.getX() + (int) Math.round(r * Math.cos(angle));
+                int testZ = originPos.getZ() + (int) Math.round(r * Math.sin(angle));
 
-                    // Must be on solid ground (not water, not tree leaves/logs)
-                    if (ground.isLiquid() || isFoliageOrTree(ground)) continue;
+                BlockPos ground = findTrueGroundSurface(world, testX, testZ);
+                if (ground == null) continue;
 
-                    int score = 0;
-                    if (ground.isIn(BlockTags.DIRT) || ground.isOf(Blocks.GRASS_BLOCK)) {
-                        score += 10;
-                    } else if (ground.isIn(BlockTags.BASE_STONE_OVERWORLD) || ground.isIn(BlockTags.SAND)) {
-                        score += 5;
-                    }
+                if (!isSafeDryLandFootprint(world, ground, 3, 2)) continue;
 
-                    // Check corners of camp footprint
-                    BlockPos p1 = findTrueGroundSurface(world, testX - 2, testZ - 2);
-                    BlockPos p2 = findTrueGroundSurface(world, testX + 2, testZ + 2);
-                    int heightDiff = Math.abs(p1.getY() - surface.getY()) + Math.abs(p2.getY() - surface.getY());
-                    score -= heightDiff;
+                BlockState groundState = world.getBlockState(ground.down());
+                int score = 100;
 
-                    if (score > bestScore) {
-                        bestScore = score;
-                        bestPos = surface;
+                // Prefer grass or dirt
+                if (groundState.isIn(BlockTags.DIRT) || groundState.isOf(Blocks.GRASS_BLOCK)) {
+                    score += 50;
+                } else if (groundState.isIn(BlockTags.BASE_STONE_OVERWORLD) || groundState.isIn(BlockTags.SAND)) {
+                    score += 20;
+                }
+
+                // Prefer sensible walking elevation (Y: 64..85)
+                if (ground.getY() >= 64 && ground.getY() <= 85) {
+                    score += 30;
+                } else if (ground.getY() > 85) {
+                    score -= (ground.getY() - 85);
+                }
+
+                // Slight preference for distance ~90-120
+                score -= Math.abs(r - 100) / 2;
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestPos = ground;
+                    if (bestScore >= 160) {
+                        return bestPos;
                     }
                 }
             }
-            if (bestScore >= 8) break; // Found a great flat clearing
         }
 
-        return bestPos != null ? bestPos : findTrueGroundSurface(world, centerPos.getX(), centerPos.getZ());
+        if (bestPos != null) {
+            return bestPos;
+        }
+
+        // Expanded fallback if spawn was on a tiny coastal strip:
+        int[] widerRadii = new int[]{280, 320, 360};
+        for (int r : widerRadii) {
+            for (int i = 0; i < 20; i++) {
+                double angle = (2.0 * Math.PI * i) / 20;
+                int testX = originPos.getX() + (int) Math.round(r * Math.cos(angle));
+                int testZ = originPos.getZ() + (int) Math.round(r * Math.sin(angle));
+
+                BlockPos ground = findTrueGroundSurface(world, testX, testZ);
+                if (ground != null && isSafeDryLandFootprint(world, ground, 3, 3)) {
+                    return ground;
+                }
+            }
+        }
+
+        // Local fallback: search directly around originPos for ANY valid dry land
+        for (int dx = -32; dx <= 32; dx += 4) {
+            for (int dz = -32; dz <= 32; dz += 4) {
+                BlockPos ground = findTrueGroundSurface(world, originPos.getX() + dx, originPos.getZ() + dz);
+                if (ground != null) {
+                    return ground;
+                }
+            }
+        }
+
+        return originPos.add(90, 10, 75);
     }
 
     public static void buildTentAndCamp(ServerWorld world, BlockPos center) {
-        // 1. Flatten camp clearing (7x7) on true ground
+        // 1. Flatten camp clearing (7x7) on true ground with solid foundation
         for (int dx = -3; dx <= 3; dx++) {
             for (int dz = -3; dz <= 3; dz++) {
+                // Fill down beneath to guarantee solid dirt under the entire camp
+                for (int fillY = -4; fillY <= -2; fillY++) {
+                    BlockPos underPos = center.add(dx, fillY, dz);
+                    if (world.getBlockState(underPos).isAir() || isLiquidOrWater(world, underPos)) {
+                        world.setBlockState(underPos, Blocks.DIRT.getDefaultState());
+                    }
+                }
                 BlockPos ground = center.add(dx, -1, dz);
                 if (Math.abs(dx) + Math.abs(dz) <= 4) {
                     world.setBlockState(ground, Blocks.DIRT_PATH.getDefaultState());

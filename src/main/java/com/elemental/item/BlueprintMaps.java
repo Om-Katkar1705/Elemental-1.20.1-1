@@ -1,9 +1,11 @@
 package com.elemental.item;
 
+import com.elemental.Elemental;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.FilledMapItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.item.map.MapState;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtList;
 import net.minecraft.nbt.NbtString;
@@ -11,9 +13,15 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.World;
+
+import java.io.InputStream;
+import java.util.EnumMap;
+import java.util.Map;
 
 public class BlueprintMaps {
     public static final String BLUEPRINT_TAG = "ElementalBlueprint";
+    private static final Map<Type, byte[]> CACHED_COLORS = new EnumMap<>(Type.class);
 
     public enum Type {
         PNEUMATIC_PISTON("pneumatic_piston", "§6§lBlueprint: Pneumatic Piston", "Pneumatic Piston (Iron, Copper, Piston, Redstone)", Formatting.GOLD),
@@ -50,8 +58,47 @@ public class BlueprintMaps {
         }
     }
 
+    public static byte[] getBlueprintColors(Type type) {
+        if (CACHED_COLORS.containsKey(type)) {
+            return CACHED_COLORS.get(type);
+        }
+        String path = "/assets/elemental/textures/map/" + type.getId() + "_bytes.bin";
+        try (InputStream is = BlueprintMaps.class.getResourceAsStream(path)) {
+            if (is != null) {
+                byte[] bytes = is.readAllBytes();
+                if (bytes.length == 16384) {
+                    CACHED_COLORS.put(type, bytes);
+                    return bytes;
+                } else {
+                    Elemental.LOGGER.error("Invalid map bytes length for {}: {}", type.getId(), bytes.length);
+                }
+            } else {
+                Elemental.LOGGER.error("Could not find blueprint map file at {}", path);
+            }
+        } catch (Exception e) {
+            Elemental.LOGGER.error("Failed to load blueprint map colors for {}", type.getId(), e);
+        }
+        return null;
+    }
+
+    public static void applyBlueprintToMap(MapState state, Type type) {
+        if (state == null || type == null) return;
+        byte[] colors = getBlueprintColors(type);
+        if (colors != null && colors.length == 16384) {
+            System.arraycopy(colors, 0, state.colors, 0, 16384);
+            state.replaceIcons(java.util.Collections.emptyList());
+            // Mark bounds dirty so all players receive full 128x128 map update
+            state.setColor(0, 0, state.colors[0]);
+            state.setColor(127, 127, state.colors[127 + 127 * 128]);
+            if (state instanceof BlueprintMapStateAccessor accessor) {
+                accessor.elemental$setBlueprintType(type.getId());
+            }
+            state.markDirty();
+        }
+    }
+
     public static ItemStack createBlueprintMap(ServerWorld world, BlockPos pos, Type type) {
-        ItemStack mapStack = FilledMapItem.createMap(world, pos.getX(), pos.getZ(), (byte) 2, true, true);
+        ItemStack mapStack = FilledMapItem.createMap(world, pos.getX(), pos.getZ(), (byte) 2, false, false);
         mapStack.setCustomName(Text.literal(type.getTitle()));
 
         NbtCompound nbt = mapStack.getOrCreateNbt();
@@ -64,17 +111,54 @@ public class BlueprintMaps {
         loreList.add(NbtString.of(Text.Serializer.toJson(Text.literal("§dDeliver to Aeron at camp to decipher recipe!").formatted(Formatting.LIGHT_PURPLE))));
         display.put(ItemStack.LORE_KEY, loreList);
 
+        // Apply recipe colors to MapState immediately upon creation
+        MapState mapState = FilledMapItem.getMapState(mapStack, world);
+        if (mapState != null) {
+            applyBlueprintToMap(mapState, type);
+        }
+
         return mapStack;
     }
 
-    public static boolean isBlueprint(ItemStack stack, Type type) {
-        if (stack == null || stack.isEmpty()) return false;
-        if (!stack.isOf(Items.FILLED_MAP) && !stack.isOf(Items.MAP)) return false;
-        if (stack.hasNbt() && type.getId().equals(stack.getNbt().getString(BLUEPRINT_TAG))) {
-            return true;
+    public static Type getBlueprintType(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return null;
+        if (!stack.isOf(Items.FILLED_MAP) && !stack.isOf(Items.MAP)) return null;
+        if (stack.hasNbt() && stack.getNbt().contains(BLUEPRINT_TAG)) {
+            String id = stack.getNbt().getString(BLUEPRINT_TAG);
+            for (Type t : Type.values()) {
+                if (t.getId().equals(id)) return t;
+            }
         }
         String name = stack.getName().getString().toLowerCase();
-        return name.contains("blueprint") && name.contains(type.getId().replace("_", " "));
+        for (Type t : Type.values()) {
+            if (name.contains("blueprint") && name.contains(t.getId().replace("_", " "))) {
+                return t;
+            }
+        }
+        return null;
+    }
+
+    public static boolean isBlueprint(ItemStack stack) {
+        return getBlueprintType(stack) != null;
+    }
+
+    public static boolean isBlueprint(ItemStack stack, Type type) {
+        return getBlueprintType(stack) == type;
+    }
+
+    public static void ensureBlueprintMapInitialized(ItemStack stack, World world) {
+        Type type = getBlueprintType(stack);
+        if (type == null) return;
+        MapState state = FilledMapItem.getMapState(stack, world);
+        if (state != null) {
+            if (state instanceof BlueprintMapStateAccessor accessor) {
+                if (accessor.elemental$getBlueprintType() == null) {
+                    applyBlueprintToMap(state, type);
+                }
+            } else {
+                applyBlueprintToMap(state, type);
+            }
+        }
     }
 
     public static boolean hasBlueprint(PlayerEntity player, Type type) {
@@ -99,5 +183,29 @@ public class BlueprintMaps {
 
     public static boolean hasAllBlueprints(PlayerEntity player) {
         return countUniqueBlueprints(player) >= Type.values().length;
+    }
+
+    public static int removeAllBlueprintMaps(PlayerEntity player) {
+        if (player == null) return 0;
+        int removed = 0;
+        for (int i = 0; i < player.getInventory().size(); i++) {
+            ItemStack stack = player.getInventory().getStack(i);
+            if (isBlueprint(stack)) {
+                removed += stack.getCount();
+                player.getInventory().setStack(i, ItemStack.EMPTY);
+            }
+        }
+        if (player.currentScreenHandler != null) {
+            ItemStack cursorStack = player.currentScreenHandler.getCursorStack();
+            if (isBlueprint(cursorStack)) {
+                removed += cursorStack.getCount();
+                player.currentScreenHandler.setCursorStack(ItemStack.EMPTY);
+            }
+        }
+        player.getInventory().markDirty();
+        if (player.playerScreenHandler != null) {
+            player.playerScreenHandler.syncState();
+        }
+        return removed;
     }
 }

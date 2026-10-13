@@ -114,6 +114,7 @@
 
   "message.elemental.stone_tool_crafted": "§6[!] Stone tool crafted! Waypoint active: Locate Aeron's Camp.",
   "message.elemental.jetpack_received": "§a§l[!] Aeron granted you an Elemental Jetpack and unlocked all 4 crafting recipes!",
+  "message.elemental.blueprints_taken": "§e[!] Aeron took the flight blueprint schematics to examine them.",
   "message.elemental.already_claimed": "§7[!] You have already claimed your Elemental Jetpack from Aeron.",
   "message.elemental.guidance_enabled": "Waypoint Guidance: [ENABLED]",
   "message.elemental.guidance_disabled": "Waypoint Guidance: [DISABLED]",

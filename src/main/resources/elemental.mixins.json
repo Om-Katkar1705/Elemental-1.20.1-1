@@ -7,7 +7,9 @@
 		"PlayerEntityMixin",
 		"PlayerScreenHandlerMixin",
 		"ServerPlayerEntityMixin",
-		"SlotAccessor"
+		"SlotAccessor",
+		"MapStateMixin",
+		"FilledMapItemMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

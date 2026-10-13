@@ -129,8 +129,15 @@ public class QuestManager {
             data.setAerogelExtracted(aerogelCount);
             updated = true;
         }
-        if (blueprintsCount != data.getBlueprintsFound()) {
-            data.setBlueprintsFound(blueprintsCount);
+        // Blueprints count: track while discovering/salvaging. Once returned to Aeron or later,
+        // Aeron takes the maps to examine them, so preserve 4 blueprints salvaged without regressing to 0.
+        if (state.getId() < QuestState.RETURN_TO_AERON.getId() && !data.hasClaimedJetpack()) {
+            if (blueprintsCount != data.getBlueprintsFound()) {
+                data.setBlueprintsFound(blueprintsCount);
+                updated = true;
+            }
+        } else if (data.getBlueprintsFound() < 4) {
+            data.setBlueprintsFound(4);
             updated = true;
         }
 
