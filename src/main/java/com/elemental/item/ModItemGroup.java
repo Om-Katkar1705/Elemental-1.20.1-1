@@ -38,6 +38,7 @@ public class ModItemGroup {
                         entries.add(ModItems.ROOTBOUND_AXE);
                         entries.add(ModItems.TIDEBREAKER_TRIDENT);
                         entries.add(ModItems.STORMCALLER_HAMMER);
+                        entries.add(ModItems.ASHEN_RIFT_BLADE);
                         entries.add(ModItems.ELEMENTAL_JETPACK);
                     }).build());
 

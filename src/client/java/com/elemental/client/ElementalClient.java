@@ -198,6 +198,9 @@ public class ElementalClient implements ClientModInitializer {
 				} else if (main.isOf(ModItems.STORMCALLER_HAMMER) || off.isOf(ModItems.STORMCALLER_HAMMER)) {
 					PacketByteBuf buf = PacketByteBufs.create();
 					ClientPlayNetworking.send(com.elemental.network.StormcallerNetworking.THUNDERCLAP_PACKET_ID, buf);
+				} else if (main.isOf(ModItems.ASHEN_RIFT_BLADE) || off.isOf(ModItems.ASHEN_RIFT_BLADE)) {
+					PacketByteBuf buf = PacketByteBufs.create();
+					ClientPlayNetworking.send(com.elemental.network.AshenRiftNetworking.RIFT_COLLAPSE_PACKET_ID, buf);
 				}
 			}
 

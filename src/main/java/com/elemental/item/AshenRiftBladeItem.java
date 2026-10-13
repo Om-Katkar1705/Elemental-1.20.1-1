@@ -1,0 +1,476 @@
+package com.elemental.item;
+
+import com.elemental.entity.ModEntityTags;
+import com.elemental.util.AshenRiftScheduler;
+import com.google.common.collect.ImmutableMultimap;
+import com.google.common.collect.Multimap;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
+import net.minecraft.client.item.TooltipContext;
+import net.minecraft.entity.EquipmentSlot;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.attribute.EntityAttribute;
+import net.minecraft.entity.attribute.EntityAttributeModifier;
+import net.minecraft.entity.attribute.EntityAttributes;
+import net.minecraft.entity.effect.StatusEffects;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.SwordItem;
+import net.minecraft.particle.ParticleTypes;
+import net.minecraft.registry.tag.FluidTags;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvents;
+import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
+import net.minecraft.util.Hand;
+import net.minecraft.util.TypedActionResult;
+import net.minecraft.util.UseAction;
+import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.util.hit.HitResult;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.RaycastContext;
+import net.minecraft.world.World;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Comparator;
+import java.util.List;
+
+public class AshenRiftBladeItem extends SwordItem {
+
+    public static final int DURABILITY = 1561;
+    public static final float BASE_ATTACK_DAMAGE = 4.0f;
+    public static final float BASE_ATTACK_SPEED = -2.4f;
+
+    public static final int COOLDOWN_COLLAPSE_TICKS = 300; // 15 seconds
+    public static final int COOLDOWN_TELEPORT_TICKS = 120; // 6 seconds
+
+    public static final String NBT_COLLAPSE_COOLDOWN_END = "AshenCollapseCooldownEnd";
+    public static final String NBT_TELEPORT_COOLDOWN_END = "AshenTeleportCooldownEnd";
+
+    private final Multimap<EntityAttribute, EntityAttributeModifier> attributeModifiers;
+
+    public AshenRiftBladeItem(Settings settings) {
+        super(AshenRiftBladeToolMaterial.INSTANCE, (int) BASE_ATTACK_DAMAGE, BASE_ATTACK_SPEED, settings);
+        ImmutableMultimap.Builder<EntityAttribute, EntityAttributeModifier> builder = ImmutableMultimap.builder();
+        builder.put(EntityAttributes.GENERIC_ATTACK_DAMAGE, new EntityAttributeModifier(
+                ATTACK_DAMAGE_MODIFIER_ID, "Weapon modifier", 8.0, EntityAttributeModifier.Operation.ADDITION));
+        builder.put(EntityAttributes.GENERIC_ATTACK_SPEED, new EntityAttributeModifier(
+                ATTACK_SPEED_MODIFIER_ID, "Weapon modifier", BASE_ATTACK_SPEED, EntityAttributeModifier.Operation.ADDITION));
+        this.attributeModifiers = builder.build();
+    }
+
+    @Override
+    public Text getName(ItemStack stack) {
+        return Text.literal("Ashen Rift Blade");
+    }
+
+    @Override
+    public Text getName() {
+        return Text.literal("Ashen Rift Blade");
+    }
+
+    @Override
+    public Multimap<EntityAttribute, EntityAttributeModifier> getAttributeModifiers(EquipmentSlot slot) {
+        if (slot == EquipmentSlot.MAINHAND) {
+            return this.attributeModifiers;
+        }
+        return super.getAttributeModifiers(slot);
+    }
+
+    // ==========================================
+    // COOLDOWN HELPERS
+    // ==========================================
+
+    public static boolean isCollapseCoolingDown(World world, ItemStack stack) {
+        if (!stack.hasNbt()) return false;
+        long endTick = stack.getNbt().getLong(NBT_COLLAPSE_COOLDOWN_END);
+        return world.getTime() < endTick;
+    }
+
+    public static int getCollapseRemainingSeconds(World world, ItemStack stack) {
+        if (!stack.hasNbt()) return 0;
+        long endTick = stack.getNbt().getLong(NBT_COLLAPSE_COOLDOWN_END);
+        long remaining = endTick - world.getTime();
+        return remaining > 0 ? (int) Math.ceil(remaining / 20.0) : 0;
+    }
+
+    public static void applyCollapseCooldown(ServerWorld world, ServerPlayerEntity player, ItemStack stack, int ticks) {
+        long endTick = world.getTime() + ticks;
+        stack.getOrCreateNbt().putLong(NBT_COLLAPSE_COOLDOWN_END, endTick);
+        player.getItemCooldownManager().set(stack.getItem(), ticks);
+    }
+
+    public static boolean isTeleportCoolingDown(World world, ItemStack stack) {
+        if (!stack.hasNbt()) return false;
+        long endTick = stack.getNbt().getLong(NBT_TELEPORT_COOLDOWN_END);
+        return world.getTime() < endTick;
+    }
+
+    public static int getTeleportRemainingSeconds(World world, ItemStack stack) {
+        if (!stack.hasNbt()) return 0;
+        long endTick = stack.getNbt().getLong(NBT_TELEPORT_COOLDOWN_END);
+        long remaining = endTick - world.getTime();
+        return remaining > 0 ? (int) Math.ceil(remaining / 20.0) : 0;
+    }
+
+    public static void applyTeleportCooldown(ServerWorld world, ServerPlayerEntity player, ItemStack stack, int ticks) {
+        long endTick = world.getTime() + ticks;
+        stack.getOrCreateNbt().putLong(NBT_TELEPORT_COOLDOWN_END, endTick);
+        player.getItemCooldownManager().set(stack.getItem(), ticks);
+    }
+
+    // ==========================================
+    // MOB CLASSIFICATION & EXCLUSIONS
+    // ==========================================
+
+    public static boolean isFireProofMob(LivingEntity entity) {
+        if (entity.isFireImmune()) return true;
+        if (entity.hasStatusEffect(StatusEffects.FIRE_RESISTANCE)) return true;
+        return false;
+    }
+
+    public static boolean isBossMob(LivingEntity entity) {
+        if (entity.getType().isIn(ModEntityTags.BOSSES)) return true;
+        if (entity instanceof net.minecraft.entity.boss.WitherEntity) return true;
+        if (entity instanceof net.minecraft.entity.boss.dragon.EnderDragonEntity) return true;
+        if (entity instanceof net.minecraft.entity.mob.WardenEntity) return true;
+        if (entity instanceof net.minecraft.entity.mob.ElderGuardianEntity) return true;
+        return false;
+    }
+
+    public static boolean isFlyingMob(LivingEntity entity) {
+        if (entity instanceof net.minecraft.entity.mob.FlyingEntity) return true; // Ghast, Phantom
+        if (entity instanceof net.minecraft.entity.passive.BatEntity) return true;
+        if (entity instanceof net.minecraft.entity.passive.BeeEntity) return true;
+        if (entity instanceof net.minecraft.entity.passive.AllayEntity) return true;
+        if (entity instanceof net.minecraft.entity.passive.ParrotEntity) return true;
+        if (entity instanceof net.minecraft.entity.mob.VexEntity) return true;
+        if (entity instanceof net.minecraft.entity.mob.BlazeEntity) return true;
+        if (entity instanceof net.minecraft.entity.boss.dragon.EnderDragonEntity) return true;
+        if (entity instanceof net.minecraft.entity.boss.WitherEntity) return true;
+        if (entity.isFallFlying()) return true;
+        if (entity.hasNoGravity()) return true;
+        return false;
+    }
+
+    public static boolean isValidCollapseTarget(LivingEntity target, PlayerEntity player) {
+        // Exclude player
+        if (target == null || target == player || target instanceof PlayerEntity) {
+            return false;
+        }
+        if (!target.isAlive() || target.isRemoved() || target.isSpectator()) {
+            return false;
+        }
+        // Exclude fire-proof mobs
+        if (isFireProofMob(target)) {
+            return false;
+        }
+        // Exclude boss mobs
+        if (isBossMob(target)) {
+            return false;
+        }
+        // Exclude flying mobs
+        if (isFlyingMob(target)) {
+            return false;
+        }
+        return true;
+    }
+
+    // ==========================================
+    // ABILITY 1: RIFT COLLAPSE (PRESS R)
+    // ==========================================
+
+    public static void performRiftCollapse(ServerPlayerEntity player) {
+        ItemStack stack = player.getMainHandStack();
+        Hand hand = Hand.MAIN_HAND;
+        if (!(stack.getItem() instanceof AshenRiftBladeItem)) {
+            stack = player.getOffHandStack();
+            hand = Hand.OFF_HAND;
+            if (!(stack.getItem() instanceof AshenRiftBladeItem)) {
+                return;
+            }
+        }
+
+        ServerWorld world = player.getServerWorld();
+
+        // Edge case: repeated ability use while cooling down
+        if (isCollapseCoolingDown(world, stack)) {
+            int remainingSec = getCollapseRemainingSeconds(world, stack);
+            player.sendMessage(Text.literal("§c✦ Rift Collapse is cooling down! (" + remainingSec + "s remaining)").formatted(Formatting.RED), true);
+            world.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.PLAYERS, 0.6f, 1.4f);
+            return;
+        }
+
+        // Query mobs within a 6-block radius around the player
+        Box box = new Box(player.getX() - 6.0, player.getY() - 3.0, player.getZ() - 6.0,
+                player.getX() + 6.0, player.getY() + 4.0, player.getZ() + 6.0);
+        List<LivingEntity> targets = world.getEntitiesByClass(LivingEntity.class, box, e ->
+                isValidCollapseTarget(e, player) && e.squaredDistanceTo(player) <= 36.0
+        );
+
+        if (targets.isEmpty()) {
+            player.sendMessage(Text.literal("§7✦ No valid mobs in 6-block radius to collapse.").formatted(Formatting.GRAY), true);
+            world.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.PLAYERS, 0.5f, 1.6f);
+            return;
+        }
+
+        // Visual and auditory rift shockwave
+        world.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.BLOCK_RESPAWN_ANCHOR_DEPLETE.value(), SoundCategory.PLAYERS, 1.2f, 0.6f);
+        world.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.ENTITY_WITHER_SPAWN, SoundCategory.PLAYERS, 0.4f, 1.8f);
+        world.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.BLOCK_PORTAL_TRAVEL, SoundCategory.PLAYERS, 0.8f, 0.7f);
+
+        for (int r = 1; r <= 6; r++) {
+            int points = r * 10;
+            for (int i = 0; i < points; i++) {
+                double angle = 2 * Math.PI * i / points;
+                double px = player.getX() + r * Math.cos(angle);
+                double pz = player.getZ() + r * Math.sin(angle);
+                double py = player.getY() + 0.1;
+                world.spawnParticles(ParticleTypes.ASH, px, py, pz, 1, 0.05, 0.05, 0.05, 0.02);
+                world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, px, py, pz, 1, 0.02, 0.04, 0.02, 0.01);
+            }
+        }
+
+        // Sort mobs so closest mobs are processed first
+        targets.sort(Comparator.comparingDouble(e -> e.squaredDistanceTo(player)));
+
+        // First, mobs closest to the player should be knocked back/rebounded away from the player
+        for (LivingEntity target : targets) {
+            Vec3d diff = target.getPos().subtract(player.getPos());
+            Vec3d horiz = new Vec3d(diff.x, 0, diff.z);
+            double dist = Math.sqrt(target.squaredDistanceTo(player));
+
+            if (horiz.lengthSquared() < 0.001) {
+                double randomAngle = world.random.nextDouble() * 2 * Math.PI;
+                horiz = new Vec3d(Math.cos(randomAngle), 0, Math.sin(randomAngle));
+            } else {
+                horiz = horiz.normalize();
+            }
+
+            // Strong rebound impulse away from the player
+            double pushSpeed = Math.max(0.65, (6.5 - dist) * 0.22 + 0.5);
+            target.setVelocity(horiz.x * pushSpeed, 0.28, horiz.z * pushSpeed);
+            target.velocityModified = true;
+
+            world.spawnParticles(ParticleTypes.SWEEP_ATTACK, target.getX(), target.getY() + 0.5, target.getZ(), 1, 0, 0, 0, 0);
+        }
+
+        // Then, delegate creation of hole beneath each affected mob, lava spawn after 2s, and refill after 5s
+        AshenRiftScheduler.startRiftCollapse(world, player, targets);
+
+        // Apply 15-second cooldown and durability loss
+        applyCollapseCooldown(world, player, stack, COOLDOWN_COLLAPSE_TICKS);
+        Hand finalHand = hand;
+        stack.damage(2, player, p -> p.sendToolBreakStatus(finalHand));
+        player.sendMessage(Text.literal("§6✦ Rift Collapse unleashed! Ground shattering...").formatted(Formatting.GOLD, Formatting.BOLD), true);
+    }
+
+    // ==========================================
+    // ABILITY 2: RIFT TELEPORT (HOLD RIGHT CLICK)
+    // ==========================================
+
+    @Override
+    public UseAction getUseAction(ItemStack stack) {
+        return UseAction.BOW;
+    }
+
+    @Override
+    public int getMaxUseTime(ItemStack stack) {
+        return 72000;
+    }
+
+    @Override
+    public TypedActionResult<ItemStack> use(World world, PlayerEntity user, Hand hand) {
+        ItemStack stack = user.getStackInHand(hand);
+        if (stack.getDamage() >= stack.getMaxDamage() - 1) {
+            return TypedActionResult.fail(stack);
+        }
+
+        // Check teleport cooldown
+        if (isTeleportCoolingDown(world, stack)) {
+            if (!world.isClient()) {
+                int remaining = getTeleportRemainingSeconds(world, stack);
+                user.sendMessage(Text.literal("§c✦ Rift Teleport is cooling down! (" + remaining + "s remaining)").formatted(Formatting.RED), true);
+            }
+            world.playSound(null, user.getX(), user.getY(), user.getZ(), SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.PLAYERS, 0.6f, 1.4f);
+            return TypedActionResult.fail(stack);
+        }
+
+        user.setCurrentHand(hand);
+        world.playSound(null, user.getX(), user.getY(), user.getZ(), SoundEvents.BLOCK_RESPAWN_ANCHOR_CHARGE, SoundCategory.PLAYERS, 0.7f, 1.1f);
+        return TypedActionResult.consume(stack);
+    }
+
+    @Override
+    public void usageTick(World world, LivingEntity user, ItemStack stack, int remainingUseTicks) {
+        super.usageTick(world, user, stack, remainingUseTicks);
+        int chargeTicks = getMaxUseTime(stack) - remainingUseTicks;
+
+        // Visual rift portal particles swirling around player while holding
+        if (chargeTicks % 3 == 0) {
+            world.addParticle(ParticleTypes.PORTAL,
+                    user.getX() + (world.random.nextDouble() - 0.5) * 1.0,
+                    user.getY() + 0.1,
+                    user.getZ() + (world.random.nextDouble() - 0.5) * 1.0,
+                    0, 0.08, 0);
+            world.addParticle(ParticleTypes.ASH,
+                    user.getX() + (world.random.nextDouble() - 0.5) * 1.2,
+                    user.getY() + 0.4,
+                    user.getZ() + (world.random.nextDouble() - 0.5) * 1.2,
+                    0, 0.05, 0);
+        }
+
+        if (chargeTicks % 12 == 0) {
+            float pitch = Math.min(2.0f, 0.7f + (chargeTicks / 30.0f) * 0.6f);
+            world.playSound(null, user.getX(), user.getY(), user.getZ(),
+                    SoundEvents.BLOCK_RESPAWN_ANCHOR_CHARGE, SoundCategory.PLAYERS, 0.4f, pitch);
+        }
+
+        if (chargeTicks == 20 && user instanceof PlayerEntity player && world.isClient()) {
+            player.sendMessage(Text.literal("§d✦ RIFT READY — Release to Teleport!").formatted(Formatting.LIGHT_PURPLE, Formatting.BOLD), true);
+        }
+    }
+
+    @Override
+    public void onStoppedUsing(ItemStack stack, World world, LivingEntity user, int remainingUseTicks) {
+        if (world.isClient() || !(user instanceof ServerPlayerEntity player)) {
+            return;
+        }
+
+        ServerWorld serverWorld = player.getServerWorld();
+        int chargeTicks = getMaxUseTime(stack) - remainingUseTicks;
+
+        // Minimum charge threshold (5 ticks = 0.25s)
+        if (chargeTicks < 5) {
+            return;
+        }
+
+        // Raycast to aim at a targeted block
+        BlockHitResult blockHit = raycastAimedBlock(player, 40.0);
+
+        // Edge case: no aimed block
+        if (blockHit == null || blockHit.getType() == HitResult.Type.MISS) {
+            player.sendMessage(Text.literal("§7✦ No block targeted — Rift Teleport cancelled.").formatted(Formatting.GRAY), true);
+            serverWorld.playSound(null, player.getX(), player.getY(), player.getZ(),
+                    SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.PLAYERS, 0.5f, 1.5f);
+            return;
+        }
+
+        BlockPos aimedBlockPos = blockHit.getBlockPos();
+
+        // Edge case: invalid/unsafe destination
+        BlockPos safePos = findSafeDestination(serverWorld, aimedBlockPos);
+        if (safePos == null) {
+            player.sendMessage(Text.literal("§c✦ Unsafe rift destination! Teleport cancelled.").formatted(Formatting.RED), true);
+            serverWorld.playSound(null, player.getX(), player.getY(), player.getZ(),
+                    SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.PLAYERS, 0.6f, 1.2f);
+            return;
+        }
+
+        Vec3d initialPos = player.getPos();
+        Vec3d destPos = new Vec3d(safePos.getX() + 0.5, safePos.getY(), safePos.getZ() + 0.5);
+
+        // Spawn portal effect beneath player's legs at initial position
+        for (int i = 0; i < 32; i++) {
+            double angle = 2 * Math.PI * i / 32.0;
+            double rx = 0.8 * Math.cos(angle);
+            double rz = 0.8 * Math.sin(angle);
+            serverWorld.spawnParticles(ParticleTypes.PORTAL, initialPos.x + rx, initialPos.y + 0.05, initialPos.z + rz,
+                    2, 0, 0.05, 0, 0.1);
+            serverWorld.spawnParticles(ParticleTypes.REVERSE_PORTAL, initialPos.x + rx, initialPos.y + 0.05, initialPos.z + rz,
+                    1, 0, 0.05, 0, 0.05);
+            serverWorld.spawnParticles(ParticleTypes.ASH, initialPos.x + rx * 0.5, initialPos.y + 0.1, initialPos.z + rz * 0.5,
+                    2, 0.05, 0.05, 0.05, 0.02);
+        }
+
+        serverWorld.playSound(null, initialPos.x, initialPos.y, initialPos.z,
+                SoundEvents.BLOCK_PORTAL_TRIGGER, SoundCategory.PLAYERS, 1.0f, 1.2f);
+        serverWorld.playSound(null, initialPos.x, initialPos.y, initialPos.z,
+                SoundEvents.ENTITY_ENDERMAN_TELEPORT, SoundCategory.PLAYERS, 0.8f, 0.6f);
+
+        // Schedule falling into initial portal and emergence at destination 5 blocks above
+        AshenRiftScheduler.scheduleTeleport(serverWorld, player, initialPos, destPos);
+
+        // Apply cooldown and damage weapon durability
+        applyTeleportCooldown(serverWorld, player, stack, COOLDOWN_TELEPORT_TICKS);
+        stack.damage(2, player, p -> p.sendToolBreakStatus(player.getActiveHand()));
+        player.sendMessage(Text.literal("§5✦ Rift Teleport engaged!").formatted(Formatting.DARK_PURPLE, Formatting.BOLD), true);
+    }
+
+    public static BlockHitResult raycastAimedBlock(ServerPlayerEntity player, double maxDistance) {
+        Vec3d eyePos = player.getEyePos();
+        Vec3d lookDir = player.getRotationVec(1.0F);
+        Vec3d endPos = eyePos.add(lookDir.multiply(maxDistance));
+
+        return player.getServerWorld().raycast(new RaycastContext(
+                eyePos, endPos, RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, player
+        ));
+    }
+
+    public static BlockPos findSafeDestination(ServerWorld world, BlockPos aimedPos) {
+        if (aimedPos == null) return null;
+
+        // Desired position: 5 blocks above aimed position
+        BlockPos desiredPos = aimedPos.up(5);
+
+        // Check if 5 blocks above is safe
+        if (isPassable(world, desiredPos) && isPassable(world, desiredPos.up()) && !isHazard(world, desiredPos)) {
+            return desiredPos;
+        }
+
+        // If obstructed (e.g. cavern ceiling), find highest clear clearance between +1 and +5
+        for (int h = 5; h >= 1; h--) {
+            BlockPos checkPos = aimedPos.up(h);
+            if (isPassable(world, checkPos) && isPassable(world, checkPos.up()) && !isHazard(world, checkPos)) {
+                return checkPos;
+            }
+        }
+
+        return null;
+    }
+
+    private static boolean isPassable(World world, BlockPos pos) {
+        if (!world.isInBuildLimit(pos)) return false;
+        BlockState state = world.getBlockState(pos);
+        if (state.isAir()) return true;
+        return state.getCollisionShape(world, pos).isEmpty();
+    }
+
+    private static boolean isHazard(World world, BlockPos pos) {
+        BlockState state = world.getBlockState(pos);
+        if (state.isOf(Blocks.LAVA) || state.isOf(Blocks.FIRE) || state.isOf(Blocks.SOUL_FIRE)) return true;
+        return world.getFluidState(pos).isIn(FluidTags.LAVA);
+    }
+
+    // ==========================================
+    // TOOLTIPS
+    // ==========================================
+
+    @Override
+    public void appendTooltip(ItemStack stack, @Nullable World world, List<Text> tooltip, TooltipContext context) {
+        super.appendTooltip(stack, world, tooltip, context);
+        tooltip.add(Text.literal("§7A dark blade forged from shattered spatial rifts."));
+        tooltip.add(Text.literal("§6[R] Rift Collapse: §7Rebounds mobs, digs rifts, spawns lava, then refills.").formatted(Formatting.GOLD));
+        tooltip.add(Text.literal("§d[Hold Right-Click] Rift Teleport: §7Fall into a rift and emerge 5 blocks above targeted block.").formatted(Formatting.LIGHT_PURPLE));
+
+        if (world != null) {
+            if (isCollapseCoolingDown(world, stack)) {
+                int rem = getCollapseRemainingSeconds(world, stack);
+                tooltip.add(Text.literal("§c✦ Rift Collapse Cooldown: " + rem + "s").formatted(Formatting.RED));
+            } else {
+                tooltip.add(Text.literal("§a✦ Rift Collapse: Ready").formatted(Formatting.GREEN));
+            }
+
+            if (isTeleportCoolingDown(world, stack)) {
+                int rem = getTeleportRemainingSeconds(world, stack);
+                tooltip.add(Text.literal("§c✦ Rift Teleport Cooldown: " + rem + "s").formatted(Formatting.RED));
+            } else {
+                tooltip.add(Text.literal("§a✦ Rift Teleport: Ready").formatted(Formatting.GREEN));
+            }
+        }
+    }
+}

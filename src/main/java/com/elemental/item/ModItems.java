@@ -57,6 +57,13 @@ public class ModItems {
                     new FabricItemSettings().maxDamage(StormcallerHammerItem.DURABILITY).rarity(Rarity.RARE)
             )
     );
+    public static final Item ASHEN_RIFT_BLADE = Registry.register(
+            Registries.ITEM,
+            new Identifier(Elemental.MOD_ID, "ashen_rift_blade"),
+            new AshenRiftBladeItem(
+                    new FabricItemSettings().maxDamage(AshenRiftBladeItem.DURABILITY).rarity(Rarity.EPIC)
+            )
+    );
 
 
     public static final Item STENCIL = registerItem("stencil",
@@ -89,6 +96,7 @@ public class ModItems {
             entries.add(ROOTBOUND_AXE);
             entries.add(TIDEBREAKER_TRIDENT);
             entries.add(STORMCALLER_HAMMER);
+            entries.add(ASHEN_RIFT_BLADE);
             entries.add(ELEMENTAL_JETPACK);
         });
         ItemGroupEvents.modifyEntriesEvent(ItemGroups.TOOLS).register(entries -> {
@@ -97,6 +105,7 @@ public class ModItems {
             entries.add(ROOTBOUND_AXE);
             entries.add(TIDEBREAKER_TRIDENT);
             entries.add(STORMCALLER_HAMMER);
+            entries.add(ASHEN_RIFT_BLADE);
             entries.add(ELEMENTAL_JETPACK);
         });
 
