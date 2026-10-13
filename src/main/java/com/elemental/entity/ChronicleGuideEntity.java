@@ -73,7 +73,7 @@ public class ChronicleGuideEntity extends PathAwareEntity {
 
     @Override
     public boolean isPushable() {
-        return false;
+        return true;
     }
 
     @Override

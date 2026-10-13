@@ -4,13 +4,16 @@ import com.elemental.Elemental;
 import com.elemental.item.BlueprintMaps;
 import com.elemental.item.ModItems;
 import com.elemental.quest.QuestSaveData;
+import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.block.LadderBlock;
 import net.minecraft.block.entity.ChestBlockEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
 
 public class SkyforgeAirshipGenerator {
 
@@ -33,7 +36,7 @@ public class SkyforgeAirshipGenerator {
         int surfaceY = groundPos.getY();
 
         // Spawn genuinely buried between stone and dirt layer (~4 blocks beneath the surface)
-        int crashY = surfaceY - 4;
+        int crashY = surfaceY -10;
         BlockPos crashPos = new BlockPos(targetX, crashY, targetZ);
 
         generateBuriedSpaceship(world, crashPos, surfaceY);
@@ -83,29 +86,36 @@ public class SkyforgeAirshipGenerator {
         world.setBlockState(center.add(-3, 1, -1), Blocks.SPRUCE_LOG.getDefaultState());
         world.setBlockState(center.add(-3, 2, -1), Blocks.SPRUCE_LOG.getDefaultState());
         world.setBlockState(center.add(3, 1, 1), Blocks.SPRUCE_LOG.getDefaultState());
-        world.setBlockState(center.add(3, 2, 1), Blocks.SPRUCE_LOG.getDefaultState());
+        world.setBlockState(center.add(3, 2, 1), Blocks.STRIPPED_SPRUCE_LOG.getDefaultState());
         world.setBlockState(center.add(0, 1, -2), Blocks.IRON_BARS.getDefaultState());
         world.setBlockState(center.add(0, 2, -2), Blocks.CHAIN.getDefaultState());
 
         // Engine compartment machinery
         world.setBlockState(center.add(-1, 1, 0), Blocks.BLAST_FURNACE.getDefaultState());
+        world.setBlockState(center.add(-1, 2, 0), Blocks.STONE_BRICK_WALL.getDefaultState());
+        world.setBlockState(center.add(-1, 3, 0), Blocks.LIGHTNING_ROD.getDefaultState());
         world.setBlockState(center.add(-2, 1, 0), Blocks.COPPER_BLOCK.getDefaultState());
-        world.setBlockState(center.add(-2, 1, 1), Blocks.SOUL_CAMPFIRE.getDefaultState());
+
+        world.setBlockState(center.add(0, 0, 0), Blocks.LADDER.getDefaultState().with(LadderBlock.FACING,Direction.SOUTH));
+        world.setBlockState(center.add(0, 1, 0), Blocks.LADDER.getDefaultState().with(LadderBlock.FACING,Direction.SOUTH));
+        world.setBlockState(center.add(0, 2, 0), Blocks.LADDER.getDefaultState().with(LadderBlock.FACING,Direction.SOUTH));
+        world.setBlockState(center.add(0, 3, 0), Blocks.LADDER.getDefaultState().with(LadderBlock.FACING,Direction.SOUTH));
+        world.setBlockState(center.add(0, 4, 0), Blocks.LADDER.getDefaultState().with(LadderBlock.FACING,Direction.SOUTH));
+        world.setBlockState(center.add(0, 5, 0), Blocks.LADDER.getDefaultState().with(LadderBlock.FACING,Direction.SOUTH));
+        world.setBlockState(center.add(0, 6, 0), Blocks.LADDER.getDefaultState().with(LadderBlock.FACING,Direction.SOUTH));
+        world.setBlockState(center.add(0, 7, 0), Blocks.LADDER.getDefaultState().with(LadderBlock.FACING,Direction.SOUTH));
+        world.setBlockState(center.add(0, 8, 0), Blocks.LADDER.getDefaultState().with(LadderBlock.FACING,Direction.SOUTH));
+
 
         // Chest 1: Engine Compartment (4 Pneumatic Pistons + Blueprint: Pneumatic Piston + Blueprint: Element Core + Iron/Redstone)
         BlockPos engineChestPos = center.add(-1, 1, 1);
         world.setBlockState(engineChestPos, Blocks.CHEST.getDefaultState());
         if (world.getBlockEntity(engineChestPos) instanceof ChestBlockEntity chest) {
             chest.setCustomName(Text.translatable("container.elemental.engine_compartment"));
-            // 4 Pneumatic Pistons
-            chest.setStack(11, new ItemStack(ModItems.PNEUMATIC_PISTON, 4));
             // Blueprint: Pneumatic Piston
             chest.setStack(12, BlueprintMaps.createBlueprintMap(world, engineChestPos, BlueprintMaps.Type.PNEUMATIC_PISTON));
             // Blueprint: Element Core
             chest.setStack(13, BlueprintMaps.createBlueprintMap(world, engineChestPos, BlueprintMaps.Type.ELEMENT_CORE));
-            // Iron & Redstone
-            chest.setStack(15, new ItemStack(Items.IRON_INGOT, 4));
-            chest.setStack(16, new ItemStack(Items.REDSTONE, 8));
             chest.markDirty();
         }
 
@@ -118,8 +128,6 @@ public class SkyforgeAirshipGenerator {
             chest.setStack(11, new ItemStack(ModItems.AEROGEL_CORE, 2));
             // Blueprint: Aerogel Core
             chest.setStack(13, BlueprintMaps.createBlueprintMap(world, flotationChestPos, BlueprintMaps.Type.AEROGEL_CORE));
-            chest.setStack(14, new ItemStack(Items.FEATHER, 4));
-            chest.setStack(15, new ItemStack(Items.GLASS, 4));
             chest.markDirty();
         }
 
@@ -130,9 +138,6 @@ public class SkyforgeAirshipGenerator {
             chest.setCustomName(Text.translatable("container.elemental.cockpit_archive"));
             // Blueprint: Elemental Jetpack
             chest.setStack(13, BlueprintMaps.createBlueprintMap(world, cockpitChestPos, BlueprintMaps.Type.ELEMENTAL_JETPACK));
-            chest.setStack(11, new ItemStack(Items.COPPER_INGOT, 6));
-            chest.setStack(12, new ItemStack(Items.COAL, 8));
-            chest.setStack(15, new ItemStack(Items.COMPASS, 1));
             chest.markDirty();
         }
     }
