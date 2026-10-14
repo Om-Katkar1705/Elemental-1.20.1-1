@@ -84,7 +84,7 @@ public class TidebreakerBubbleEntity extends Entity {
         }
 
         // Maximum distance from origin check
-        if (this.originPos != null && target.getPos().distanceTo(this.originPos) > 45.0) {
+        if (this.originPos != null && target.squaredDistanceTo(this.originPos) > 2025.0) {
             this.discard();
             return;
         }
@@ -113,23 +113,24 @@ public class TidebreakerBubbleEntity extends Entity {
         boolean isUltrawarm = serverWorld.getDimension().ultrawarm();
         double radius = Math.max(0.8, target.getWidth() * 0.85);
 
-        // Water bubbles and upward current
-        serverWorld.spawnParticles(ParticleTypes.BUBBLE, target.getX(), target.getY() + target.getHeight() * 0.5, target.getZ(),
-                4, radius, target.getHeight() * 0.4, radius, 0.02);
-        serverWorld.spawnParticles(ParticleTypes.BUBBLE_COLUMN_UP, target.getX(), target.getY(), target.getZ(),
-                2, radius * 0.5, 0.1, radius * 0.5, 0.05);
+        // Water bubbles and upward current (every 2 ticks to cut packet rate in half while maintaining smooth visuals)
+        if (this.lifetimeTicks % 2 == 0) {
+            serverWorld.spawnParticles(ParticleTypes.BUBBLE, target.getX(), target.getY() + target.getHeight() * 0.5, target.getZ(),
+                    4, radius, target.getHeight() * 0.4, radius, 0.02);
+            serverWorld.spawnParticles(ParticleTypes.BUBBLE_COLUMN_UP, target.getX(), target.getY(), target.getZ(),
+                    2, radius * 0.5, 0.1, radius * 0.5, 0.05);
 
-        if (isUltrawarm) {
-            // Nether / ultrawarm mix: dry smoke and flame particles along with water particles
-            serverWorld.spawnParticles(ParticleTypes.SMOKE, target.getX(), target.getY() + target.getHeight() * 0.5, target.getZ(),
-                    2, radius, target.getHeight() * 0.4, radius, 0.02);
-            serverWorld.spawnParticles(ParticleTypes.FLAME, target.getX(), target.getY() + target.getHeight() * 0.5, target.getZ(),
-                    1, radius * 0.5, target.getHeight() * 0.3, radius * 0.5, 0.01);
-        } else {
-            if (this.lifetimeTicks % 3 == 0) {
-                serverWorld.spawnParticles(ParticleTypes.SPLASH, target.getX(), target.getY() + target.getHeight() * 0.5, target.getZ(),
-                    3, radius, target.getHeight() * 0.3, radius, 0.05);
+            if (isUltrawarm) {
+                // Nether / ultrawarm mix: dry smoke and flame particles along with water particles
+                serverWorld.spawnParticles(ParticleTypes.SMOKE, target.getX(), target.getY() + target.getHeight() * 0.5, target.getZ(),
+                        2, radius, target.getHeight() * 0.4, radius, 0.02);
+                serverWorld.spawnParticles(ParticleTypes.FLAME, target.getX(), target.getY() + target.getHeight() * 0.5, target.getZ(),
+                        1, radius * 0.5, target.getHeight() * 0.3, radius * 0.5, 0.01);
             }
+        }
+        if (!isUltrawarm && this.lifetimeTicks % 4 == 0) {
+            serverWorld.spawnParticles(ParticleTypes.SPLASH, target.getX(), target.getY() + target.getHeight() * 0.5, target.getZ(),
+                    3, radius, target.getHeight() * 0.3, radius, 0.05);
         }
     }
 

@@ -164,6 +164,11 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
     // Healing Flames visual effect counter
     private int flameParticleTick = 0;
 
+    // Cached BossBar state to prevent flooding network packets every tick
+    private String lastBossBarName = null;
+    private BossBar.Color lastBossBarColor = null;
+    private float lastBossBarPercent = -1.0f;
+
     public EverlivingKnightEntity(EntityType<? extends HostileEntity> entityType, World world) {
         super(entityType, world);
         this.experiencePoints = 5000;
@@ -811,7 +816,7 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
                 Box blastBox = this.getBoundingBox().expand(6.0);
                 List<LivingEntity> list = this.getWorld().getNonSpectatingEntities(LivingEntity.class, blastBox);
                 for (LivingEntity e : list) {
-                    if (e != this && this.distanceTo(e) <= 6.0 && !this.activeDamagedEntities.contains(e.getUuid())) {
+                    if (e != this && this.squaredDistanceTo(e) <= 36.0 && !this.activeDamagedEntities.contains(e.getUuid())) {
                         this.activeDamagedEntities.add(e.getUuid());
                         // 10 magic damage (bypasses normal armor)
                         e.damage(this.getDamageSources().magic(), 10.0f);
@@ -841,10 +846,11 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
     }
 
     private void damageTargetsInRadius(double reach, float damage, boolean magic) {
+        double reachSq = reach * reach;
         Box area = this.getBoundingBox().expand(reach);
         List<LivingEntity> list = this.getWorld().getNonSpectatingEntities(LivingEntity.class, area);
         for (LivingEntity e : list) {
-            if (e != this && this.distanceTo(e) <= reach && !this.activeDamagedEntities.contains(e.getUuid())) {
+            if (e != this && this.squaredDistanceTo(e) <= reachSq && !this.activeDamagedEntities.contains(e.getUuid())) {
                 this.activeDamagedEntities.add(e.getUuid());
                 if (magic) {
                     e.damage(this.getDamageSources().magic(), damage);
@@ -946,32 +952,45 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
         super.onDeath(source);
     }
 
+    @Override
+    public void remove(RemovalReason reason) {
+        super.remove(reason);
+        this.bossBar.clearPlayers();
+    }
+
     // ==================== BOSS BAR COLOR INDICATOR ====================
     private void updateBossBar() {
-        this.bossBar.setPercent(MathHelper.clamp(this.getHealth() / this.getMaxHealth(), 0.0f, 1.0f));
+        float percent = MathHelper.clamp(this.getHealth() / this.getMaxHealth(), 0.0f, 1.0f);
+        if (Math.abs(percent - this.lastBossBarPercent) > 0.005f) {
+            this.bossBar.setPercent(percent);
+            this.lastBossBarPercent = percent;
+        }
+
+        BossBar.Color targetColor;
+        String targetName;
 
         if (isCoreBroken() || getCoreIntegrity() <= 0) {
             // All 3 cores destroyed: cycle through all 3 colors (Red, Orange/Yellow, Green) together!
             long time = this.getWorld().getTime();
             int cycle = (int) ((time / 8) % 3);
             if (cycle == 0) {
-                this.bossBar.setColor(BossBar.Color.RED);
+                targetColor = BossBar.Color.RED;
             } else if (cycle == 1) {
-                this.bossBar.setColor(BossBar.Color.YELLOW);
+                targetColor = BossBar.Color.YELLOW;
             } else {
-                this.bossBar.setColor(BossBar.Color.GREEN);
+                targetColor = BossBar.Color.GREEN;
             }
 
             if (isStaggered()) {
-                this.bossBar.setName(Text.literal("Sir Solvane - §c[Core 1] §6[Core 2] §a[Core 3] §f[ALL SHATTERED - STAGGERED]"));
+                targetName = "Sir Solvane - §c[Core 1] §6[Core 2] §a[Core 3] §f[ALL SHATTERED - STAGGERED]";
             } else {
-                this.bossBar.setName(Text.literal("Sir Solvane - §c[Core 1] §6[Core 2] §a[Core 3] §f[ALL SHATTERED]"));
+                targetName = "Sir Solvane - §c[Core 1] §6[Core 2] §a[Core 3] §f[ALL SHATTERED]";
             }
         } else if (this.frostFrozenTicks > 0) {
             // Blue for frozen regen
-            this.bossBar.setColor(BossBar.Color.BLUE);
+            targetColor = BossBar.Color.BLUE;
             String exposedStatus = isCoreExposed() ? " §e[CORE EXPOSED - DESTROY IT!]§r" : "";
-            this.bossBar.setName(Text.literal("Sir Solvane - §9[FROZEN REGEN (" + (this.frostFrozenTicks / 20) + "s)]§r" + exposedStatus));
+            targetName = "Sir Solvane - §9[FROZEN REGEN (" + (this.frostFrozenTicks / 20) + "s)]§r" + exposedStatus;
         } else {
             // Active Core Color Indicators:
             // Red: First core (100 - 67 integrity)
@@ -981,15 +1000,25 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
             String exposedStatus = isCoreExposed() ? " §e[CORE EXPOSED - DESTROY IT!]§r" : "";
 
             if (integrity > 66) {
-                this.bossBar.setColor(BossBar.Color.RED);
-                this.bossBar.setName(Text.literal("Sir Solvane - §c[Core 1/3 Active]§r" + exposedStatus));
+                targetColor = BossBar.Color.RED;
+                targetName = "Sir Solvane - §c[Core 1/3 Active]§r" + exposedStatus;
             } else if (integrity > 33) {
-                this.bossBar.setColor(BossBar.Color.YELLOW); // Minecraft Yellow renders as Orange/Gold
-                this.bossBar.setName(Text.literal("Sir Solvane - §6[Core 2/3 Active]§r" + exposedStatus));
+                targetColor = BossBar.Color.YELLOW; // Minecraft Yellow renders as Orange/Gold
+                targetName = "Sir Solvane - §6[Core 2/3 Active]§r" + exposedStatus;
             } else {
-                this.bossBar.setColor(BossBar.Color.GREEN);
-                this.bossBar.setName(Text.literal("Sir Solvane - §a[Core 3/3 Active]§r" + exposedStatus));
+                targetColor = BossBar.Color.GREEN;
+                targetName = "Sir Solvane - §a[Core 3/3 Active]§r" + exposedStatus;
             }
+        }
+
+        if (targetColor != this.lastBossBarColor) {
+            this.bossBar.setColor(targetColor);
+            this.lastBossBarColor = targetColor;
+        }
+
+        if (!targetName.equals(this.lastBossBarName)) {
+            this.bossBar.setName(Text.literal(targetName));
+            this.lastBossBarName = targetName;
         }
     }
 

@@ -1,5 +1,6 @@
 package com.elemental.util;
 
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LightningEntity;
@@ -43,6 +44,7 @@ public class StormcallerLightningScheduler {
 
     public static void register() {
         ServerTickEvents.END_SERVER_TICK.register(StormcallerLightningScheduler::tick);
+        ServerLifecycleEvents.SERVER_STOPPING.register(server -> ACTIVE_BARRAGES.clear());
     }
 
     public static void scheduleBarrage(ServerWorld world, ServerPlayerEntity attacker, LivingEntity target, int totalStrikes, float damagePerStrike, int intervalTicks) {
@@ -64,8 +66,8 @@ public class StormcallerLightningScheduler {
             }
 
             net.minecraft.entity.Entity entity = world.getEntity(barrage.targetUuid);
-            // Edge case: target is missing, dead, or removed during barrage
-            if (!(entity instanceof LivingEntity target) || !target.isAlive() || target.isRemoved()) {
+            // Edge case: target is missing, dead, removed, or chunk is unloaded during barrage
+            if (!(entity instanceof LivingEntity target) || !target.isAlive() || target.isRemoved() || !world.isChunkLoaded(entity.getBlockPos())) {
                 iterator.remove();
                 continue;
             }

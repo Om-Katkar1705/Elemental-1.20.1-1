@@ -33,6 +33,8 @@ public class RootboundScheduler {
         final UUID casterUuid;
         final Vec3d center;
         final double radius;
+        final double radiusSq;
+        final Box boundingBox;
         final int maxDuration;
         final int interval;
         final float damagePerTick;
@@ -43,9 +45,12 @@ public class RootboundScheduler {
             this.casterUuid = casterUuid;
             this.center = center;
             this.radius = radius;
+            this.radiusSq = radius * radius;
             this.maxDuration = maxDuration;
             this.interval = interval;
             this.damagePerTick = damagePerTick;
+            this.boundingBox = new Box(center.x - radius, center.y - radius, center.z - radius,
+                    center.x + radius, center.y + radius, center.z + radius);
         }
     }
 
@@ -54,6 +59,8 @@ public class RootboundScheduler {
         final UUID casterUuid;
         final BlockPos centerPos;
         final double radius;
+        final double radiusSq;
+        final Box boundingBox;
         final int maxDuration;
         final int regenDuration;
         final int regenAmplifier;
@@ -64,9 +71,14 @@ public class RootboundScheduler {
             this.casterUuid = casterUuid;
             this.centerPos = centerPos;
             this.radius = radius;
+            this.radiusSq = radius * radius;
             this.maxDuration = maxDuration;
             this.regenDuration = regenDuration;
             this.regenAmplifier = regenAmplifier;
+            this.boundingBox = new Box(
+                    centerPos.getX() - radius, centerPos.getY() - 1.5, centerPos.getZ() - radius,
+                    centerPos.getX() + radius, centerPos.getY() + 2.5, centerPos.getZ() + radius
+            );
         }
     }
 
@@ -109,16 +121,20 @@ public class RootboundScheduler {
                 continue;
             }
 
+            int chunkX = (int) zone.center.x >> 4;
+            int chunkZ = (int) zone.center.z >> 4;
+            if (!world.isChunkLoaded(chunkX, chunkZ)) {
+                continue;
+            }
+
             zone.elapsedTicks++;
 
             // Every damage interval (e.g. 10 ticks = 0.5s)
             if (zone.elapsedTicks % zone.interval == 0) {
                 ServerPlayerEntity caster = zone.casterUuid != null ? server.getPlayerManager().getPlayer(zone.casterUuid) : null;
-                Box box = new Box(zone.center.x - zone.radius, zone.center.y - zone.radius, zone.center.z - zone.radius,
-                        zone.center.x + zone.radius, zone.center.y + zone.radius, zone.center.z + zone.radius);
 
-                List<LivingEntity> entities = world.getEntitiesByClass(LivingEntity.class, box, e ->
-                        e.isAlive() && !e.isSpectator() && !(e instanceof PlayerEntity) && e.squaredDistanceTo(zone.center) <= zone.radius * zone.radius
+                List<LivingEntity> entities = world.getEntitiesByClass(LivingEntity.class, zone.boundingBox, e ->
+                        e.isAlive() && !e.isSpectator() && !(e instanceof PlayerEntity) && e.squaredDistanceTo(zone.center) <= zone.radiusSq
                 );
 
                 for (LivingEntity target : entities) {
@@ -159,28 +175,29 @@ public class RootboundScheduler {
                 continue;
             }
 
-            // Check if destroyed by fire or lava
-            BlockState state = world.getBlockState(zone.centerPos);
-            if (state.isOf(Blocks.FIRE) || state.isOf(Blocks.SOUL_FIRE) || state.isOf(Blocks.LAVA)) {
-                world.playSound(null, zone.centerPos.getX(), zone.centerPos.getY(), zone.centerPos.getZ(),
-                        SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.BLOCKS, 0.7f, 1.2f);
-                world.spawnParticles(ParticleTypes.SMOKE, zone.centerPos.getX() + 0.5, zone.centerPos.getY() + 0.5, zone.centerPos.getZ() + 0.5,
-                        15, 0.3, 0.3, 0.3, 0.05);
-                iterator.remove();
+            if (!world.isChunkLoaded(zone.centerPos)) {
                 continue;
+            }
+
+            // Check if destroyed by fire or lava every 5 ticks instead of every single tick
+            if (zone.elapsedTicks % 5 == 0) {
+                BlockState state = world.getBlockState(zone.centerPos);
+                if (state.isOf(Blocks.FIRE) || state.isOf(Blocks.SOUL_FIRE) || state.isOf(Blocks.LAVA)) {
+                    world.playSound(null, zone.centerPos.getX(), zone.centerPos.getY(), zone.centerPos.getZ(),
+                            SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.BLOCKS, 0.7f, 1.2f);
+                    world.spawnParticles(ParticleTypes.SMOKE, zone.centerPos.getX() + 0.5, zone.centerPos.getY() + 0.5, zone.centerPos.getZ() + 0.5,
+                            15, 0.3, 0.3, 0.3, 0.05);
+                    iterator.remove();
+                    continue;
+                }
             }
 
             zone.elapsedTicks++;
 
             // Every 20 ticks (1s), grant regeneration to players in zone
             if (zone.elapsedTicks % 20 == 0) {
-                Box box = new Box(
-                        zone.centerPos.getX() - zone.radius, zone.centerPos.getY() - 1.5, zone.centerPos.getZ() - zone.radius,
-                        zone.centerPos.getX() + zone.radius, zone.centerPos.getY() + 2.5, zone.centerPos.getZ() + zone.radius
-                );
-
-                List<PlayerEntity> players = world.getEntitiesByClass(PlayerEntity.class, box, p ->
-                        p.isAlive() && !p.isSpectator() && p.squaredDistanceTo(zone.centerPos.toCenterPos()) <= zone.radius * zone.radius
+                List<PlayerEntity> players = world.getEntitiesByClass(PlayerEntity.class, zone.boundingBox, p ->
+                        p.isAlive() && !p.isSpectator() && p.squaredDistanceTo(zone.centerPos.toCenterPos()) <= zone.radiusSq
                 );
 
                 for (PlayerEntity player : players) {

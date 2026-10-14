@@ -319,17 +319,8 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
         world.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.ENTITY_WITHER_SPAWN, SoundCategory.PLAYERS, 0.4f, 1.8f);
         world.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.BLOCK_PORTAL_TRAVEL, SoundCategory.PLAYERS, 0.8f, 0.7f);
 
-        for (int r = 1; r <= 6; r++) {
-            int points = r * 10;
-            for (int i = 0; i < points; i++) {
-                double angle = 2 * Math.PI * i / points;
-                double px = player.getX() + r * Math.cos(angle);
-                double pz = player.getZ() + r * Math.sin(angle);
-                double py = player.getY() + 0.1;
-                world.spawnParticles(ParticleTypes.ASH, px, py, pz, 1, 0.05, 0.05, 0.05, 0.02);
-                world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, px, py, pz, 1, 0.02, 0.04, 0.02, 0.01);
-            }
-        }
+        world.spawnParticles(ParticleTypes.ASH, player.getX(), player.getY() + 0.1, player.getZ(), 80, 2.8, 0.2, 2.8, 0.02);
+        world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, player.getX(), player.getY() + 0.1, player.getZ(), 60, 2.8, 0.2, 2.8, 0.01);
 
         // Sort mobs so closest mobs are processed first
         targets.sort(Comparator.comparingDouble(e -> e.squaredDistanceTo(player)));
@@ -496,17 +487,9 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
         }
 
         // Spawn portal effect beneath player's legs at initial position
-        for (int i = 0; i < 32; i++) {
-            double angle = 2 * Math.PI * i / 32.0;
-            double rx = 0.8 * Math.cos(angle);
-            double rz = 0.8 * Math.sin(angle);
-            serverWorld.spawnParticles(ParticleTypes.PORTAL, initialPos.x + rx, initialPos.y + 0.05, initialPos.z + rz,
-                    2, 0, 0.05, 0, 0.1);
-            serverWorld.spawnParticles(ParticleTypes.REVERSE_PORTAL, initialPos.x + rx, initialPos.y + 0.05, initialPos.z + rz,
-                    1, 0, 0.05, 0, 0.05);
-            serverWorld.spawnParticles(ParticleTypes.ASH, initialPos.x + rx * 0.5, initialPos.y + 0.1, initialPos.z + rz * 0.5,
-                    2, 0.05, 0.05, 0.05, 0.02);
-        }
+        serverWorld.spawnParticles(ParticleTypes.PORTAL, initialPos.x, initialPos.y + 0.05, initialPos.z, 64, 0.6, 0.05, 0.6, 0.1);
+        serverWorld.spawnParticles(ParticleTypes.REVERSE_PORTAL, initialPos.x, initialPos.y + 0.05, initialPos.z, 32, 0.6, 0.05, 0.6, 0.05);
+        serverWorld.spawnParticles(ParticleTypes.ASH, initialPos.x, initialPos.y + 0.1, initialPos.z, 40, 0.4, 0.05, 0.4, 0.02);
 
         serverWorld.playSound(null, initialPos.x, initialPos.y, initialPos.z,
                 SoundEvents.BLOCK_PORTAL_TRIGGER, SoundCategory.PLAYERS, 1.0f, 1.2f);

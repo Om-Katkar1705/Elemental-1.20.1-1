@@ -102,7 +102,7 @@ public class TidebreakerTridentEntity extends PersistentProjectileEntity impleme
                 this.returnTimer++;
 
                 // Return to owner on arrival
-                if (!this.getWorld().isClient() && this.distanceTo(owner) < 1.5) {
+                if (!this.getWorld().isClient() && this.squaredDistanceTo(owner) < 2.25) {
                     if (owner instanceof PlayerEntity player) {
                         boolean inserted = player.getInventory().insertStack(this.asItemStack());
                         if (!inserted && this.pickupType == PersistentProjectileEntity.PickupPermission.ALLOWED) {
@@ -221,6 +221,6 @@ public class TidebreakerTridentEntity extends PersistentProjectileEntity impleme
 
     @Override
     public boolean shouldRender(double cameraX, double cameraY, double cameraZ) {
-        return true;
+        return super.shouldRender(cameraX, cameraY, cameraZ);
     }
 }

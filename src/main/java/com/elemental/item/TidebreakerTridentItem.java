@@ -438,9 +438,13 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
         }
         ServerWorld world = player.getServerWorld();
         BlockPos playerPos = player.getBlockPos();
+        // Fast checks: immediately below or around player feet
+        if (world.getFluidState(playerPos).isIn(FluidTags.WATER) || world.getFluidState(playerPos.down()).isIn(FluidTags.WATER)) {
+            return true;
+        }
         int r = WATER_SEARCH_RADIUS;
         for (BlockPos pos : BlockPos.iterateOutwards(playerPos, r, r, r)) {
-            if (pos.isWithinDistance(playerPos, r)) {
+            if (pos.isWithinDistance(playerPos, r) && world.isChunkLoaded(pos)) {
                 if (world.getFluidState(pos).isIn(FluidTags.WATER)) {
                     return true;
                 }
@@ -459,7 +463,7 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
         if (owner.isTeammate(target)) return;
         if (target.getType().isIn(ModEntityTags.BOSSES)) return;
 
-        if (owner.distanceTo(target) > BUBBLE_MAX_RANGE) return;
+        if (owner.squaredDistanceTo(target) > BUBBLE_MAX_RANGE * BUBBLE_MAX_RANGE) return;
 
         long now = owner.getWorld().getTime();
         Long lastPlayerBubble = LAST_BUBBLE_BY_PLAYER.get(owner.getUuid());
@@ -476,6 +480,9 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
         owner.getWorld().spawnEntity(bubble);
 
         LAST_BUBBLE_BY_PLAYER.put(owner.getUuid(), now);
+        if (LAST_BUBBLE_BY_PLAYER.size() > 64) {
+            LAST_BUBBLE_BY_PLAYER.entrySet().removeIf(entry -> now - entry.getValue() >= BUBBLE_COOLDOWN_TICKS * 5);
+        }
         tridentStack.getOrCreateNbt().putLong("LastBubbleTime", now);
         tridentStack.damage(1, owner, p -> p.sendToolBreakStatus(Hand.MAIN_HAND));
     }

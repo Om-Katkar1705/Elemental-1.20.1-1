@@ -220,32 +220,32 @@ public class RootboundAxeItem extends AxeItem implements GeoItem {
 
         float attackAngle = SWEEP_ANGLE;
         float attackRadius = SWEEP_ATTACK_RADIUS;
+        double attackRadiusSq = attackRadius * attackRadius;
 
         // Get attacker's look direction for sweep cone
         Vec3d lookVec = attacker.getRotationVec(1.0F).normalize();
         Vec3d attackerPos = attacker.getPos();
+        double angleCos = Math.cos(Math.toRadians(attackAngle / 2.0));
 
         // Create sweep area box in front of attacker
         Box sweepBox = new Box(
                 attackerPos.x - attackRadius, attackerPos.y - 1.0, attackerPos.z - attackRadius,
                 attackerPos.x + attackRadius, attackerPos.y + 1.5, attackerPos.z + attackRadius
-        ).expand(attackRadius);
+        );
 
-        // Find entities in sweep area
-        for (Entity entity : world.getOtherEntities(attacker, sweepBox)) {
-            if (entity == primaryTarget || !(entity instanceof LivingEntity)) continue;
-            if (entity instanceof PlayerEntity) continue;
+        float sweepDamage = (BASE_ATTACK_DAMAGE + RootboundAxeToolMaterial.INSTANCE.getAttackDamage()) * 0.5f;
 
-            LivingEntity living = (LivingEntity) entity;
+        // Query only living entities directly from chunk sections
+        List<LivingEntity> targets = world.getEntitiesByClass(LivingEntity.class, sweepBox, e ->
+                e != primaryTarget && !(e instanceof PlayerEntity) && e.isAlive() && e.squaredDistanceTo(attackerPos) <= attackRadiusSq
+        );
 
-            // Check if entity is within the sweep cone angle
+        for (LivingEntity living : targets) {
             Vec3d toEntity = living.getPos().subtract(attackerPos).normalize();
             double dot = lookVec.dotProduct(toEntity);
-            double angleCos = Math.cos(Math.toRadians(attackAngle / 2.0));
 
             if (dot >= angleCos) {
                 // Apply sweep damage (50% of base attack damage)
-                float sweepDamage = (BASE_ATTACK_DAMAGE + RootboundAxeToolMaterial.INSTANCE.getAttackDamage()) * 0.5f;
                 living.damage(attacker.getDamageSources().mobAttack(attacker), sweepDamage);
 
                 // Apply knockback
@@ -358,19 +358,22 @@ public class RootboundAxeItem extends AxeItem implements GeoItem {
                 center.x - THORN_CAGE_RADIUS, center.y - THORN_CAGE_RADIUS, center.z - THORN_CAGE_RADIUS,
                 center.x + THORN_CAGE_RADIUS, center.y + THORN_CAGE_RADIUS, center.z + THORN_CAGE_RADIUS
         );
+        double radiusSq = THORN_CAGE_RADIUS * THORN_CAGE_RADIUS;
 
-        for (Entity entity : world.getOtherEntities(user, area)) {
-            if (entity instanceof LivingEntity living) {
-                if (living instanceof com.elemental.entity.EverlivingKnightEntity knight) {
-                    knight.applyThornCageReaction(user);
-                } else {
-                    // Apply piercing damage to regular entities
-                    living.damage(user.getDamageSources().thorns(user), THORN_CAGE_DAMAGE_PER_TICK);
+        List<LivingEntity> targets = world.getEntitiesByClass(LivingEntity.class, area, living ->
+                living != user && !(living instanceof PlayerEntity) && living.isAlive() && living.squaredDistanceTo(center) <= radiusSq
+        );
 
-                    // Apply slowness
-                    living.addStatusEffect(new StatusEffectInstance(
-                            StatusEffects.SLOWNESS, THORN_CAGE_SLOW_DURATION, THORN_CAGE_SLOW_LEVEL - 1, false, false, true));
-                }
+        for (LivingEntity living : targets) {
+            if (living instanceof com.elemental.entity.EverlivingKnightEntity knight) {
+                knight.applyThornCageReaction(user);
+            } else {
+                // Apply piercing damage to regular entities
+                living.damage(user.getDamageSources().thorns(user), THORN_CAGE_DAMAGE_PER_TICK);
+
+                // Apply slowness
+                living.addStatusEffect(new StatusEffectInstance(
+                        StatusEffects.SLOWNESS, THORN_CAGE_SLOW_DURATION, THORN_CAGE_SLOW_LEVEL - 1, false, false, true));
             }
         }
 

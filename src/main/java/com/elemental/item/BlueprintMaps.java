@@ -172,13 +172,19 @@ public class BlueprintMaps {
     }
 
     public static int countUniqueBlueprints(PlayerEntity player) {
-        int count = 0;
-        for (Type t : Type.values()) {
-            if (hasBlueprint(player, t)) {
-                count++;
+        if (player == null) return 0;
+        java.util.EnumSet<Type> found = java.util.EnumSet.noneOf(Type.class);
+        for (int i = 0; i < player.getInventory().size(); i++) {
+            ItemStack stack = player.getInventory().getStack(i);
+            Type type = getBlueprintType(stack);
+            if (type != null) {
+                found.add(type);
+                if (found.size() == Type.values().length) {
+                    break;
+                }
             }
         }
-        return count;
+        return found.size();
     }
 
     public static boolean hasAllBlueprints(PlayerEntity player) {

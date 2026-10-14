@@ -277,36 +277,20 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
         world.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.BLOCK_ANVIL_LAND, SoundCategory.PLAYERS, 1.0f, 0.5f);
 
         // Visual earthquake impact particles in 4-block radius without modifying terrain/blocks
-        for (int r = 1; r <= 4; r++) {
-            int points = r * 12;
-            for (int i = 0; i < points; i++) {
-                double angle = 2 * Math.PI * i / points;
-                double px = player.getX() + r * Math.cos(angle);
-                double pz = player.getZ() + r * Math.sin(angle);
-                double py = player.getY() + 0.1;
-                world.spawnParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE, px, py, pz, 1, 0.05, 0.08, 0.05, 0.02);
-                world.spawnParticles(ParticleTypes.POOF, px, py, pz, 1, 0.08, 0.05, 0.08, 0.03);
-                world.spawnParticles(ParticleTypes.CRIT, px, py + 0.2, pz, 1, 0.1, 0.15, 0.1, 0.05);
-            }
-        }
+        world.spawnParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE, player.getX(), player.getY() + 0.1, player.getZ(), 60, 2.0, 0.2, 2.0, 0.02);
+        world.spawnParticles(ParticleTypes.POOF, player.getX(), player.getY() + 0.1, player.getZ(), 50, 2.0, 0.1, 2.0, 0.03);
+        world.spawnParticles(ParticleTypes.CRIT, player.getX(), player.getY() + 0.3, player.getZ(), 60, 2.2, 0.25, 2.2, 0.05);
         world.spawnParticles(ParticleTypes.EXPLOSION, player.getX(), player.getY() + 0.5, player.getZ(), 2, 0.5, 0.2, 0.5, 0.0);
         world.spawnParticles(ParticleTypes.FLASH, player.getX(), player.getY() + 0.5, player.getZ(), 1, 0, 0, 0, 0);
 
         // Affect mobs inside 4-block radius
         Box box = new Box(player.getX() - 4.0, player.getY() - 2.0, player.getZ() - 4.0,
                 player.getX() + 4.0, player.getY() + 3.0, player.getZ() + 4.0);
-        List<LivingEntity> targets = world.getEntitiesByClass(LivingEntity.class, box, e -> e.isAlive() && !e.isSpectator());
+        List<LivingEntity> targets = world.getEntitiesByClass(LivingEntity.class, box, e ->
+                e != player && !(e instanceof PlayerEntity) && e.isAlive() && !e.isSpectator() && e.squaredDistanceTo(player) <= 16.0
+        );
 
         for (LivingEntity target : targets) {
-            // Do NOT launch or affect the player
-            if (target == player || target instanceof PlayerEntity) {
-                continue;
-            }
-
-            // Ensure strictly inside 4-block radius
-            if (target.squaredDistanceTo(player) > 16.0) {
-                continue;
-            }
 
             boolean heavy = isHeavyMob(target);
             // Heavy mobs receive reduced launch effect but must still be affected

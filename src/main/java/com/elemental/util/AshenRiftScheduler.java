@@ -195,15 +195,27 @@ public class AshenRiftScheduler {
     public static boolean isProtectedBlock(World world, BlockPos pos, BlockState state) {
         if (state.isAir()) return false;
         if (state.getHardness(world, pos) < 0) return true; // Bedrock, end portal frame, barrier
-        if (world.getBlockEntity(pos) != null) return true; // Containers, chests, tile entities
+        if (state.hasBlockEntity()) return true; // Containers, chests, tile entities checked in O(1)
         if (state.isOf(ModBlocks.WEAPONER) || state.isOf(ModBlocks.EVERLIVING_ALTAR)) return true;
         if (state.isOf(Blocks.NETHER_PORTAL) || state.isOf(Blocks.END_PORTAL)) return true;
         return false;
     }
 
+    private static int cleanupTicks = 0;
+
     private static void tick(MinecraftServer server) {
         tickCollapses(server);
         tickTeleports(server);
+
+        // Periodically purge expired fall immunities to prevent map memory leak
+        if (++cleanupTicks >= 100) {
+            cleanupTicks = 0;
+            ServerWorld overworld = server.getOverworld();
+            if (overworld != null) {
+                long now = overworld.getTime();
+                FALL_IMMUNITY_MAP.entrySet().removeIf(entry -> now > entry.getValue());
+            }
+        }
     }
 
     private static void tickCollapses(MinecraftServer server) {
@@ -236,14 +248,15 @@ public class AshenRiftScheduler {
                     // Deeper than hitbox
                     int depth = Math.max(3, (int) Math.ceil(height) + 2);
 
-                    // Find ground surface beneath target's current position
-                    BlockPos groundPos = target.getBlockPos();
+                    // Find ground surface beneath target's current position using mutable pos
+                    BlockPos.Mutable groundPos = target.getBlockPos().mutableCopy();
                     while (groundPos.getY() > world.getBottomY() && world.getBlockState(groundPos).isAir()) {
-                        groundPos = groundPos.down();
+                        groundPos.move(Direction.DOWN);
                     }
                     int surfaceY = groundPos.getY();
+                    BlockPos centerHolePos = groundPos.toImmutable();
 
-                    HoleSpec hole = new HoleSpec(targetId, groundPos, radius, depth, surfaceY);
+                    HoleSpec hole = new HoleSpec(targetId, centerHolePos, radius, depth, surfaceY);
 
                     // Excavate hole
                     for (int y = surfaceY; y >= surfaceY - depth + 1 && y > world.getBottomY(); y--) {
@@ -348,26 +361,15 @@ public class AshenRiftScheduler {
                     BlockPos pos = entry.getKey();
                     BlockState origState = entry.getValue();
 
-                    // If not in another active hole, restore
-                    boolean activeInOther = false;
-                    for (RiftCollapseSession other : ACTIVE_SESSIONS) {
-                        if (other != session && other.sessionOriginalBlocks.containsKey(pos)) {
-                            activeInOther = true;
-                            break;
-                        }
+                    BlockState restoreState = origState;
+                    // If original block was air inside underground cavity, copy surrounding block
+                    if (restoreState == null || restoreState.isAir()) {
+                        restoreState = findSurroundingGroundState(world, pos);
                     }
-
-                    if (!activeInOther) {
-                        BlockState restoreState = origState;
-                        // If original block was air inside underground cavity, copy surrounding block
-                        if (restoreState == null || restoreState.isAir()) {
-                            restoreState = findSurroundingGroundState(world, pos);
-                        }
-                        if (world.isChunkLoaded(pos)) {
-                            world.setBlockState(pos, restoreState, Block.NOTIFY_ALL);
-                        }
-                        GLOBAL_ORIGINAL_BLOCKS.remove(pos);
+                    if (world.isChunkLoaded(pos)) {
+                        world.setBlockState(pos, restoreState, Block.NOTIFY_ALL);
                     }
+                    GLOBAL_ORIGINAL_BLOCKS.remove(pos);
                 }
 
                 // Restoration audio and visual feedback
@@ -446,21 +448,14 @@ public class AshenRiftScheduler {
                 // Portal ring beneath feet at initial position
                 double t = task.ticks / 14.0;
                 double radius = 0.35 + t * 0.75;
-                int count = 16;
-                for (int i = 0; i < count; i++) {
-                    double angle = 2 * Math.PI * i / count + (task.ticks * 0.3);
-                    double px = task.initialPos.x + radius * Math.cos(angle);
-                    double pz = task.initialPos.z + radius * Math.sin(angle);
-                    double py = task.initialPos.y + 0.05;
-                    world.spawnParticles(ParticleTypes.PORTAL, px, py, pz, 1, 0, -0.05, 0, 0.04);
-                    world.spawnParticles(ParticleTypes.REVERSE_PORTAL, px, py, pz, 1, 0, 0.03, 0, 0.02);
-                    if (i % 2 == 0) {
-                        world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, px, py, pz, 1, 0, 0.01, 0, 0.01);
-                    }
-                    if (i % 3 == 0) {
-                        world.spawnParticles(ParticleTypes.ASH, px, py + 0.1, pz, 1, 0.02, 0.04, 0.02, 0.01);
-                    }
-                }
+                world.spawnParticles(ParticleTypes.PORTAL, task.initialPos.x, task.initialPos.y + 0.05, task.initialPos.z,
+                        16, radius * 0.6, 0.05, radius * 0.6, 0.04);
+                world.spawnParticles(ParticleTypes.REVERSE_PORTAL, task.initialPos.x, task.initialPos.y + 0.05, task.initialPos.z,
+                        16, radius * 0.6, 0.03, radius * 0.6, 0.02);
+                world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, task.initialPos.x, task.initialPos.y + 0.05, task.initialPos.z,
+                        8, radius * 0.5, 0.02, radius * 0.5, 0.01);
+                world.spawnParticles(ParticleTypes.ASH, task.initialPos.x, task.initialPos.y + 0.1, task.initialPos.z,
+                        6, radius * 0.5, 0.04, radius * 0.5, 0.01);
                 world.spawnParticles(ParticleTypes.DRAGON_BREATH, task.initialPos.x, task.initialPos.y + 0.1, task.initialPos.z,
                         2, 0.1, 0.1, 0.1, 0.02);
 
@@ -500,16 +495,12 @@ public class AshenRiftScheduler {
                 // Destination portal begins opening 5 blocks above aimed block
                 double prog = (task.ticks - 14) / 10.0;
                 double portalRadius = 1.0 * prog;
-                int pCount = 20;
-                for (int i = 0; i < pCount; i++) {
-                    double angle = 2 * Math.PI * i / pCount + (task.ticks * 0.25);
-                    double px = task.destPos.x + portalRadius * Math.cos(angle);
-                    double pz = task.destPos.z + portalRadius * Math.sin(angle);
-                    double py = task.destPos.y + 1.2;
-                    world.spawnParticles(ParticleTypes.PORTAL, px, py, pz, 1, 0, -0.15, 0, 0.05);
-                    world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, px, py, pz, 1, 0, -0.05, 0, 0.02);
-                    world.spawnParticles(ParticleTypes.ASH, px, py + 0.1, pz, 1, 0.02, -0.05, 0.02, 0.01);
-                }
+                world.spawnParticles(ParticleTypes.PORTAL, task.destPos.x, task.destPos.y + 1.2, task.destPos.z,
+                        20, portalRadius * 0.6, 0.15, portalRadius * 0.6, 0.05);
+                world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, task.destPos.x, task.destPos.y + 1.2, task.destPos.z,
+                        15, portalRadius * 0.5, 0.05, portalRadius * 0.5, 0.02);
+                world.spawnParticles(ParticleTypes.ASH, task.destPos.x, task.destPos.y + 1.3, task.destPos.z,
+                        15, portalRadius * 0.5, 0.05, portalRadius * 0.5, 0.01);
 
                 if (task.ticks == 16) {
                     world.playSound(null, task.destPos.x, task.destPos.y, task.destPos.z,
@@ -539,19 +530,14 @@ public class AshenRiftScheduler {
                         SoundEvents.BLOCK_PORTAL_TRAVEL, SoundCategory.PLAYERS, 0.9f, 0.9f);
 
                 // Exit portal burst
-                for (int i = 0; i < 36; i++) {
-                    double angle = 2 * Math.PI * i / 36.0;
-                    double rx = 1.0 * Math.cos(angle);
-                    double rz = 1.0 * Math.sin(angle);
-                    world.spawnParticles(ParticleTypes.PORTAL, task.destPos.x + rx, task.destPos.y + 1.6, task.destPos.z + rz,
-                            2, 0, -0.3, 0, 0.1);
-                    world.spawnParticles(ParticleTypes.REVERSE_PORTAL, task.destPos.x + rx * 0.8, task.destPos.y + 1.4, task.destPos.z + rz * 0.8,
-                            2, 0, -0.2, 0, 0.08);
-                    world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, task.destPos.x + rx * 0.5, task.destPos.y + 1.5, task.destPos.z + rz * 0.5,
-                            1, 0, -0.15, 0, 0.03);
-                    world.spawnParticles(ParticleTypes.DRAGON_BREATH, task.destPos.x + rx * 0.4, task.destPos.y + 1.3, task.destPos.z + rz * 0.4,
-                            1, 0, -0.1, 0, 0.02);
-                }
+                world.spawnParticles(ParticleTypes.PORTAL, task.destPos.x, task.destPos.y + 1.6, task.destPos.z,
+                        72, 0.8, 0.3, 0.8, 0.1);
+                world.spawnParticles(ParticleTypes.REVERSE_PORTAL, task.destPos.x, task.destPos.y + 1.4, task.destPos.z,
+                        72, 0.7, 0.2, 0.7, 0.08);
+                world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, task.destPos.x, task.destPos.y + 1.5, task.destPos.z,
+                        36, 0.5, 0.15, 0.5, 0.03);
+                world.spawnParticles(ParticleTypes.DRAGON_BREATH, task.destPos.x, task.destPos.y + 1.3, task.destPos.z,
+                        36, 0.4, 0.1, 0.4, 0.02);
 
                 // Trigger weapon emerging/falling animation
                 ItemStack mainStack = player.getMainHandStack();

@@ -200,22 +200,6 @@ public class SunforgedScimitarItem extends SwordItem implements GeoItem {
     public void inventoryTick(ItemStack stack, World world, Entity entity, int slot, boolean selected) {
         if (!world.isClient() && world instanceof ServerWorld serverWorld) {
             GeoItem.getOrAssignId(stack, serverWorld);
-
-            // Passive heat tracking (every 20 ticks)
-            if (entity instanceof PlayerEntity && selected && entity.age % 20 == 0) {
-                int heat = getHeatLevel(stack);
-                boolean inSun = world.isDay() && !world.isRaining() && world.isSkyVisible(entity.getBlockPos());
-                boolean isHotBiome = world.getBiome(entity.getBlockPos()).isIn(net.minecraft.registry.tag.BiomeTags.IS_NETHER)
-                        || world.getBiome(entity.getBlockPos()).matchesKey(BiomeKeys.DESERT)
-                        || world.getBiome(entity.getBlockPos()).matchesKey(BiomeKeys.BADLANDS);
-                if (inSun && isHotBiome) {
-                    if (heat < MAX_HEAT) {
-                        setHeatLevel(stack, Math.min(MAX_HEAT, heat + HEAT_GAIN_RATE));
-                    }
-                } else if (heat > 0) {
-                    setHeatLevel(stack, Math.max(0, heat - HEAT_DECAY_RATE));
-                }
-            }
         }
         super.inventoryTick(stack, world, entity, slot, selected);
     }

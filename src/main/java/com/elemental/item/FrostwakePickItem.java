@@ -79,6 +79,11 @@ public class FrostwakePickItem extends PickaxeItem implements GeoItem {
     private static final String LAST_CHILL_TIME_KEY = "LastChillTime";
     private static final String CHILL_STACKS_KEY = "ChillStacks";
 
+    private static final TagKey<Biome> COLD_SNOWY = TagKey.of(
+            RegistryKeys.BIOME,
+            new Identifier(Elemental.MOD_ID, "cold_snowy")
+    );
+
     // GeckoLib animation definitions
     private static final RawAnimation IDLE_ANIM = RawAnimation.begin().thenLoop("animation.frostwake_pick.idle");
     private static final RawAnimation SWING_ANIM = RawAnimation.begin().thenPlay("animation.frostwake_pick.swing");
@@ -241,26 +246,25 @@ public class FrostwakePickItem extends PickaxeItem implements GeoItem {
         triggerAnim(user, id, "controller", "frostburst");
 
         double radius = hasGlacialCore(stack) ? UPGRADED_RADIUS : BASE_RADIUS;
+        double radiusSq = radius * radius;
         Vec3d center = user.getPos();
 
         Box area = new Box(center.x - radius, center.y - radius, center.z - radius,
                 center.x + radius, center.y + radius, center.z + radius);
 
-        for (Entity entity : world.getOtherEntities(user, area)) {
-            if (entity instanceof LivingEntity living) {
-                if (living instanceof com.elemental.entity.EverlivingKnightEntity knight) {
-                    knight.applyFrostburstReaction();
-                } else {
-                    int slowLevel = hasGlacialCore(stack) ? ACTIVE_SLOW_LEVEL_UPGRADED : ACTIVE_SLOW_LEVEL;
-                    living.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, ACTIVE_SLOW_DURATION, slowLevel - 1, false, false, true));
-                }
+        for (LivingEntity living : world.getEntitiesByClass(LivingEntity.class, area, e -> e != user && e.isAlive() && e.squaredDistanceTo(user) <= radiusSq)) {
+            if (living instanceof com.elemental.entity.EverlivingKnightEntity knight) {
+                knight.applyFrostburstReaction();
+            } else {
+                int slowLevel = hasGlacialCore(stack) ? ACTIVE_SLOW_LEVEL_UPGRADED : ACTIVE_SLOW_LEVEL;
+                living.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, ACTIVE_SLOW_DURATION, slowLevel - 1, false, false, true));
             }
         }
 
         BlockPos centerPos = user.getBlockPos();
         int blockRadius = (int) Math.ceil(radius);
         for (BlockPos pos : BlockPos.iterateOutwards(centerPos, blockRadius, blockRadius, blockRadius)) {
-            if (pos.isWithinDistance(centerPos, radius)) {
+            if (pos.isWithinDistance(centerPos, radius) && world.isChunkLoaded(pos)) {
                 BlockState state = world.getBlockState(pos);
                 if (state.isOf(Blocks.WATER) && state.getFluidState().isStill()) {
                     world.setBlockState(pos, Blocks.ICE.getDefaultState());
@@ -272,16 +276,6 @@ public class FrostwakePickItem extends PickaxeItem implements GeoItem {
         world.spawnParticles(ParticleTypes.ITEM_SNOWBALL, center.x, center.y + 1, center.z, 20, radius * 0.3, 1.0, radius * 0.3, 0.2);
         world.playSound(null, center.x, center.y, center.z, SoundEvents.BLOCK_GLASS_BREAK, SoundCategory.PLAYERS, 1.0f, 0.8f);
         world.playSound(null, center.x, center.y, center.z, SoundEvents.ITEM_HONEY_BOTTLE_DRINK, SoundCategory.PLAYERS, 0.6f, 1.2f);
-
-        // UNDERCONSTRUCTION
-
-
-
-// Example: custom tag "yourmodid:cold_snowy"
-        final TagKey<Biome> COLD_SNOWY = TagKey.of(
-                RegistryKeys.BIOME,
-                new Identifier(Elemental.MOD_ID, "cold_snowy")
-        );
 
         int cooldown = BASE_COOLDOWN_TICKS;
         if (world.getBiome(user.getBlockPos()).isIn(COLD_SNOWY)) {
