@@ -33,12 +33,22 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.RaycastContext;
 import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
+import software.bernie.geckolib.animatable.GeoItem;
+import software.bernie.geckolib.animatable.SingletonGeoAnimatable;
+import software.bernie.geckolib.constant.DataTickets;
+import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
+import software.bernie.geckolib.core.animation.AnimatableManager;
+import software.bernie.geckolib.core.animation.AnimationController;
+import software.bernie.geckolib.core.animation.RawAnimation;
+import software.bernie.geckolib.util.GeckoLibUtil;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
-public class StormcallerHammerItem extends PickaxeItem {
+public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
 
     public static final int DURABILITY = 1500;
     public static final float BASE_ATTACK_DAMAGE = 6.0f;
@@ -57,10 +67,23 @@ public class StormcallerHammerItem extends PickaxeItem {
             EntityAttributeModifier.Operation.ADDITION
     );
 
+    // GeckoLib animation definitions
+    private static final RawAnimation IDLE_ANIM = RawAnimation.begin().thenLoop("animation.stormcaller_hammer.idle");
+    private static final RawAnimation THUNDERCLAP_ANIM = RawAnimation.begin().thenPlay("animation.stormcaller_hammer.thunderclap").thenLoop("animation.stormcaller_hammer.cooldown");
+    private static final RawAnimation CHARGE_ANIM = RawAnimation.begin().thenLoop("animation.stormcaller_hammer.charge");
+    private static final RawAnimation RELEASE_ANIM = RawAnimation.begin().thenPlay("animation.stormcaller_hammer.release").thenLoop("animation.stormcaller_hammer.cooldown");
+    private static final RawAnimation COOLDOWN_ANIM = RawAnimation.begin().thenLoop("animation.stormcaller_hammer.cooldown");
+
+    private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
+    private final Supplier<Object> renderProvider = GeoItem.makeRenderer(this);
+
+    public static Consumer<Consumer<Object>> RENDER_PROVIDER_CONSUMER;
+
     private final Multimap<EntityAttribute, EntityAttributeModifier> attributeModifiers;
 
     public StormcallerHammerItem(Settings settings) {
         super(StormcallerHammerToolMaterial.INSTANCE, (int) BASE_ATTACK_DAMAGE, BASE_ATTACK_SPEED, settings);
+        SingletonGeoAnimatable.registerSyncedAnimatable(this);
         ImmutableMultimap.Builder<EntityAttribute, EntityAttributeModifier> builder = ImmutableMultimap.builder();
         builder.put(EntityAttributes.GENERIC_ATTACK_DAMAGE, new EntityAttributeModifier(
                 ATTACK_DAMAGE_MODIFIER_ID, "Weapon modifier", 10.0, EntityAttributeModifier.Operation.ADDITION));
@@ -69,6 +92,41 @@ public class StormcallerHammerItem extends PickaxeItem {
         builder.put(EntityAttributes.GENERIC_ATTACK_KNOCKBACK, new EntityAttributeModifier(
                 UUID.fromString("9352e071-70e2-4bd5-b28e-5b12da6f23a8"), "Weapon knockback modifier", BONUS_KNOCKBACK, EntityAttributeModifier.Operation.ADDITION));
         this.attributeModifiers = builder.build();
+    }
+
+    @Override
+    public void createRenderer(Consumer<Object> consumer) {
+        if (RENDER_PROVIDER_CONSUMER != null) {
+            RENDER_PROVIDER_CONSUMER.accept(consumer);
+        }
+    }
+
+    @Override
+    public Supplier<Object> getRenderProvider() {
+        return this.renderProvider;
+    }
+
+    @Override
+    public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
+        controllers.add(new AnimationController<>(this, "controller", 4, state -> {
+            ItemStack stack = state.getData(DataTickets.ITEMSTACK);
+            Entity entity = state.getData(DataTickets.ENTITY);
+            if (stack != null && entity != null) {
+                if (isCoolingDown(entity.getWorld(), stack)) {
+                    return state.setAndContinue(COOLDOWN_ANIM);
+                }
+            }
+            return state.setAndContinue(IDLE_ANIM);
+        }).triggerableAnim("thunderclap", THUNDERCLAP_ANIM)
+          .triggerableAnim("charge", CHARGE_ANIM)
+          .triggerableAnim("release", RELEASE_ANIM)
+          .triggerableAnim("cooldown", COOLDOWN_ANIM)
+          .triggerableAnim("idle", IDLE_ANIM));
+    }
+
+    @Override
+    public AnimatableInstanceCache getAnimatableInstanceCache() {
+        return this.cache;
     }
 
     @Override
@@ -132,6 +190,9 @@ public class StormcallerHammerItem extends PickaxeItem {
                         stack.getNbt().remove(NBT_COOLDOWN_NOTIFIED);
                         player.sendMessage(Text.literal("§a⚡ Stormcaller Hammer fully recharged!").formatted(Formatting.GREEN, Formatting.BOLD), true);
                         player.playSound(SoundEvents.BLOCK_BEACON_ACTIVATE, SoundCategory.PLAYERS, 0.7f, 1.8f);
+                        if (player instanceof ServerPlayerEntity serverPlayer && world instanceof ServerWorld serverWorld) {
+                            triggerAnim(serverPlayer, GeoItem.getOrAssignId(stack, serverWorld), "controller", "idle");
+                        }
                     }
                 }
             }
@@ -178,13 +239,19 @@ public class StormcallerHammerItem extends PickaxeItem {
 
         ServerWorld world = player.getServerWorld();
 
+        StormcallerHammerItem hammer = (StormcallerHammerItem) stack.getItem();
+
         // Edge case: repeated ability use while cooling down
         if (isCoolingDown(world, stack)) {
             int remainingSec = getRemainingCooldownSeconds(world, stack);
             player.sendMessage(Text.literal("§c⚡ Thunderclap is cooling down! (" + remainingSec + "s remaining)").formatted(Formatting.RED), true);
             world.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.PLAYERS, 0.6f, 1.4f);
+            hammer.triggerAnim(player, GeoItem.getOrAssignId(stack, world), "controller", "cooldown");
             return;
         }
+
+        // Trigger GeckoLib Thunderclap smash animation
+        hammer.triggerAnim(player, GeoItem.getOrAssignId(stack, world), "controller", "thunderclap");
 
         // Audio impact
         world.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.PLAYERS, 1.2f, 0.6f);
@@ -292,6 +359,9 @@ public class StormcallerHammerItem extends PickaxeItem {
         }
         user.setCurrentHand(hand);
         world.playSound(null, user.getX(), user.getY(), user.getZ(), SoundEvents.ITEM_CROSSBOW_LOADING_START, SoundCategory.PLAYERS, 0.8f, 0.7f);
+        if (!world.isClient() && user instanceof ServerPlayerEntity serverPlayer) {
+            triggerAnim(serverPlayer, GeoItem.getOrAssignId(stack, (ServerWorld) world), "controller", "charge");
+        }
         return TypedActionResult.consume(stack);
     }
 
@@ -333,6 +403,7 @@ public class StormcallerHammerItem extends PickaxeItem {
 
         // Minimum charge threshold
         if (chargeTicks < 5) {
+            triggerAnim(player, GeoItem.getOrAssignId(stack, serverWorld), "controller", isCoolingDown(serverWorld, stack) ? "cooldown" : "idle");
             return;
         }
 
@@ -343,6 +414,7 @@ public class StormcallerHammerItem extends PickaxeItem {
         if (target == null || !target.isAlive() || target.isRemoved()) {
             player.sendMessage(Text.literal("§7⚡ No valid mob targeted — ability safely cancelled.").formatted(Formatting.GRAY), true);
             serverWorld.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.PLAYERS, 0.5f, 1.5f);
+            triggerAnim(player, GeoItem.getOrAssignId(stack, serverWorld), "controller", isCoolingDown(serverWorld, stack) ? "cooldown" : "idle");
             return;
         }
 
@@ -372,6 +444,9 @@ public class StormcallerHammerItem extends PickaxeItem {
 
         serverWorld.playSound(null, player.getX(), player.getY(), player.getZ(),
                 SoundEvents.ITEM_TRIDENT_THUNDER, SoundCategory.PLAYERS, 1.2f, 1.0f);
+
+        // Trigger GeckoLib release animation
+        triggerAnim(player, GeoItem.getOrAssignId(stack, serverWorld), "controller", "release");
 
         // Apply 15-second cooldown and durability
         applyCooldown(serverWorld, player, stack, COOLDOWN_TICKS);

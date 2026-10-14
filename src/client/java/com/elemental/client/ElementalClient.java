@@ -5,6 +5,7 @@ import com.elemental.client.renderer.EverlivingKnightRenderer;
 import com.elemental.client.renderer.FrostwakePickRenderer;
 import com.elemental.client.renderer.RootboundAxeRenderer;
 import com.elemental.client.renderer.SolarArcRenderer;
+import com.elemental.client.renderer.StormcallerHammerRenderer;
 import com.elemental.client.renderer.SunforgedScimitarRenderer;
 import com.elemental.client.renderer.TidebreakerBubbleEntityRenderer;
 import com.elemental.client.renderer.TidebreakerTridentEntityRenderer;
@@ -15,6 +16,7 @@ import com.elemental.item.AshenRiftBladeItem;
 import com.elemental.item.FrostwakePickItem;
 import com.elemental.item.ModItems;
 import com.elemental.item.RootboundAxeItem;
+import com.elemental.item.StormcallerHammerItem;
 import com.elemental.item.SunforgedScimitarItem;
 import com.elemental.item.TidebreakerTridentItem;
 import com.elemental.network.TidebreakerNetworking;
@@ -115,6 +117,21 @@ public class ElementalClient implements ClientModInitializer {
 				public BuiltinModelItemRenderer getCustomRenderer() {
 					if (this.renderer == null) {
 						this.renderer = new AshenRiftBladeRenderer();
+					}
+					return this.renderer;
+				}
+			});
+		};
+
+		// Register GeckoLib custom renderer for the Stormcaller Hammer item
+		StormcallerHammerItem.RENDER_PROVIDER_CONSUMER = (consumer) -> {
+			consumer.accept(new RenderProvider() {
+				private StormcallerHammerRenderer renderer;
+
+				@Override
+				public BuiltinModelItemRenderer getCustomRenderer() {
+					if (this.renderer == null) {
+						this.renderer = new StormcallerHammerRenderer();
 					}
 					return this.renderer;
 				}
