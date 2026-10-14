@@ -70,6 +70,9 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
     private static final RawAnimation COLLAPSE_ANIM = RawAnimation.begin().thenPlay("animation.ashen_rift_blade.collapse");
     private static final RawAnimation CHARGE_ANIM = RawAnimation.begin().thenLoop("animation.ashen_rift_blade.charge");
     private static final RawAnimation RELEASE_ANIM = RawAnimation.begin().thenPlay("animation.ashen_rift_blade.release");
+    private static final RawAnimation TELEPORT_ENTRY_ANIM = RawAnimation.begin().thenPlay("animation.ashen_rift_blade.teleport_entry");
+    private static final RawAnimation TELEPORT_EXIT_ANIM = RawAnimation.begin().thenPlay("animation.ashen_rift_blade.teleport_exit");
+    private static final RawAnimation TELEPORT_RECOVER_ANIM = RawAnimation.begin().thenPlay("animation.ashen_rift_blade.teleport_recover");
     private static final RawAnimation COOLDOWN_ANIM = RawAnimation.begin().thenLoop("animation.ashen_rift_blade.cooldown");
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
@@ -118,6 +121,9 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
           .triggerableAnim("collapse", COLLAPSE_ANIM)
           .triggerableAnim("charge", CHARGE_ANIM)
           .triggerableAnim("release", RELEASE_ANIM)
+          .triggerableAnim("teleport_entry", TELEPORT_ENTRY_ANIM)
+          .triggerableAnim("teleport_exit", TELEPORT_EXIT_ANIM)
+          .triggerableAnim("teleport_recover", TELEPORT_RECOVER_ANIM)
           .triggerableAnim("cooldown", COOLDOWN_ANIM)
           .triggerableAnim("idle", IDLE_ANIM));
     }
@@ -495,8 +501,8 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
         // Schedule falling into initial portal and emergence at destination 5 blocks above
         AshenRiftScheduler.scheduleTeleport(serverWorld, player, initialPos, destPos);
 
-        // Trigger GeckoLib release animation
-        triggerAnim(player, GeoItem.getOrAssignId(stack, serverWorld), "controller", "release");
+        // Trigger GeckoLib teleport entry animation
+        triggerAnim(player, GeoItem.getOrAssignId(stack, serverWorld), "controller", "teleport_entry");
 
         // Apply cooldown and damage weapon durability
         applyTeleportCooldown(serverWorld, player, stack, COOLDOWN_TELEPORT_TICKS);

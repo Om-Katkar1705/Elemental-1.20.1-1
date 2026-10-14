@@ -1,13 +1,21 @@
 package com.elemental.util;
 
 import com.elemental.block.ModBlocks;
+import com.elemental.item.AshenRiftBladeItem;
+import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.damage.DamageTypes;
+import net.minecraft.entity.effect.StatusEffectInstance;
+import net.minecraft.entity.effect.StatusEffects;
+import net.minecraft.item.ItemStack;
+import net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.registry.RegistryKey;
+import net.minecraft.registry.tag.DamageTypeTags;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -17,6 +25,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
+import software.bernie.geckolib.animatable.GeoItem;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,6 +34,26 @@ public class AshenRiftScheduler {
 
     // Global protection map so overlapping rifts never overwrite true original terrain with Air/Lava
     private static final Map<BlockPos, BlockState> GLOBAL_ORIGINAL_BLOCKS = new ConcurrentHashMap<>();
+
+    // Fall damage immunity tracking for teleporting players
+    private static final Map<UUID, Long> FALL_IMMUNITY_MAP = new ConcurrentHashMap<>();
+
+    public static void grantFallImmunity(UUID playerUuid, long expiryTick) {
+        if (playerUuid != null) {
+            FALL_IMMUNITY_MAP.put(playerUuid, expiryTick);
+        }
+    }
+
+    public static boolean isFallImmune(UUID playerUuid, long currentTick) {
+        if (playerUuid == null) return false;
+        Long expiry = FALL_IMMUNITY_MAP.get(playerUuid);
+        if (expiry == null) return false;
+        if (currentTick > expiry) {
+            FALL_IMMUNITY_MAP.remove(playerUuid);
+            return false;
+        }
+        return true;
+    }
 
     private static class HoleSpec {
         final UUID targetUuid;
@@ -64,13 +93,23 @@ public class AshenRiftScheduler {
         final RegistryKey<World> worldKey;
         final Vec3d initialPos;
         final Vec3d destPos;
+        final Vec3d backDir;
+        final float initialYaw;
+        final float initialPitch;
         int ticks = 0;
+        boolean teleported = false;
+        boolean landed = false;
+        int postLandTicks = 0;
 
-        RiftTeleportTask(UUID playerUuid, RegistryKey<World> worldKey, Vec3d initialPos, Vec3d destPos) {
+        RiftTeleportTask(UUID playerUuid, RegistryKey<World> worldKey, Vec3d initialPos, Vec3d destPos, Vec3d lookDir, float initialYaw, float initialPitch) {
             this.playerUuid = playerUuid;
             this.worldKey = worldKey;
             this.initialPos = initialPos;
             this.destPos = destPos;
+            this.initialYaw = initialYaw;
+            this.initialPitch = initialPitch;
+            Vec3d horiz = new Vec3d(-lookDir.x, 0, -lookDir.z);
+            this.backDir = horiz.lengthSquared() > 0.001 ? horiz.normalize() : new Vec3d(0, 0, 1);
         }
     }
 
@@ -79,6 +118,16 @@ public class AshenRiftScheduler {
 
     public static void register() {
         ServerTickEvents.END_SERVER_TICK.register(AshenRiftScheduler::tick);
+        ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> {
+            if (entity instanceof ServerPlayerEntity player) {
+                if (isFallImmune(player.getUuid(), player.getWorld().getTime())) {
+                    if (source.isOf(DamageTypes.FALL) || source.isIn(DamageTypeTags.IS_FALL)) {
+                        return false; // Guaranteed built-in fall damage immunity
+                    }
+                }
+            }
+            return true;
+        });
     }
 
     public static void startRiftCollapse(ServerWorld world, ServerPlayerEntity player, List<LivingEntity> targets) {
@@ -96,7 +145,17 @@ public class AshenRiftScheduler {
 
     public static void scheduleTeleport(ServerWorld world, ServerPlayerEntity player, Vec3d initialPos, Vec3d destPos) {
         if (world == null || player == null || destPos == null) return;
-        ACTIVE_TELEPORTS.add(new RiftTeleportTask(player.getUuid(), world.getRegistryKey(), initialPos, destPos));
+        // Grant fall immunity right away
+        grantFallImmunity(player.getUuid(), world.getTime() + 160);
+        ACTIVE_TELEPORTS.add(new RiftTeleportTask(
+                player.getUuid(),
+                world.getRegistryKey(),
+                initialPos,
+                destPos,
+                player.getRotationVec(1.0f),
+                player.getYaw(),
+                player.getPitch()
+        ));
     }
 
     public static boolean isProtectedBlock(World world, BlockPos pos, BlockState state) {
@@ -314,71 +373,210 @@ public class AshenRiftScheduler {
 
             ServerPlayerEntity player = server.getPlayerManager().getPlayer(task.playerUuid);
             if (player == null || !player.isAlive() || player.isDisconnected()) {
+                if (player != null) {
+                    player.setInvisible(false);
+                    player.removeStatusEffect(StatusEffects.INVISIBILITY);
+                    player.fallDistance = 0.0f;
+                }
                 iterator.remove();
                 continue;
             }
 
             task.ticks++;
 
-            // Ticks 1-5: Player falling into initial portal beneath legs
-            if (task.ticks < 6) {
-                player.setVelocity(0, -0.55, 0);
+            // ==============================================================
+            // PHASE 1 (Ticks 1-14): Entry Portal & Controlled Backward Fall
+            // ==============================================================
+            if (task.ticks <= 14) {
+                // Ensure no fall damage during transition
+                player.fallDistance = 0.0f;
+                grantFallImmunity(player.getUuid(), world.getTime() + 100);
+
+                // Controlled backward falling motion into floor rift
+                double backSpeed = 0.14 * (1.0 - (task.ticks / 18.0));
+                double fallY = -0.42;
+                player.setVelocity(task.backDir.x * backSpeed, fallY, task.backDir.z * backSpeed);
                 player.velocityModified = true;
-                player.fallDistance = 0.0f;
+                player.networkHandler.sendPacket(new EntityVelocityUpdateS2CPacket(player));
 
-                world.spawnParticles(ParticleTypes.PORTAL, player.getX(), player.getY() + 0.1, player.getZ(),
-                        12, 0.35, 0.1, 0.35, 0.05);
-                world.spawnParticles(ParticleTypes.ASH, player.getX(), player.getY() + 0.2, player.getZ(),
-                        8, 0.25, 0.1, 0.25, 0.02);
+                // Tilt player camera / pitch backward slightly
+                player.setPitch(Math.max(-40.0f, player.getPitch() - 2.5f));
+
+                // Portal ring beneath feet at initial position
+                double t = task.ticks / 14.0;
+                double radius = 0.35 + t * 0.75;
+                int count = 16;
+                for (int i = 0; i < count; i++) {
+                    double angle = 2 * Math.PI * i / count + (task.ticks * 0.3);
+                    double px = task.initialPos.x + radius * Math.cos(angle);
+                    double pz = task.initialPos.z + radius * Math.sin(angle);
+                    double py = task.initialPos.y + 0.05;
+                    world.spawnParticles(ParticleTypes.PORTAL, px, py, pz, 1, 0, -0.05, 0, 0.04);
+                    world.spawnParticles(ParticleTypes.REVERSE_PORTAL, px, py, pz, 1, 0, 0.03, 0, 0.02);
+                    if (i % 2 == 0) {
+                        world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, px, py, pz, 1, 0, 0.01, 0, 0.01);
+                    }
+                    if (i % 3 == 0) {
+                        world.spawnParticles(ParticleTypes.ASH, px, py + 0.1, pz, 1, 0.02, 0.04, 0.02, 0.01);
+                    }
+                }
+                world.spawnParticles(ParticleTypes.DRAGON_BREATH, task.initialPos.x, task.initialPos.y + 0.1, task.initialPos.z,
+                        2, 0.1, 0.1, 0.1, 0.02);
+
+                if (task.ticks == 8) {
+                    world.playSound(null, task.initialPos.x, task.initialPos.y, task.initialPos.z,
+                            SoundEvents.BLOCK_PORTAL_AMBIENT, SoundCategory.PLAYERS, 0.8f, 1.4f);
+                }
             }
-            // Tick 6: Teleport player 5 blocks above destination and spawn falling portal animation
-            else if (task.ticks == 6) {
-                // Closing portal at initial position
-                world.playSound(null, task.initialPos.x, task.initialPos.y, task.initialPos.z,
-                        SoundEvents.BLOCK_PORTAL_TRAVEL, SoundCategory.PLAYERS, 0.8f, 1.4f);
-                world.spawnParticles(ParticleTypes.REVERSE_PORTAL, task.initialPos.x, task.initialPos.y + 0.2, task.initialPos.z,
-                        25, 0.4, 0.2, 0.4, 0.08);
-
-                // Teleport to destination
-                player.teleport(world, task.destPos.x, task.destPos.y, task.destPos.z, player.getYaw(), player.getPitch());
+            // ==============================================================
+            // PHASE 2 (Ticks 15-24): Disappearance & Destination Portal Opening
+            // ==============================================================
+            else if (task.ticks <= 24) {
                 player.fallDistance = 0.0f;
+                grantFallImmunity(player.getUuid(), world.getTime() + 100);
 
-                // Portal appearance sound at destination
-                world.playSound(null, task.destPos.x, task.destPos.y, task.destPos.z,
-                        SoundEvents.BLOCK_PORTAL_TRIGGER, SoundCategory.PLAYERS, 1.0f, 0.9f);
-                world.playSound(null, task.destPos.x, task.destPos.y, task.destPos.z,
-                        SoundEvents.ENTITY_ENDERMAN_TELEPORT, SoundCategory.PLAYERS, 1.0f, 1.2f);
-                world.playSound(null, task.destPos.x, task.destPos.y, task.destPos.z,
-                        SoundEvents.BLOCK_BEACON_ACTIVATE, SoundCategory.PLAYERS, 0.8f, 1.8f);
+                // Entry portal snaps shut / collapses on tick 15
+                if (task.ticks == 15) {
+                    world.playSound(null, task.initialPos.x, task.initialPos.y, task.initialPos.z,
+                            SoundEvents.BLOCK_PORTAL_TRAVEL, SoundCategory.PLAYERS, 1.0f, 1.6f);
+                    world.playSound(null, task.initialPos.x, task.initialPos.y, task.initialPos.z,
+                            SoundEvents.ENTITY_ENDERMAN_TELEPORT, SoundCategory.PLAYERS, 1.0f, 0.5f);
+                    world.spawnParticles(ParticleTypes.REVERSE_PORTAL, task.initialPos.x, task.initialPos.y + 0.2, task.initialPos.z,
+                            35, 0.35, 0.15, 0.35, 0.1);
+                    world.spawnParticles(ParticleTypes.ASH, task.initialPos.x, task.initialPos.y + 0.2, task.initialPos.z,
+                            25, 0.25, 0.1, 0.25, 0.05);
 
-                // Spawn falling portal animation at destination
+                    // Player disappears into the portal
+                    player.setInvisible(true);
+                    player.addStatusEffect(new StatusEffectInstance(StatusEffects.INVISIBILITY, 30, 0, false, false, false));
+                }
+
+                // Suspend player movement while in rift transit
+                player.setVelocity(0, 0, 0);
+                player.velocityModified = true;
+                player.networkHandler.sendPacket(new EntityVelocityUpdateS2CPacket(player));
+
+                // Destination portal begins opening 5 blocks above aimed block
+                double prog = (task.ticks - 14) / 10.0;
+                double portalRadius = 1.0 * prog;
+                int pCount = 20;
+                for (int i = 0; i < pCount; i++) {
+                    double angle = 2 * Math.PI * i / pCount + (task.ticks * 0.25);
+                    double px = task.destPos.x + portalRadius * Math.cos(angle);
+                    double pz = task.destPos.z + portalRadius * Math.sin(angle);
+                    double py = task.destPos.y + 1.2;
+                    world.spawnParticles(ParticleTypes.PORTAL, px, py, pz, 1, 0, -0.15, 0, 0.05);
+                    world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, px, py, pz, 1, 0, -0.05, 0, 0.02);
+                    world.spawnParticles(ParticleTypes.ASH, px, py + 0.1, pz, 1, 0.02, -0.05, 0.02, 0.01);
+                }
+
+                if (task.ticks == 16) {
+                    world.playSound(null, task.destPos.x, task.destPos.y, task.destPos.z,
+                            SoundEvents.BLOCK_RESPAWN_ANCHOR_CHARGE, SoundCategory.PLAYERS, 1.0f, 1.1f);
+                    world.playSound(null, task.destPos.x, task.destPos.y, task.destPos.z,
+                            SoundEvents.BLOCK_PORTAL_TRIGGER, SoundCategory.PLAYERS, 0.9f, 1.2f);
+                }
+            }
+            // ==============================================================
+            // PHASE 3 (Tick 25): Emergence & Downward Exit Falling
+            // ==============================================================
+            else if (task.ticks == 25) {
+                // Teleport player 5 blocks above destination
+                player.teleport(world, task.destPos.x, task.destPos.y, task.destPos.z, task.initialYaw, task.initialPitch);
+                player.setInvisible(false);
+                player.removeStatusEffect(StatusEffects.INVISIBILITY);
+                player.fallDistance = 0.0f;
+                task.teleported = true;
+                grantFallImmunity(player.getUuid(), world.getTime() + 100);
+
+                // Exit portal sounds
+                world.playSound(null, task.destPos.x, task.destPos.y, task.destPos.z,
+                        SoundEvents.ENTITY_ENDERMAN_TELEPORT, SoundCategory.PLAYERS, 1.2f, 1.3f);
+                world.playSound(null, task.destPos.x, task.destPos.y, task.destPos.z,
+                        SoundEvents.BLOCK_BEACON_ACTIVATE, SoundCategory.PLAYERS, 1.0f, 1.8f);
+                world.playSound(null, task.destPos.x, task.destPos.y, task.destPos.z,
+                        SoundEvents.BLOCK_PORTAL_TRAVEL, SoundCategory.PLAYERS, 0.9f, 0.9f);
+
+                // Exit portal burst
                 for (int i = 0; i < 36; i++) {
                     double angle = 2 * Math.PI * i / 36.0;
-                    double rx = 0.9 * Math.cos(angle);
-                    double rz = 0.9 * Math.sin(angle);
-                    world.spawnParticles(ParticleTypes.PORTAL, task.destPos.x + rx, task.destPos.y + 1.8, task.destPos.z + rz,
-                            2, 0, -0.2, 0, 0.1);
-                    world.spawnParticles(ParticleTypes.ASH, task.destPos.x + rx * 0.7, task.destPos.y + 1.5, task.destPos.z + rz * 0.7,
-                            2, 0.05, -0.1, 0.05, 0.03);
-                    world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, task.destPos.x + rx * 0.5, task.destPos.y + 1.8, task.destPos.z + rz * 0.5,
+                    double rx = 1.0 * Math.cos(angle);
+                    double rz = 1.0 * Math.sin(angle);
+                    world.spawnParticles(ParticleTypes.PORTAL, task.destPos.x + rx, task.destPos.y + 1.6, task.destPos.z + rz,
+                            2, 0, -0.3, 0, 0.1);
+                    world.spawnParticles(ParticleTypes.REVERSE_PORTAL, task.destPos.x + rx * 0.8, task.destPos.y + 1.4, task.destPos.z + rz * 0.8,
+                            2, 0, -0.2, 0, 0.08);
+                    world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, task.destPos.x + rx * 0.5, task.destPos.y + 1.5, task.destPos.z + rz * 0.5,
+                            1, 0, -0.15, 0, 0.03);
+                    world.spawnParticles(ParticleTypes.DRAGON_BREATH, task.destPos.x + rx * 0.4, task.destPos.y + 1.3, task.destPos.z + rz * 0.4,
                             1, 0, -0.1, 0, 0.02);
                 }
 
-                // Player falls downward out of portal
-                player.setVelocity(0, -0.4, 0);
+                // Trigger weapon emerging/falling animation
+                ItemStack mainStack = player.getMainHandStack();
+                if (mainStack.getItem() instanceof AshenRiftBladeItem bladeItem) {
+                    bladeItem.triggerAnim(player, GeoItem.getOrAssignId(mainStack, world), "controller", "teleport_exit");
+                }
+
+                // Downward velocity falling out of portal
+                player.setVelocity(0, -0.65, 0);
                 player.velocityModified = true;
+                player.networkHandler.sendPacket(new EntityVelocityUpdateS2CPacket(player));
             }
-            // Ticks 7-14: Trail falling portal animation as player falls out of it
-            else if (task.ticks <= 14) {
-                world.spawnParticles(ParticleTypes.PORTAL, player.getX(), player.getY() + 1.0, player.getZ(),
-                        8, 0.3, 0.3, 0.3, 0.05);
-                world.spawnParticles(ParticleTypes.ASH, player.getX(), player.getY() + 0.5, player.getZ(),
-                        6, 0.2, 0.2, 0.2, 0.02);
-                player.fallDistance = 0.0f; // Prevent fall damage on landing
-            }
-            // Completed
+            // ==============================================================
+            // PHASE 4 (Ticks 26+): Falling Descent & Safe Landing
+            // ==============================================================
             else {
-                iterator.remove();
+                player.fallDistance = 0.0f;
+                grantFallImmunity(player.getUuid(), world.getTime() + 60);
+
+                if (!task.landed) {
+                    // Trailing rift particles as player falls towards ground
+                    world.spawnParticles(ParticleTypes.PORTAL, player.getX(), player.getY() + 1.2, player.getZ(),
+                            6, 0.3, 0.25, 0.3, 0.04);
+                    world.spawnParticles(ParticleTypes.ASH, player.getX(), player.getY() + 0.6, player.getZ(),
+                            4, 0.2, 0.2, 0.2, 0.02);
+                    world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, player.getX(), player.getY() + 0.8, player.getZ(),
+                            2, 0.15, 0.15, 0.15, 0.01);
+
+                    // Landing check
+                    if (player.isOnGround() || task.ticks >= 55) {
+                        task.landed = true;
+                        player.fallDistance = 0.0f;
+                        grantFallImmunity(player.getUuid(), world.getTime() + 60);
+
+                        // Safe landing visual impact
+                        for (int i = 0; i < 20; i++) {
+                            double angle = 2 * Math.PI * i / 20.0;
+                            double px = player.getX() + 0.75 * Math.cos(angle);
+                            double pz = player.getZ() + 0.75 * Math.sin(angle);
+                            world.spawnParticles(ParticleTypes.ASH, px, player.getY() + 0.1, pz,
+                                    2, 0.1, 0.05, 0.1, 0.03);
+                            world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, px, player.getY() + 0.1, pz,
+                                    1, 0.05, 0.02, 0.05, 0.01);
+                            world.spawnParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE, px, player.getY() + 0.1, pz,
+                                    1, 0.02, 0.04, 0.02, 0.02);
+                        }
+
+                        // Safe landing audio feedback
+                        world.playSound(null, player.getX(), player.getY(), player.getZ(),
+                                SoundEvents.BLOCK_RESPAWN_ANCHOR_SET_SPAWN, SoundCategory.PLAYERS, 0.7f, 1.8f);
+                        world.playSound(null, player.getX(), player.getY(), player.getZ(),
+                                SoundEvents.BLOCK_STONE_STEP, SoundCategory.PLAYERS, 1.0f, 0.8f);
+
+                        // Trigger weapon recovery animation
+                        ItemStack mainStack = player.getMainHandStack();
+                        if (mainStack.getItem() instanceof AshenRiftBladeItem bladeItem) {
+                            bladeItem.triggerAnim(player, GeoItem.getOrAssignId(mainStack, world), "controller", "teleport_recover");
+                        }
+                    }
+                } else {
+                    task.postLandTicks++;
+                    if (task.postLandTicks >= 6) {
+                        player.fallDistance = 0.0f;
+                        iterator.remove();
+                    }
+                }
             }
         }
     }
