@@ -40,6 +40,7 @@ import org.jetbrains.annotations.Nullable;
 import net.fabricmc.fabric.api.tag.convention.v1.ConventionalBiomeTags;
 import software.bernie.geckolib.animatable.GeoItem;
 import software.bernie.geckolib.animatable.SingletonGeoAnimatable;
+import software.bernie.geckolib.constant.DataTickets;
 import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.core.animation.AnimationController;
@@ -81,10 +82,9 @@ public class FrostwakePickItem extends PickaxeItem implements GeoItem {
     // GeckoLib animation definitions
     private static final RawAnimation IDLE_ANIM = RawAnimation.begin().thenLoop("animation.frostwake_pick.idle");
     private static final RawAnimation SWING_ANIM = RawAnimation.begin().thenPlay("animation.frostwake_pick.swing");
-    private static final RawAnimation COOLDOWN_ANIM = RawAnimation.begin().thenPlay("animation.frostwake_pick.cooldown");
+    private static final RawAnimation COOLDOWN_ANIM = RawAnimation.begin().thenLoop("animation.frostwake_pick.cooldown");
     private static final RawAnimation FROSTBURST_ANIM = RawAnimation.begin()
-            .thenPlay("animation.frostwake_pick.frostburst")
-            .thenPlay("animation.frostwake_pick.cooldown");
+            .thenPlay("animation.frostwake_pick.frostburst");
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     private final Supplier<Object> renderProvider = GeoItem.makeRenderer(this);
@@ -117,6 +117,13 @@ public class FrostwakePickItem extends PickaxeItem implements GeoItem {
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
         controllers.add(new AnimationController<>(this, "controller", 0, state -> {
+            ItemStack stack = state.getData(DataTickets.ITEMSTACK);
+            Entity entity = state.getData(DataTickets.ENTITY);
+            if (stack != null && entity instanceof PlayerEntity player) {
+                if (player.getItemCooldownManager().isCoolingDown(this)) {
+                    return state.setAndContinue(COOLDOWN_ANIM);
+                }
+            }
             return state.setAndContinue(IDLE_ANIM);
         }).triggerableAnim("swing", SWING_ANIM)
           .triggerableAnim("cooldown", COOLDOWN_ANIM)

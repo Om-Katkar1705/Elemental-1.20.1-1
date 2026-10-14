@@ -39,6 +39,7 @@ import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
 import software.bernie.geckolib.animatable.GeoItem;
 import software.bernie.geckolib.animatable.SingletonGeoAnimatable;
+import software.bernie.geckolib.constant.DataTickets;
 import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.core.animation.AnimationController;
@@ -98,7 +99,8 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
     private static final RawAnimation CHARGE_ANIM = RawAnimation.begin().thenLoop("animation.tidebreaker_trident.charge");
     private static final RawAnimation THROW_ANIM = RawAnimation.begin().thenPlay("animation.tidebreaker_trident.throw");
     private static final RawAnimation DASH_ANIM = RawAnimation.begin().thenPlay("animation.tidebreaker_trident.dash");
-    private static final RawAnimation COOLDOWN_ANIM = RawAnimation.begin().thenPlay("animation.tidebreaker_trident.cooldown");
+    private static final RawAnimation FAILED_DASH_ANIM = RawAnimation.begin().thenPlay("animation.tidebreaker_trident.failed_dash");
+    private static final RawAnimation COOLDOWN_ANIM = RawAnimation.begin().thenLoop("animation.tidebreaker_trident.cooldown");
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     private final Supplier<Object> renderProvider = GeoItem.makeRenderer(this);
@@ -133,11 +135,22 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
         controllers.add(new AnimationController<>(this, "controller", 2, state -> {
+            ItemStack stack = state.getData(DataTickets.ITEMSTACK);
+            Entity entity = state.getData(DataTickets.ENTITY);
+            if (stack != null && entity instanceof PlayerEntity player) {
+                long now = entity.getWorld().getTime();
+                long lastBubble = stack.hasNbt() ? stack.getNbt().getLong("LastBubbleTime") : 0;
+                boolean bubbleCd = (now - lastBubble < BUBBLE_COOLDOWN_TICKS);
+                if (player.getItemCooldownManager().isCoolingDown(this) || bubbleCd) {
+                    return state.setAndContinue(COOLDOWN_ANIM);
+                }
+            }
             return state.setAndContinue(IDLE_ANIM);
         }).triggerableAnim("swing", SWING_ANIM)
           .triggerableAnim("charge", CHARGE_ANIM)
           .triggerableAnim("throw", THROW_ANIM)
           .triggerableAnim("dash", DASH_ANIM)
+          .triggerableAnim("failed_dash", FAILED_DASH_ANIM)
           .triggerableAnim("cooldown", COOLDOWN_ANIM)
           .triggerableAnim("idle", IDLE_ANIM));
     }
@@ -312,7 +325,12 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
             player.incrementStat(Stats.USED.getOrCreateStat(this));
         } else {
             // Cancelled charge
-            if (world instanceof ServerWorld serverWorld) {
+            if (world.isClient()) {
+                long id = GeoItem.getId(stack);
+                if (id != Long.MAX_VALUE) {
+                    triggerAnim(player, id, "controller", "idle");
+                }
+            } else if (world instanceof ServerWorld serverWorld) {
                 long id = GeoItem.getOrAssignId(stack, serverWorld);
                 triggerAnim(player, id, "controller", "idle");
             }
@@ -365,7 +383,7 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
 
             if (stack.getItem() instanceof GeoItem geoItem) {
                 long id = GeoItem.getOrAssignId(stack, world);
-                geoItem.triggerAnim(player, id, "controller", "cooldown");
+                geoItem.triggerAnim(player, id, "controller", "failed_dash");
             }
             return;
         }

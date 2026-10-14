@@ -4,9 +4,11 @@ import com.elemental.entity.SolarArcEntity;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.item.TooltipContext;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityGroup;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import software.bernie.geckolib.constant.DataTickets;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.SwordItem;
 import net.minecraft.item.ToolMaterial;
@@ -89,10 +91,11 @@ public class SunforgedScimitarItem extends SwordItem implements GeoItem {
 
     // GeckoLib animation definitions
     private static final RawAnimation IDLE_ANIM = RawAnimation.begin().thenLoop("animation.sunforged.idle");
+    private static final RawAnimation ATTACK_ANIM = RawAnimation.begin().thenPlay("animation.sunforged.attack");
     private static final RawAnimation HEAT_ANIM = RawAnimation.begin().thenPlay("animation.sunforged.heat");
     private static final RawAnimation CHARGE_ANIM = RawAnimation.begin().thenLoop("animation.sunforged.charge");
     private static final RawAnimation RELEASE_ANIM = RawAnimation.begin().thenPlay("animation.sunforged.release");
-    private static final RawAnimation COOLDOWN_ANIM = RawAnimation.begin().thenPlay("animation.sunforged.cooldown");
+    private static final RawAnimation COOLDOWN_ANIM = RawAnimation.begin().thenLoop("animation.sunforged.cooldown");
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     private final Supplier<Object> renderProvider = GeoItem.makeRenderer(this);
@@ -125,8 +128,16 @@ public class SunforgedScimitarItem extends SwordItem implements GeoItem {
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
         controllers.add(new AnimationController<>(this, "controller", 4, state -> {
+            ItemStack stack = state.getData(DataTickets.ITEMSTACK);
+            Entity entity = state.getData(DataTickets.ENTITY);
+            if (stack != null && entity instanceof PlayerEntity player) {
+                if (player.getItemCooldownManager().isCoolingDown(this)) {
+                    return state.setAndContinue(COOLDOWN_ANIM);
+                }
+            }
             return state.setAndContinue(IDLE_ANIM);
-        }).triggerableAnim("charge", CHARGE_ANIM)
+        }).triggerableAnim("attack", ATTACK_ANIM)
+          .triggerableAnim("charge", CHARGE_ANIM)
           .triggerableAnim("release", RELEASE_ANIM)
           .triggerableAnim("cooldown", COOLDOWN_ANIM)
           .triggerableAnim("heat", HEAT_ANIM)
@@ -159,7 +170,15 @@ public class SunforgedScimitarItem extends SwordItem implements GeoItem {
         super.postHit(stack, target, attacker);
         World world = attacker.getWorld();
 
-        if (!world.isClient()) {
+        if (world.isClient()) {
+            long id = GeoItem.getId(stack);
+            if (id != Long.MAX_VALUE) {
+                triggerAnim(attacker, id, "controller", "attack");
+            }
+        } else if (world instanceof ServerWorld serverWorld) {
+            long id = GeoItem.getOrAssignId(stack, serverWorld);
+            triggerAnim(attacker, id, "controller", "attack");
+
             // Passive sunlight vs undead bonus damage
             if (target.getGroup() == EntityGroup.UNDEAD) {
                 if (world.isDay() && !world.isRaining() && world.isSkyVisible(attacker.getBlockPos())
@@ -180,9 +199,17 @@ public class SunforgedScimitarItem extends SwordItem implements GeoItem {
     @Override
     public TypedActionResult<ItemStack> use(World world, PlayerEntity user, Hand hand) {
         ItemStack stack = user.getStackInHand(hand);
+        if (user.getItemCooldownManager().isCoolingDown(this)) {
+            return TypedActionResult.fail(stack);
+        }
         user.setCurrentHand(hand);
 
-        if (world instanceof ServerWorld serverWorld) {
+        if (world.isClient()) {
+            long id = GeoItem.getId(stack);
+            if (id != Long.MAX_VALUE) {
+                triggerAnim(user, id, "controller", "charge");
+            }
+        } else if (world instanceof ServerWorld serverWorld) {
             long id = GeoItem.getOrAssignId(stack, serverWorld);
             triggerAnim(user, id, "controller", "charge");
         }
@@ -192,10 +219,29 @@ public class SunforgedScimitarItem extends SwordItem implements GeoItem {
     @Override
     public void onStoppedUsing(ItemStack stack, World world, LivingEntity user, int remainingUseTicks) {
         if (!(user instanceof PlayerEntity player)) return;
-        if (world.isClient()) return;
 
         int chargeTicks = getMaxUseTime(stack) - remainingUseTicks;
-        if (chargeTicks < MIN_CHARGE_TICKS) return;
+        if (chargeTicks < MIN_CHARGE_TICKS) {
+            // Cancelled charge / released too early
+            if (world.isClient()) {
+                long id = GeoItem.getId(stack);
+                if (id != Long.MAX_VALUE) {
+                    triggerAnim(player, id, "controller", player.getItemCooldownManager().isCoolingDown(this) ? "cooldown" : "idle");
+                }
+            } else if (world instanceof ServerWorld serverWorld) {
+                long id = GeoItem.getOrAssignId(stack, serverWorld);
+                triggerAnim(player, id, "controller", player.getItemCooldownManager().isCoolingDown(this) ? "cooldown" : "idle");
+            }
+            return;
+        }
+
+        if (world.isClient()) {
+            long id = GeoItem.getId(stack);
+            if (id != Long.MAX_VALUE) {
+                triggerAnim(player, id, "controller", "release");
+            }
+            return;
+        }
 
         float chargeRatio = Math.min(1.0f, (float) chargeTicks / MAX_CHARGE_TICKS);
 

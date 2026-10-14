@@ -36,6 +36,7 @@ import net.minecraft.world.biome.Biome;
 import org.jetbrains.annotations.Nullable;
 import software.bernie.geckolib.animatable.GeoItem;
 import software.bernie.geckolib.animatable.SingletonGeoAnimatable;
+import software.bernie.geckolib.constant.DataTickets;
 import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.core.animation.AnimationController;
@@ -104,6 +105,7 @@ public class RootboundAxeItem extends AxeItem implements GeoItem {
     private static final RawAnimation WIDE_SWEEP_ANIM = RawAnimation.begin().thenPlay("animation.rootbound_axe.wide_sweep");
     private static final RawAnimation THORN_CAGE_ANIM = RawAnimation.begin().thenPlay("animation.rootbound_axe.thorn_cage");
     private static final RawAnimation HEALING_ROOT_ANIM = RawAnimation.begin().thenPlay("animation.rootbound_axe.healing_root");
+    private static final RawAnimation COOLDOWN_ANIM = RawAnimation.begin().thenLoop("animation.rootbound_axe.cooldown");
     private static final RawAnimation EQUIP_ANIM = RawAnimation.begin().thenPlay("animation.rootbound_axe.equip");
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
@@ -136,10 +138,21 @@ public class RootboundAxeItem extends AxeItem implements GeoItem {
 
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
-        controllers.add(new AnimationController<>(this, "main", 4, state -> state.setAndContinue(IDLE_ANIM))
+        controllers.add(new AnimationController<>(this, "controller", 4, state -> {
+            ItemStack stack = state.getData(DataTickets.ITEMSTACK);
+            Entity entity = state.getData(DataTickets.ENTITY);
+            if (stack != null && entity instanceof PlayerEntity player) {
+                if (player.getItemCooldownManager().isCoolingDown(this)) {
+                    return state.setAndContinue(COOLDOWN_ANIM);
+                }
+            }
+            return state.setAndContinue(IDLE_ANIM);
+        })
                 .triggerableAnim("wide_sweep", WIDE_SWEEP_ANIM)
                 .triggerableAnim("thorn_cage", THORN_CAGE_ANIM)
                 .triggerableAnim("healing_root", HEALING_ROOT_ANIM)
+                .triggerableAnim("cooldown", COOLDOWN_ANIM)
+                .triggerableAnim("idle", IDLE_ANIM)
                 .triggerableAnim("equip", EQUIP_ANIM));
     }
 
@@ -181,12 +194,17 @@ public class RootboundAxeItem extends AxeItem implements GeoItem {
         super.postHit(stack, target, attacker);
         World world = attacker.getWorld();
 
-        if (!world.isClient()) {
+        if (world.isClient()) {
+            long id = GeoItem.getId(stack);
+            if (id != Long.MAX_VALUE) {
+                triggerAnim(attacker, id, "controller", "wide_sweep");
+            }
+        } else if (world instanceof ServerWorld serverWorld) {
             // Perform sweep attack
-            performSweepAttack((ServerWorld) world, attacker, stack, target);
+            performSweepAttack(serverWorld, attacker, stack, target);
 
             // Passive: Healing root on hit/crit
-            attemptHealingRoot((ServerWorld) world, attacker, target, stack);
+            attemptHealingRoot(serverWorld, attacker, target, stack);
         }
         return true;
     }
@@ -197,7 +215,7 @@ public class RootboundAxeItem extends AxeItem implements GeoItem {
     private void performSweepAttack(ServerWorld world, LivingEntity attacker, ItemStack stack, LivingEntity primaryTarget) {
         if (!(attacker instanceof PlayerEntity)) return;
 
-        triggerAnim(attacker, GeoItem.getOrAssignId(stack, world), "main", "wide_sweep");
+        triggerAnim(attacker, GeoItem.getOrAssignId(stack, world), "controller", "wide_sweep");
 
         float attackAngle = SWEEP_ANGLE;
         float attackRadius = SWEEP_ATTACK_RADIUS;
@@ -258,7 +276,7 @@ public class RootboundAxeItem extends AxeItem implements GeoItem {
      * Spawns a healing root at the given position.
      */
     private void spawnHealingRoot(ServerWorld world, BlockPos pos, LivingEntity source, ItemStack stack) {
-        triggerAnim(source, GeoItem.getOrAssignId(stack, world), "main", "healing_root");
+        triggerAnim(source, GeoItem.getOrAssignId(stack, world), "controller", "healing_root");
 
         // Check biome for forest/jungle bonus
         boolean isForestJungle = world.getBiome(pos).isIn(FOREST_JUNGLE_BIOMES);
@@ -301,13 +319,26 @@ public class RootboundAxeItem extends AxeItem implements GeoItem {
     public TypedActionResult<ItemStack> use(World world, PlayerEntity user, Hand hand) {
         ItemStack stack = user.getStackInHand(hand);
 
-        if (world.isClient()) {
-            return TypedActionResult.consume(stack);
-        }
-
         // Check cooldown
         if (user.getItemCooldownManager().isCoolingDown(this)) {
+            if (world.isClient()) {
+                long id = GeoItem.getId(stack);
+                if (id != Long.MAX_VALUE) {
+                    triggerAnim(user, id, "controller", "cooldown");
+                }
+            } else if (world instanceof ServerWorld serverWorld) {
+                long id = GeoItem.getOrAssignId(stack, serverWorld);
+                triggerAnim(user, id, "controller", "cooldown");
+            }
             return TypedActionResult.fail(stack);
+        }
+
+        if (world.isClient()) {
+            long id = GeoItem.getId(stack);
+            if (id != Long.MAX_VALUE) {
+                triggerAnim(user, id, "controller", "thorn_cage");
+            }
+            return TypedActionResult.consume(stack);
         }
 
         // Perform active ability: Thorn Cage
@@ -319,7 +350,7 @@ public class RootboundAxeItem extends AxeItem implements GeoItem {
      * Performs the active Thorn Cage ability.
      */
     private void performThornCage(ServerWorld world, PlayerEntity user, ItemStack stack, Hand hand) {
-        triggerAnim(user, GeoItem.getOrAssignId(stack, world), "main", "thorn_cage");
+        triggerAnim(user, GeoItem.getOrAssignId(stack, world), "controller", "thorn_cage");
 
         Vec3d center = user.getPos();
         BlockPos centerPos = user.getBlockPos();

@@ -69,6 +69,7 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
 
     // GeckoLib animation definitions
     private static final RawAnimation IDLE_ANIM = RawAnimation.begin().thenLoop("animation.stormcaller_hammer.idle");
+    private static final RawAnimation ATTACK_ANIM = RawAnimation.begin().thenPlay("animation.stormcaller_hammer.attack");
     private static final RawAnimation THUNDERCLAP_ANIM = RawAnimation.begin().thenPlay("animation.stormcaller_hammer.thunderclap").thenLoop("animation.stormcaller_hammer.cooldown");
     private static final RawAnimation CHARGE_ANIM = RawAnimation.begin().thenLoop("animation.stormcaller_hammer.charge");
     private static final RawAnimation RELEASE_ANIM = RawAnimation.begin().thenPlay("animation.stormcaller_hammer.release").thenLoop("animation.stormcaller_hammer.cooldown");
@@ -117,7 +118,8 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
                 }
             }
             return state.setAndContinue(IDLE_ANIM);
-        }).triggerableAnim("thunderclap", THUNDERCLAP_ANIM)
+        }).triggerableAnim("attack", ATTACK_ANIM)
+          .triggerableAnim("thunderclap", THUNDERCLAP_ANIM)
           .triggerableAnim("charge", CHARGE_ANIM)
           .triggerableAnim("release", RELEASE_ANIM)
           .triggerableAnim("cooldown", COOLDOWN_ANIM)
@@ -203,7 +205,15 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
     public boolean postHit(ItemStack stack, LivingEntity target, LivingEntity attacker) {
         super.postHit(stack, target, attacker);
         World world = attacker.getWorld();
-        if (!world.isClient()) {
+        if (world.isClient()) {
+            long id = GeoItem.getId(stack);
+            if (id != Long.MAX_VALUE) {
+                triggerAnim(attacker, id, "controller", "attack");
+            }
+        } else {
+            if (attacker instanceof ServerPlayerEntity serverPlayer && world instanceof ServerWorld serverWorld) {
+                triggerAnim(serverPlayer, GeoItem.getOrAssignId(stack, serverWorld), "controller", "attack");
+            }
             boolean onCooldown = isCoolingDown(world, stack);
             if (onCooldown) {
                 world.playSound(null, target.getX(), target.getY(), target.getZ(),
@@ -359,7 +369,12 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
         }
         user.setCurrentHand(hand);
         world.playSound(null, user.getX(), user.getY(), user.getZ(), SoundEvents.ITEM_CROSSBOW_LOADING_START, SoundCategory.PLAYERS, 0.8f, 0.7f);
-        if (!world.isClient() && user instanceof ServerPlayerEntity serverPlayer) {
+        if (world.isClient()) {
+            long id = GeoItem.getId(stack);
+            if (id != Long.MAX_VALUE) {
+                triggerAnim(user, id, "controller", "charge");
+            }
+        } else if (user instanceof ServerPlayerEntity serverPlayer) {
             triggerAnim(serverPlayer, GeoItem.getOrAssignId(stack, (ServerWorld) world), "controller", "charge");
         }
         return TypedActionResult.consume(stack);
@@ -394,7 +409,22 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
 
     @Override
     public void onStoppedUsing(ItemStack stack, World world, LivingEntity user, int remainingUseTicks) {
-        if (world.isClient() || !(user instanceof ServerPlayerEntity player)) {
+        if (world.isClient()) {
+            if (user instanceof PlayerEntity player) {
+                long id = GeoItem.getId(stack);
+                if (id != Long.MAX_VALUE) {
+                    int chargeTicks = getMaxUseTime(stack) - remainingUseTicks;
+                    if (chargeTicks >= 5) {
+                        triggerAnim(player, id, "controller", "release");
+                    } else {
+                        triggerAnim(player, id, "controller", isCoolingDown(world, stack) ? "cooldown" : "idle");
+                    }
+                }
+            }
+            return;
+        }
+
+        if (!(user instanceof ServerPlayerEntity player)) {
             return;
         }
 

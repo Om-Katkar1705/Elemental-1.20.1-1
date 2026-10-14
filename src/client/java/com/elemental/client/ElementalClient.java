@@ -239,13 +239,25 @@ public class ElementalClient implements ClientModInitializer {
 				}
 			}
 
-			// Attack / Swing animation for Ashen Rift Blade on left-click swing
+			// Attack / Swing animation for all six custom weapons on left-click swing
 			if (client.player.handSwinging && client.player.handSwingTicks == 0) {
 				ItemStack main = client.player.getMainHandStack();
-				if (main.isOf(ModItems.ASHEN_RIFT_BLADE) && main.getItem() instanceof AshenRiftBladeItem bladeItem) {
+				if (main.getItem() instanceof GeoItem geoItem) {
 					long id = GeoItem.getId(main);
 					if (id != Long.MAX_VALUE) {
-						bladeItem.triggerAnim(client.player, id, "controller", "attack");
+						if (main.isOf(ModItems.SUNFORGED_SCIMITAR)) {
+							geoItem.triggerAnim(client.player, id, "controller", "attack");
+						} else if (main.isOf(ModItems.FROSTWAKE_PICK)) {
+							geoItem.triggerAnim(client.player, id, "controller", "swing");
+						} else if (main.isOf(ModItems.ROOTBOUND_AXE)) {
+							geoItem.triggerAnim(client.player, id, "controller", "wide_sweep");
+						} else if (main.isOf(ModItems.TIDEBREAKER_TRIDENT)) {
+							geoItem.triggerAnim(client.player, id, "controller", "swing");
+						} else if (main.isOf(ModItems.STORMCALLER_HAMMER)) {
+							geoItem.triggerAnim(client.player, id, "controller", "attack");
+						} else if (main.isOf(ModItems.ASHEN_RIFT_BLADE)) {
+							geoItem.triggerAnim(client.player, id, "controller", "attack");
+						}
 					}
 				}
 			}
