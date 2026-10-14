@@ -11,6 +11,7 @@ import com.elemental.network.TidebreakerNetworking;
 import com.elemental.recipe.WeaponerRecipes;
 import com.elemental.screen.ModScreenHandlers;
 import com.elemental.util.AshenRiftScheduler;
+import com.elemental.util.RootboundScheduler;
 import com.elemental.util.StormcallerLightningScheduler;
 import com.elemental.util.SunforgedHeatHandler;
 import net.fabricmc.api.ModInitializer;
@@ -51,6 +52,7 @@ public class Elemental implements ModInitializer {
 		ModItemGroup.registerItemGroups();
 		ModEntities.registerModEntities();
 		SunforgedHeatHandler.register();
+		RootboundScheduler.register();
 		TidebreakerNetworking.registerServerReceivers();
 		StormcallerNetworking.registerServerReceivers();
 		StormcallerLightningScheduler.register();
@@ -68,6 +70,10 @@ public class Elemental implements ModInitializer {
 
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
 			ServerPlayerEntity player = handler.getPlayer();
+
+			// Ensure player state is clean (e.g. if disconnected during rift teleport)
+			player.setInvisible(false);
+			player.removeStatusEffect(net.minecraft.entity.effect.StatusEffects.INVISIBILITY);
 
 			// Queue village initialization & Aeron spawn after 5 ticks of connection
 			pendingSpawnDelays.put(player.getUuid(), 5);

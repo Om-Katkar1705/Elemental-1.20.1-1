@@ -7,6 +7,11 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.particle.ParticleTypes;
+import net.minecraft.entity.data.DataTracker;
+import net.minecraft.entity.data.TrackedData;
+import net.minecraft.entity.data.TrackedDataHandlerRegistry;
+import net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
@@ -16,6 +21,8 @@ import net.minecraft.world.World;
 import java.util.UUID;
 
 public class TidebreakerBubbleEntity extends Entity {
+
+    private static final TrackedData<Integer> TARGET_ID = DataTracker.registerData(TidebreakerBubbleEntity.class, TrackedDataHandlerRegistry.INTEGER);
 
     private int targetId = -1;
     private UUID ownerUuid = null;
@@ -31,6 +38,7 @@ public class TidebreakerBubbleEntity extends Entity {
     public TidebreakerBubbleEntity(World world, LivingEntity target, PlayerEntity owner) {
         this(ModEntities.TIDEBREAKER_BUBBLE, world);
         this.targetId = target.getId();
+        this.dataTracker.set(TARGET_ID, this.targetId);
         this.ownerUuid = owner.getUuid();
         this.originPos = target.getPos();
         this.setPosition(target.getX(), target.getY() + target.getHeight() * 0.5, target.getZ());
@@ -48,6 +56,7 @@ public class TidebreakerBubbleEntity extends Entity {
 
     @Override
     protected void initDataTracker() {
+        this.dataTracker.startTracking(TARGET_ID, -1);
     }
 
     @Override
@@ -92,6 +101,9 @@ public class TidebreakerBubbleEntity extends Entity {
         target.setVelocity(target.getVelocity().x * 0.2, upwardSpeed, target.getVelocity().z * 0.2);
         target.velocityModified = true;
         target.fallDistance = 0.0f;
+        if (target instanceof ServerPlayerEntity targetPlayer) {
+            targetPlayer.networkHandler.sendPacket(new EntityVelocityUpdateS2CPacket(targetPlayer));
+        }
 
         // Position bubble at target center
         this.setPosition(target.getX(), target.getY() + target.getHeight() * 0.5, target.getZ());
@@ -116,7 +128,7 @@ public class TidebreakerBubbleEntity extends Entity {
         } else {
             if (this.lifetimeTicks % 3 == 0) {
                 serverWorld.spawnParticles(ParticleTypes.SPLASH, target.getX(), target.getY() + target.getHeight() * 0.5, target.getZ(),
-                        3, radius, target.getHeight() * 0.3, radius, 0.05);
+                    3, radius, target.getHeight() * 0.3, radius, 0.05);
             }
         }
     }
@@ -142,13 +154,22 @@ public class TidebreakerBubbleEntity extends Entity {
             } else {
                 target.damage(serverWorld.getDamageSources().magic(), TidebreakerTridentItem.BUBBLE_EXPLOSION_DAMAGE);
             }
+
+            if (target instanceof ServerPlayerEntity targetPlayer) {
+                targetPlayer.networkHandler.sendPacket(new EntityVelocityUpdateS2CPacket(targetPlayer));
+            }
         }
         this.discard();
+    }
+
+    public int getTargetId() {
+        return this.dataTracker.get(TARGET_ID);
     }
 
     @Override
     protected void readCustomDataFromNbt(NbtCompound nbt) {
         this.targetId = nbt.getInt("TargetId");
+        this.dataTracker.set(TARGET_ID, this.targetId);
         if (nbt.containsUuid("OwnerUuid")) {
             this.ownerUuid = nbt.getUuid("OwnerUuid");
         }

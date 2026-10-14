@@ -274,6 +274,10 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
     // ==========================================
 
     public static void performRiftCollapse(ServerPlayerEntity player) {
+        if (player == null || !player.isAlive() || player.isSpectator()) {
+            return;
+        }
+
         ItemStack stack = player.getMainHandStack();
         Hand hand = Hand.MAIN_HAND;
         if (!(stack.getItem() instanceof AshenRiftBladeItem)) {
@@ -444,6 +448,10 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
             return;
         }
 
+        if (!player.isAlive() || player.isSpectator()) {
+            return;
+        }
+
         ServerWorld serverWorld = player.getServerWorld();
         int chargeTicks = getMaxUseTime(stack) - remainingUseTicks;
 
@@ -453,7 +461,7 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
             return;
         }
 
-        // Raycast to aim at a targeted block
+        // Raycast to aim at a targeted block (40 block maximum range)
         BlockHitResult blockHit = raycastAimedBlock(player, 40.0);
 
         // Edge case: no aimed block
@@ -467,7 +475,7 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
 
         BlockPos aimedBlockPos = blockHit.getBlockPos();
 
-        // Edge case: invalid/unsafe destination
+        // Edge case: invalid/unsafe destination, unloaded chunk, or inside active rift
         BlockPos safePos = findSafeDestination(serverWorld, aimedBlockPos);
         if (safePos == null) {
             player.sendMessage(Text.literal("§c✦ Unsafe rift destination! Teleport cancelled.").formatted(Formatting.RED), true);
@@ -479,6 +487,13 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
 
         Vec3d initialPos = player.getPos();
         Vec3d destPos = new Vec3d(safePos.getX() + 0.5, safePos.getY(), safePos.getZ() + 0.5);
+
+        // Server-side distance check
+        if (player.squaredDistanceTo(destPos) > 45.0 * 45.0) {
+            player.sendMessage(Text.literal("§c✦ Destination out of range! Teleport cancelled.").formatted(Formatting.RED), true);
+            triggerAnim(player, GeoItem.getOrAssignId(stack, serverWorld), "controller", "idle");
+            return;
+        }
 
         // Spawn portal effect beneath player's legs at initial position
         for (int i = 0; i < 32; i++) {
@@ -521,25 +536,37 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
     }
 
     public static BlockPos findSafeDestination(ServerWorld world, BlockPos aimedPos) {
-        if (aimedPos == null) return null;
+        if (aimedPos == null || !world.isChunkLoaded(aimedPos)) return null;
 
         // Desired position: 5 blocks above aimed position
         BlockPos desiredPos = aimedPos.up(5);
-
-        // Check if 5 blocks above is safe
-        if (isPassable(world, desiredPos) && isPassable(world, desiredPos.up()) && !isHazard(world, desiredPos)) {
-            return desiredPos;
+        if (world.isChunkLoaded(desiredPos)) {
+            if (isPassable(world, desiredPos) && isPassable(world, desiredPos.up()) && !isHazard(world, desiredPos)
+                    && !AshenRiftScheduler.isBlockInActiveRift(desiredPos) && !AshenRiftScheduler.isBlockInActiveRift(desiredPos.down())) {
+                return desiredPos;
+            }
         }
 
         // If obstructed (e.g. cavern ceiling), find highest clear clearance between +1 and +5
         for (int h = 5; h >= 1; h--) {
             BlockPos checkPos = aimedPos.up(h);
-            if (isPassable(world, checkPos) && isPassable(world, checkPos.up()) && !isHazard(world, checkPos)) {
-                return checkPos;
+            if (world.isChunkLoaded(checkPos)) {
+                if (isPassable(world, checkPos) && isPassable(world, checkPos.up()) && !isHazard(world, checkPos)
+                        && !AshenRiftScheduler.isBlockInActiveRift(checkPos) && !AshenRiftScheduler.isBlockInActiveRift(checkPos.down())) {
+                    return checkPos;
+                }
             }
         }
 
         return null;
+    }
+
+    @Override
+    public void inventoryTick(ItemStack stack, World world, Entity entity, int slot, boolean selected) {
+        super.inventoryTick(stack, world, entity, slot, selected);
+        if (world instanceof ServerWorld serverWorld) {
+            GeoItem.getOrAssignId(stack, serverWorld);
+        }
     }
 
     private static boolean isPassable(World world, BlockPos pos) {

@@ -157,6 +157,7 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
         long endTick = world.getTime() + ticks;
         stack.getOrCreateNbt().putLong(NBT_COOLDOWN_END, endTick);
         stack.getOrCreateNbt().putBoolean(NBT_COOLDOWN_NOTIFIED, true);
+        player.getItemCooldownManager().set(stack.getItem(), ticks);
     }
 
     public static boolean isCoolingDown(World world, ItemStack stack) {
@@ -175,6 +176,9 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
     @Override
     public void inventoryTick(ItemStack stack, World world, Entity entity, int slot, boolean selected) {
         super.inventoryTick(stack, world, entity, slot, selected);
+        if (world instanceof ServerWorld serverWorld) {
+            GeoItem.getOrAssignId(stack, serverWorld);
+        }
         if (!world.isClient() && entity instanceof PlayerEntity player) {
             boolean isHolding = selected || player.getOffHandStack() == stack;
             boolean coolingDown = isCoolingDown(world, stack);
@@ -237,6 +241,10 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
     // ==========================================
 
     public static void performThunderclap(ServerPlayerEntity player) {
+        if (player == null || !player.isAlive() || player.isSpectator()) {
+            return;
+        }
+
         ItemStack stack = player.getMainHandStack();
         Hand hand = Hand.MAIN_HAND;
         if (!(stack.getItem() instanceof StormcallerHammerItem)) {
@@ -316,6 +324,9 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
 
             target.setVelocity(vx, vy, vz);
             target.velocityModified = true;
+            if (target instanceof ServerPlayerEntity targetPlayer) {
+                targetPlayer.networkHandler.sendPacket(new net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket(targetPlayer));
+            }
 
             // Controlled earthquake damage
             target.damage(world.getDamageSources().playerAttack(player), 7.0f);

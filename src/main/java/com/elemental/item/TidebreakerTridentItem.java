@@ -196,9 +196,15 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
     // PASSIVE ABILITY: UNDERWATER ATTACK SPEED
     // ==========================================
 
+    // Per-player bubble cooldown tracking to prevent hotbar switching exploits
+    private static final java.util.Map<UUID, Long> LAST_BUBBLE_BY_PLAYER = new java.util.concurrent.ConcurrentHashMap<>();
+
     @Override
     public void inventoryTick(ItemStack stack, World world, Entity entity, int slot, boolean selected) {
         super.inventoryTick(stack, world, entity, slot, selected);
+        if (world instanceof ServerWorld serverWorld) {
+            GeoItem.getOrAssignId(stack, serverWorld);
+        }
         if (!world.isClient() && entity instanceof PlayerEntity player) {
             EntityAttributeInstance attr = player.getAttributeInstance(EntityAttributes.GENERIC_ATTACK_SPEED);
             if (attr != null) {
@@ -342,6 +348,10 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
     // ==========================================
 
     public static void performDash(ServerPlayerEntity player) {
+        if (player == null || !player.isAlive() || player.isSpectator()) {
+            return;
+        }
+
         ItemStack stack = null;
         Hand hand = Hand.MAIN_HAND;
         if (player.getMainHandStack().getItem() instanceof TidebreakerTridentItem) {
@@ -369,6 +379,7 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
             Vec3d push = look.multiply(0.65).add(0, 0.1, 0);
             player.setVelocity(push.x, push.y, push.z);
             player.velocityModified = true;
+            player.networkHandler.sendPacket(new net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket(player));
 
             world.spawnParticles(ParticleTypes.SMOKE, player.getX(), player.getY() + 0.5, player.getZ(),
                     20, 0.4, 0.4, 0.4, 0.05);
@@ -397,6 +408,7 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
         player.setVelocity(dashVec.x, dashVec.y * 0.85 + 0.15, dashVec.z);
         player.velocityModified = true;
         player.fallDistance = 0.0f;
+        player.networkHandler.sendPacket(new net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket(player));
 
         // Visual and sound effects
         world.spawnParticles(ParticleTypes.SPLASH, player.getX(), player.getY() + 0.5, player.getZ(),
@@ -450,6 +462,10 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
         if (owner.distanceTo(target) > BUBBLE_MAX_RANGE) return;
 
         long now = owner.getWorld().getTime();
+        Long lastPlayerBubble = LAST_BUBBLE_BY_PLAYER.get(owner.getUuid());
+        if (lastPlayerBubble != null && now - lastPlayerBubble < BUBBLE_COOLDOWN_TICKS) {
+            return;
+        }
         long lastBubble = tridentStack.getOrCreateNbt().getLong("LastBubbleTime");
         if (now - lastBubble < BUBBLE_COOLDOWN_TICKS) {
             return;
@@ -459,6 +475,7 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
         TidebreakerBubbleEntity bubble = new TidebreakerBubbleEntity(owner.getWorld(), target, owner);
         owner.getWorld().spawnEntity(bubble);
 
+        LAST_BUBBLE_BY_PLAYER.put(owner.getUuid(), now);
         tridentStack.getOrCreateNbt().putLong("LastBubbleTime", now);
         tridentStack.damage(1, owner, p -> p.sendToolBreakStatus(Hand.MAIN_HAND));
     }

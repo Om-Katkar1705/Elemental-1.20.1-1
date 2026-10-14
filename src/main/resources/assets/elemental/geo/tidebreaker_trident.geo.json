@@ -3,12 +3,12 @@
 	"minecraft:geometry": [
 		{
 			"description": {
-				"identifier": "geometry.tidebreaker_trident",
+				"identifier": "geometry.elemental:tidebreaker_trident",
 				"texture_width": 64,
 				"texture_height": 64,
 				"visible_bounds_width": 3,
-				"visible_bounds_height": 5,
-				"visible_bounds_offset": [0, 1.5, 0]
+				"visible_bounds_height": 5.5,
+				"visible_bounds_offset": [0, 2.75, 0]
 			},
 			"bones": [
 				{
@@ -172,7 +172,7 @@
 							}
 						},
 						{
-							"origin": [-6.5, 24, -1],
+							"origin": [4.5, 24, -1],
 							"size": [2, 3.5, 2],
 							"uv": {
 								"north": {"uv": [0, 32], "uv_size": [2, 4]},
@@ -184,7 +184,7 @@
 							}
 						},
 						{
-							"origin": [4.5, 24, -1],
+							"origin": [-6.5, 24, -1],
 							"size": [2, 3.5, 2],
 							"uv": {
 								"north": {"uv": [8, 32], "uv_size": [2, 4]},
@@ -217,7 +217,6 @@
 						{
 							"origin": [-1.75, 25.25, -1.75],
 							"size": [3.5, 3.5, 3.5],
-							"inflate": 0.1,
 							"uv": {
 								"north": {"uv": [40, 6], "uv_size": [4, 4]},
 								"east": {"uv": [44, 6], "uv_size": [4, 4]},
@@ -304,12 +303,12 @@
 				{
 					"name": "left_prong",
 					"parent": "head",
-					"pivot": [-4.5, 24, 0],
+					"pivot": [4.5, 24, 0],
 					"cubes": [
 						{
-							"origin": [-7.5, 24.5, -0.75],
+							"origin": [4, 24.5, -0.75],
 							"size": [3.5, 2, 1.5],
-							"pivot": [-4.5, 24, 0],
+							"pivot": [4.5, 24, 0],
 							"rotation": [0, 0, 15],
 							"uv": {
 								"north": {"uv": [0, 44], "uv_size": [4, 2]},
@@ -321,9 +320,9 @@
 							}
 						},
 						{
-							"origin": [-9.5, 26, -0.5],
+							"origin": [7, 26, -0.5],
 							"size": [2.5, 8.5, 1],
-							"pivot": [-7, 26, 0],
+							"pivot": [7, 26, 0],
 							"rotation": [0, 0, -10],
 							"uv": {
 								"north": {"uv": [12, 44], "uv_size": [3, 9]},
@@ -335,9 +334,9 @@
 							}
 						},
 						{
-							"origin": [-9, 34, -0.5],
+							"origin": [-6, 34, -0.5],
 							"size": [2, 7.5, 1],
-							"pivot": [-8, 34, 0],
+							"pivot": [-5, 34, 0],
 							"rotation": [0, 0, -25],
 							"uv": {
 								"north": {"uv": [20, 44], "uv_size": [2, 8]},
@@ -349,9 +348,9 @@
 							}
 						},
 						{
-							"origin": [-6.5, 40.5, -0.5],
+							"origin": [-3.5, 40.5, -0.5],
 							"size": [1.5, 4.5, 1],
-							"pivot": [-6, 40, 0],
+							"pivot": [-2.5, 40, 0],
 							"rotation": [0, 0, -40],
 							"uv": {
 								"north": {"uv": [26, 44], "uv_size": [2, 5]},
@@ -363,9 +362,9 @@
 							}
 						},
 						{
-							"origin": [-6, 30.5, -0.5],
+							"origin": [3.5, 30.5, -0.5],
 							"size": [2.5, 2.5, 1],
-							"pivot": [-5, 31, 0],
+							"pivot": [5, 31, 0],
 							"rotation": [0, 0, 45],
 							"uv": {
 								"north": {"uv": [32, 44], "uv_size": [3, 3]},
@@ -381,12 +380,12 @@
 				{
 					"name": "right_prong",
 					"parent": "head",
-					"pivot": [4.5, 24, 0],
+					"pivot": [-4.5, 24, 0],
 					"cubes": [
 						{
-							"origin": [4, 24.5, -0.75],
+							"origin": [-7.5, 24.5, -0.75],
 							"size": [3.5, 2, 1.5],
-							"pivot": [4.5, 24, 0],
+							"pivot": [-4.5, 24, 0],
 							"rotation": [0, 0, -15],
 							"uv": {
 								"north": {"uv": [0, 54], "uv_size": [4, 2]},
@@ -398,9 +397,9 @@
 							}
 						},
 						{
-							"origin": [7, 26, -0.5],
+							"origin": [-9.5, 26, -0.5],
 							"size": [2.5, 8.5, 1],
-							"pivot": [7, 26, 0],
+							"pivot": [-7, 26, 0],
 							"rotation": [0, 0, 10],
 							"uv": {
 								"north": {"uv": [12, 54], "uv_size": [3, 9]},
@@ -412,9 +411,9 @@
 							}
 						},
 						{
-							"origin": [7, 34, -0.5],
+							"origin": [4, 34, -0.5],
 							"size": [2, 7.5, 1],
-							"pivot": [8, 34, 0],
+							"pivot": [5, 34, 0],
 							"rotation": [0, 0, 25],
 							"uv": {
 								"north": {"uv": [20, 54], "uv_size": [2, 8]},
@@ -426,9 +425,9 @@
 							}
 						},
 						{
-							"origin": [5, 40.5, -0.5],
+							"origin": [2, 40.5, -0.5],
 							"size": [1.5, 4.5, 1],
-							"pivot": [6, 40, 0],
+							"pivot": [2.5, 40, 0],
 							"rotation": [0, 0, 40],
 							"uv": {
 								"north": {"uv": [26, 54], "uv_size": [2, 5]},
@@ -440,9 +439,9 @@
 							}
 						},
 						{
-							"origin": [3.5, 30.5, -0.5],
+							"origin": [-6, 30.5, -0.5],
 							"size": [2.5, 2.5, 1],
-							"pivot": [5, 31, 0],
+							"pivot": [-5, 31, 0],
 							"rotation": [0, 0, -45],
 							"uv": {
 								"north": {"uv": [32, 54], "uv_size": [3, 3]},

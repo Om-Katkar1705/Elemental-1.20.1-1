@@ -196,8 +196,20 @@ public class FrostwakePickItem extends PickaxeItem implements GeoItem {
     }
 
     @Override
+    public void inventoryTick(ItemStack stack, World world, Entity entity, int slot, boolean selected) {
+        if (!world.isClient() && world instanceof ServerWorld serverWorld) {
+            GeoItem.getOrAssignId(stack, serverWorld);
+        }
+        super.inventoryTick(stack, world, entity, slot, selected);
+    }
+
+    @Override
     public TypedActionResult<ItemStack> use(World world, PlayerEntity user, Hand hand) {
         ItemStack stack = user.getStackInHand(hand);
+
+        if (!user.isAlive() || user.isSpectator()) {
+            return TypedActionResult.pass(stack);
+        }
 
         if (user.getItemCooldownManager().isCoolingDown(this)) {
             if (world.isClient()) {

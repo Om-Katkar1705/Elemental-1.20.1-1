@@ -138,6 +138,12 @@ public class SolarArcEntity extends PersistentProjectileEntity implements GeoEnt
                 }
             }
 
+            if (this.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
+                serverWorld.spawnParticles(ParticleTypes.FLAME, this.getX(), this.getY(), this.getZ(), 20, 0.3, 0.3, 0.3, 0.1);
+                serverWorld.spawnParticles(ParticleTypes.LAVA, this.getX(), this.getY(), this.getZ(), 5, 0.2, 0.2, 0.2, 0.05);
+                serverWorld.spawnParticles(ParticleTypes.SMOKE, this.getX(), this.getY(), this.getZ(), 10, 0.2, 0.2, 0.2, 0.05);
+            }
+
             // Spawn solar burst particles and sound on impact
             this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
                     SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.PLAYERS, 0.5f, 1.6f);
@@ -149,6 +155,10 @@ public class SolarArcEntity extends PersistentProjectileEntity implements GeoEnt
     protected void onBlockHit(net.minecraft.util.hit.BlockHitResult blockHitResult) {
         super.onBlockHit(blockHitResult);
         if (!this.getWorld().isClient()) {
+            if (this.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
+                serverWorld.spawnParticles(ParticleTypes.FLAME, this.getX(), this.getY(), this.getZ(), 10, 0.2, 0.2, 0.2, 0.05);
+                serverWorld.spawnParticles(ParticleTypes.SMOKE, this.getX(), this.getY(), this.getZ(), 8, 0.2, 0.2, 0.2, 0.02);
+            }
             this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
                     SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.PLAYERS, 0.6f, 1.8f);
             this.discard();

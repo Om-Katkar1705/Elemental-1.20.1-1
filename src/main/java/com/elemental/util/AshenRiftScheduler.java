@@ -3,6 +3,7 @@ package com.elemental.util;
 import com.elemental.block.ModBlocks;
 import com.elemental.item.AshenRiftBladeItem;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
@@ -34,6 +35,10 @@ public class AshenRiftScheduler {
 
     // Global protection map so overlapping rifts never overwrite true original terrain with Air/Lava
     private static final Map<BlockPos, BlockState> GLOBAL_ORIGINAL_BLOCKS = new ConcurrentHashMap<>();
+
+    public static boolean isBlockInActiveRift(BlockPos pos) {
+        return pos != null && GLOBAL_ORIGINAL_BLOCKS.containsKey(pos);
+    }
 
     // Fall damage immunity tracking for teleporting players
     private static final Map<UUID, Long> FALL_IMMUNITY_MAP = new ConcurrentHashMap<>();
@@ -118,6 +123,7 @@ public class AshenRiftScheduler {
 
     public static void register() {
         ServerTickEvents.END_SERVER_TICK.register(AshenRiftScheduler::tick);
+        ServerLifecycleEvents.SERVER_STOPPING.register(AshenRiftScheduler::restoreAllRifts);
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> {
             if (entity instanceof ServerPlayerEntity player) {
                 if (isFallImmune(player.getUuid(), player.getWorld().getTime())) {
@@ -128,6 +134,34 @@ public class AshenRiftScheduler {
             }
             return true;
         });
+    }
+
+    public static void restoreAllRifts(MinecraftServer server) {
+        for (RiftCollapseSession session : ACTIVE_SESSIONS) {
+            ServerWorld world = server.getWorld(session.worldKey);
+            if (world == null) continue;
+            for (HoleSpec hole : session.holes) {
+                for (BlockPos lavaPos : hole.lavaPositions) {
+                    if (world.isChunkLoaded(lavaPos) && world.getBlockState(lavaPos).isOf(Blocks.LAVA)) {
+                        world.setBlockState(lavaPos, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);
+                    }
+                }
+            }
+            for (Map.Entry<BlockPos, BlockState> entry : session.sessionOriginalBlocks.entrySet()) {
+                BlockPos pos = entry.getKey();
+                BlockState origState = entry.getValue();
+                if (world.isChunkLoaded(pos)) {
+                    BlockState restoreState = origState;
+                    if (restoreState == null || restoreState.isAir()) {
+                        restoreState = findSurroundingGroundState(world, pos);
+                    }
+                    world.setBlockState(pos, restoreState, Block.NOTIFY_ALL);
+                }
+            }
+        }
+        ACTIVE_SESSIONS.clear();
+        GLOBAL_ORIGINAL_BLOCKS.clear();
+        ACTIVE_TELEPORTS.clear();
     }
 
     public static void startRiftCollapse(ServerWorld world, ServerPlayerEntity player, List<LivingEntity> targets) {
@@ -222,10 +256,15 @@ public class AshenRiftScheduler {
                                     continue;
                                 }
 
-                                // Store original state if not already tracked by an active hole
-                                if (!GLOBAL_ORIGINAL_BLOCKS.containsKey(pos)) {
-                                    GLOBAL_ORIGINAL_BLOCKS.put(pos, state);
+                                // Prevent two players or sessions from creating overlapping/conflicting rift holes in the same blocks
+                                if (GLOBAL_ORIGINAL_BLOCKS.containsKey(pos)) {
+                                    continue;
                                 }
+                                if (!world.isChunkLoaded(pos)) {
+                                    continue;
+                                }
+
+                                GLOBAL_ORIGINAL_BLOCKS.put(pos, state);
                                 session.sessionOriginalBlocks.putIfAbsent(pos, state);
                                 hole.holePositions.add(pos);
 
@@ -298,7 +337,7 @@ public class AshenRiftScheduler {
                 // Remove placed lava first
                 for (HoleSpec hole : session.holes) {
                     for (BlockPos lavaPos : hole.lavaPositions) {
-                        if (world.getBlockState(lavaPos).isOf(Blocks.LAVA)) {
+                        if (world.isChunkLoaded(lavaPos) && world.getBlockState(lavaPos).isOf(Blocks.LAVA)) {
                             world.setBlockState(lavaPos, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);
                         }
                     }
@@ -324,7 +363,9 @@ public class AshenRiftScheduler {
                         if (restoreState == null || restoreState.isAir()) {
                             restoreState = findSurroundingGroundState(world, pos);
                         }
-                        world.setBlockState(pos, restoreState, Block.NOTIFY_ALL);
+                        if (world.isChunkLoaded(pos)) {
+                            world.setBlockState(pos, restoreState, Block.NOTIFY_ALL);
+                        }
                         GLOBAL_ORIGINAL_BLOCKS.remove(pos);
                     }
                 }
@@ -372,7 +413,7 @@ public class AshenRiftScheduler {
             }
 
             ServerPlayerEntity player = server.getPlayerManager().getPlayer(task.playerUuid);
-            if (player == null || !player.isAlive() || player.isDisconnected()) {
+            if (player == null || !player.isAlive() || player.isDisconnected() || player.getWorld().getRegistryKey() != task.worldKey) {
                 if (player != null) {
                     player.setInvisible(false);
                     player.removeStatusEffect(StatusEffects.INVISIBILITY);

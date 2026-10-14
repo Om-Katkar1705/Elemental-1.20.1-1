@@ -2,6 +2,7 @@ package com.elemental.item;
 
 import com.elemental.Elemental;
 import com.elemental.entity.ModEntityTags;
+import com.elemental.util.RootboundScheduler;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.item.TooltipContext;
@@ -286,15 +287,8 @@ public class RootboundAxeItem extends AxeItem implements GeoItem {
         int regenDuration = REGENERATION_DURATION_BASE + (isForestJungle ? REGENERATION_DURATION_FOREST_BONUS : 0);
         int regenAmplifier = REGENERATION_AMPLIFIER_BASE + (isForestJungle ? REGENERATION_AMPLIFIER_FOREST_BONUS : 0);
 
-        // Store root data in item NBT for tracking (simplified approach)
-        // In a more complex implementation, this could be a block entity or separate entity
-        int rootId = RANDOM.nextInt();
-        stack.getOrCreateNbt().putInt("RootId_" + rootId, duration);
-        stack.getOrCreateNbt().putLong("RootPos_" + rootId, pos.asLong());
-        stack.getOrCreateNbt().putDouble("RootRadius_" + rootId, radius);
-        stack.getOrCreateNbt().putInt("RootRegenDuration_" + rootId, regenDuration);
-        stack.getOrCreateNbt().putInt("RootRegenAmplifier_" + rootId, regenAmplifier);
-        stack.getOrCreateNbt().putBoolean("RootForestBonus_" + rootId, isForestJungle);
+        // Register server-authoritative healing root zone
+        RootboundScheduler.scheduleHealingRoot(world, source.getUuid(), pos, radius, duration, regenDuration, regenAmplifier);
 
         // Visual and sound effects (using GLOW and SMALL_FLAME particles available in 1.20.1)
         world.spawnParticles(ParticleTypes.GLOW, pos.getX() + 0.5, pos.getY() + 0.2, pos.getZ() + 0.5,
@@ -397,14 +391,26 @@ public class RootboundAxeItem extends AxeItem implements GeoItem {
         // Set cooldown
         user.getItemCooldownManager().set(this, cooldown);
 
+        // Schedule server-authoritative ticking Thorn Cage zone (5 seconds duration, ticks damage every 10 ticks = 0.5s)
+        if (user instanceof net.minecraft.server.network.ServerPlayerEntity serverPlayer) {
+            RootboundScheduler.scheduleThornCage(world, serverPlayer, center, THORN_CAGE_RADIUS, THORN_CAGE_DURATION, THORN_CAGE_DAMAGE_TICK_INTERVAL, THORN_CAGE_DAMAGE_PER_TICK);
+        }
+
         // Damage the item
         Hand finalHand = hand;
         stack.damage(3, user, (p) -> p.sendToolBreakStatus(finalHand));
 
-        // Store thorn cage end time for visual persistence (client-side would need packet sync)
         long endTime = world.getTime() + THORN_CAGE_DURATION;
         stack.getOrCreateNbt().putLong(ACTIVE_THORN_CAGE_KEY, endTime);
         stack.getOrCreateNbt().putLong(LAST_THORN_CAGE_TIME_KEY, world.getTime());
+    }
+
+    @Override
+    public void inventoryTick(ItemStack stack, World world, Entity entity, int slot, boolean selected) {
+        super.inventoryTick(stack, world, entity, slot, selected);
+        if (world instanceof ServerWorld serverWorld) {
+            GeoItem.getOrAssignId(stack, serverWorld);
+        }
     }
 
     /**

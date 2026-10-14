@@ -44,12 +44,12 @@
       "rotation": [
         0,
         -90,
-        0
+        27
       ],
       "translation": [
-        0,
-        -6.5,
-        0
+        4.5,
+        -0.5,
+        0.5
       ],
       "scale": [
         0.5,
@@ -60,13 +60,13 @@
     "firstperson_lefthand": {
       "rotation": [
         0,
-        90,
-        0
+        -90,
+        27
       ],
       "translation": [
-        0,
-        -6.5,
-        0
+        4.5,
+        -0.5,
+        0.5
       ],
       "scale": [
         0.5,
@@ -78,11 +78,11 @@
       "rotation": [
         0,
         0,
-        135
+        180
       ],
       "translation": [
-        18,
-        16,
+        -0.5,
+        9.5,
         0
       ],
       "scale": [
@@ -108,25 +108,46 @@
         0.42
       ]
     },
+    "head": {
+      "rotation": [
+        0,
+        90,
+        130
+      ],
+      "translation": [
+        0.75,
+        0,
+        -17.75
+      ],
+      "scale": [
+        0.7,
+        0.7,
+        0.7
+      ]
+    },
     "fixed": {
       "rotation": [
         0,
         90,
-        0
+        90
       ],
       "translation": [
-        0,
-        -18,
-        -15
+        -0.5,
+        1.25,
+        -24.5
       ],
+      "scale": [
+        0.7,
+        0.7,
+        0.7
+      ]
+    },
+    "on_shelf": {
       "scale": [
         0.5,
         0.5,
         0.5
       ]
     }
-  },
-  "textures": {
-    "particle": "elemental:item/tidebreaker_trident"
   }
 }
