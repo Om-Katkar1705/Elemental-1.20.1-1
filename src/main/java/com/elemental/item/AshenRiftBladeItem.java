@@ -65,6 +65,8 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
 
     // GeckoLib animation definitions
     private static final RawAnimation IDLE_ANIM = RawAnimation.begin().thenLoop("animation.ashen_rift_blade.idle");
+    private static final RawAnimation ATTACK_ANIM = RawAnimation.begin().thenPlay("animation.ashen_rift_blade.attack");
+    private static final RawAnimation SWING_ANIM = RawAnimation.begin().thenPlay("animation.ashen_rift_blade.swing");
     private static final RawAnimation COLLAPSE_ANIM = RawAnimation.begin().thenPlay("animation.ashen_rift_blade.collapse");
     private static final RawAnimation CHARGE_ANIM = RawAnimation.begin().thenLoop("animation.ashen_rift_blade.charge");
     private static final RawAnimation RELEASE_ANIM = RawAnimation.begin().thenPlay("animation.ashen_rift_blade.release");
@@ -111,7 +113,9 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
                 }
             }
             return state.setAndContinue(IDLE_ANIM);
-        }).triggerableAnim("collapse", COLLAPSE_ANIM)
+        }).triggerableAnim("attack", ATTACK_ANIM)
+          .triggerableAnim("swing", SWING_ANIM)
+          .triggerableAnim("collapse", COLLAPSE_ANIM)
           .triggerableAnim("charge", CHARGE_ANIM)
           .triggerableAnim("release", RELEASE_ANIM)
           .triggerableAnim("cooldown", COOLDOWN_ANIM)
@@ -139,6 +143,25 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
             return this.attributeModifiers;
         }
         return super.getAttributeModifiers(slot);
+    }
+
+    @Override
+    public boolean postHit(ItemStack stack, LivingEntity target, LivingEntity attacker) {
+        super.postHit(stack, target, attacker);
+        World world = attacker.getWorld();
+        if (world.isClient()) {
+            long id = GeoItem.getId(stack);
+            if (id != Long.MAX_VALUE) {
+                triggerAnim(attacker, id, "controller", "attack");
+            }
+        } else if (world instanceof ServerWorld serverWorld) {
+            long id = GeoItem.getOrAssignId(stack, serverWorld);
+            triggerAnim(attacker, id, "controller", "attack");
+            serverWorld.spawnParticles(ParticleTypes.ASH, target.getX(), target.getY() + 0.5, target.getZ(), 5, 0.15, 0.2, 0.15, 0.02);
+            serverWorld.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, target.getX(), target.getY() + 0.5, target.getZ(), 3, 0.08, 0.12, 0.08, 0.01);
+            serverWorld.playSound(null, target.getX(), target.getY(), target.getZ(), SoundEvents.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.PLAYERS, 0.8f, 1.2f);
+        }
+        return true;
     }
 
     // ==========================================

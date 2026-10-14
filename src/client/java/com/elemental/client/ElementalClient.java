@@ -34,6 +34,7 @@ import net.minecraft.client.util.InputUtil;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.PacketByteBuf;
 import org.lwjgl.glfw.GLFW;
+import software.bernie.geckolib.animatable.GeoItem;
 import software.bernie.geckolib.animatable.client.RenderProvider;
 
 import com.elemental.client.renderer.JetpackFeatureRenderer;
@@ -235,6 +236,17 @@ public class ElementalClient implements ClientModInitializer {
 				} else if (main.isOf(ModItems.ASHEN_RIFT_BLADE) || off.isOf(ModItems.ASHEN_RIFT_BLADE)) {
 					PacketByteBuf buf = PacketByteBufs.create();
 					ClientPlayNetworking.send(com.elemental.network.AshenRiftNetworking.RIFT_COLLAPSE_PACKET_ID, buf);
+				}
+			}
+
+			// Attack / Swing animation for Ashen Rift Blade on left-click swing
+			if (client.player.handSwinging && client.player.handSwingTicks == 0) {
+				ItemStack main = client.player.getMainHandStack();
+				if (main.isOf(ModItems.ASHEN_RIFT_BLADE) && main.getItem() instanceof AshenRiftBladeItem bladeItem) {
+					long id = GeoItem.getId(main);
+					if (id != Long.MAX_VALUE) {
+						bladeItem.triggerAnim(client.player, id, "controller", "attack");
+					}
 				}
 			}
 
