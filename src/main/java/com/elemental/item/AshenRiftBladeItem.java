@@ -7,6 +7,7 @@ import com.google.common.collect.Multimap;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.item.TooltipContext;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.attribute.EntityAttribute;
@@ -38,6 +39,7 @@ import org.jetbrains.annotations.Nullable;
 
 import software.bernie.geckolib.animatable.GeoItem;
 import software.bernie.geckolib.animatable.SingletonGeoAnimatable;
+import software.bernie.geckolib.constant.DataTickets;
 import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.core.animation.AnimationController;
@@ -66,6 +68,7 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
     private static final RawAnimation COLLAPSE_ANIM = RawAnimation.begin().thenPlay("animation.ashen_rift_blade.collapse");
     private static final RawAnimation CHARGE_ANIM = RawAnimation.begin().thenLoop("animation.ashen_rift_blade.charge");
     private static final RawAnimation RELEASE_ANIM = RawAnimation.begin().thenPlay("animation.ashen_rift_blade.release");
+    private static final RawAnimation COOLDOWN_ANIM = RawAnimation.begin().thenLoop("animation.ashen_rift_blade.cooldown");
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     private final Supplier<Object> renderProvider = GeoItem.makeRenderer(this);
@@ -100,10 +103,18 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
         controllers.add(new AnimationController<>(this, "controller", 4, state -> {
+            ItemStack stack = state.getData(DataTickets.ITEMSTACK);
+            Entity entity = state.getData(DataTickets.ENTITY);
+            if (stack != null && entity != null) {
+                if (isCollapseCoolingDown(entity.getWorld(), stack) || isTeleportCoolingDown(entity.getWorld(), stack)) {
+                    return state.setAndContinue(COOLDOWN_ANIM);
+                }
+            }
             return state.setAndContinue(IDLE_ANIM);
         }).triggerableAnim("collapse", COLLAPSE_ANIM)
           .triggerableAnim("charge", CHARGE_ANIM)
           .triggerableAnim("release", RELEASE_ANIM)
+          .triggerableAnim("cooldown", COOLDOWN_ANIM)
           .triggerableAnim("idle", IDLE_ANIM));
     }
 
@@ -251,6 +262,9 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
             int remainingSec = getCollapseRemainingSeconds(world, stack);
             player.sendMessage(Text.literal("§c✦ Rift Collapse is cooling down! (" + remainingSec + "s remaining)").formatted(Formatting.RED), true);
             world.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.PLAYERS, 0.6f, 1.4f);
+            if (stack.getItem() instanceof AshenRiftBladeItem bladeItem) {
+                bladeItem.triggerAnim(player, GeoItem.getOrAssignId(stack, world), "controller", "cooldown");
+            }
             return;
         }
 
@@ -349,6 +363,9 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
             if (!world.isClient()) {
                 int remaining = getTeleportRemainingSeconds(world, stack);
                 user.sendMessage(Text.literal("§c✦ Rift Teleport is cooling down! (" + remaining + "s remaining)").formatted(Formatting.RED), true);
+                if (user instanceof ServerPlayerEntity serverPlayer) {
+                    triggerAnim(serverPlayer, GeoItem.getOrAssignId(stack, (ServerWorld) world), "controller", "cooldown");
+                }
             }
             world.playSound(null, user.getX(), user.getY(), user.getZ(), SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.PLAYERS, 0.6f, 1.4f);
             return TypedActionResult.fail(stack);
@@ -401,8 +418,9 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
         ServerWorld serverWorld = player.getServerWorld();
         int chargeTicks = getMaxUseTime(stack) - remainingUseTicks;
 
-        // Minimum charge threshold (5 ticks = 0.25s)
+        // Minimum charge threshold (5 ticks = 0.25s) - canceled/early release
         if (chargeTicks < 5) {
+            triggerAnim(player, GeoItem.getOrAssignId(stack, serverWorld), "controller", "idle");
             return;
         }
 
@@ -414,6 +432,7 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
             player.sendMessage(Text.literal("§7✦ No block targeted — Rift Teleport cancelled.").formatted(Formatting.GRAY), true);
             serverWorld.playSound(null, player.getX(), player.getY(), player.getZ(),
                     SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.PLAYERS, 0.5f, 1.5f);
+            triggerAnim(player, GeoItem.getOrAssignId(stack, serverWorld), "controller", "idle");
             return;
         }
 
@@ -425,6 +444,7 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
             player.sendMessage(Text.literal("§c✦ Unsafe rift destination! Teleport cancelled.").formatted(Formatting.RED), true);
             serverWorld.playSound(null, player.getX(), player.getY(), player.getZ(),
                     SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.PLAYERS, 0.6f, 1.2f);
+            triggerAnim(player, GeoItem.getOrAssignId(stack, serverWorld), "controller", "idle");
             return;
         }
 
