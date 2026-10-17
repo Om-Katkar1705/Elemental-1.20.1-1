@@ -34,7 +34,7 @@ public class WeaponerRecipes {
         register(ModItems.STENCIL, ModItems.SNOW_ELEMENT, ModItems.FROSTWAKE_PICK);
         register(ModItems.STENCIL, ModItems.TREE_ELEMENT, ModItems.ROOTBOUND_AXE);
         register(ModItems.STENCIL, ModItems.OCEAN_ELEMENT, ModItems.TIDEBREAKER_TRIDENT);
-        register(ModItems.ELEMENT_CORE, ModItems.MOUNTAIN_ELEMENT, ModItems.STORMCALLER_HAMMER);
+        register(ModItems.STENCIL, ModItems.MOUNTAIN_ELEMENT, ModItems.STORMCALLER_HAMMER);
 
         // ==========================================
         // 2. ELEMENT INFUSION RECIPES (Element Core + 1 Biome-Exclusive Common Block)
