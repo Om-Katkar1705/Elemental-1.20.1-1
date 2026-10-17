@@ -20,6 +20,9 @@ public abstract class PlayerEntityMixin extends LivingEntity implements JetpackS
     @Unique
     private ItemStack elemental$jetpackStack = ItemStack.EMPTY;
 
+    @Unique
+    private boolean elemental$jetpackEnabled = true;
+
     protected PlayerEntityMixin(EntityType<? extends LivingEntity> entityType, World world) {
         super(entityType, world);
     }
@@ -34,11 +37,22 @@ public abstract class PlayerEntityMixin extends LivingEntity implements JetpackS
         this.elemental$jetpackStack = stack != null ? stack : ItemStack.EMPTY;
     }
 
+    @Override
+    public boolean elemental$isJetpackEnabled() {
+        return this.elemental$jetpackEnabled;
+    }
+
+    @Override
+    public void elemental$setJetpackEnabled(boolean enabled) {
+        this.elemental$jetpackEnabled = enabled;
+    }
+
     @Inject(method = "writeCustomDataToNbt", at = @At("TAIL"))
     private void elemental$writeJetpackSlot(NbtCompound nbt, CallbackInfo ci) {
         if (this.elemental$jetpackStack != null && !this.elemental$jetpackStack.isEmpty()) {
             nbt.put("ElementalJetpackSlot", this.elemental$jetpackStack.writeNbt(new NbtCompound()));
         }
+        nbt.putBoolean("ElementalJetpackEnabled", this.elemental$jetpackEnabled);
     }
 
     @Inject(method = "readCustomDataFromNbt", at = @At("TAIL"))
@@ -47,6 +61,11 @@ public abstract class PlayerEntityMixin extends LivingEntity implements JetpackS
             this.elemental$jetpackStack = ItemStack.fromNbt(nbt.getCompound("ElementalJetpackSlot"));
         } else {
             this.elemental$jetpackStack = ItemStack.EMPTY;
+        }
+        if (nbt.contains("ElementalJetpackEnabled")) {
+            this.elemental$jetpackEnabled = nbt.getBoolean("ElementalJetpackEnabled");
+        } else {
+            this.elemental$jetpackEnabled = true;
         }
     }
 
@@ -68,16 +87,9 @@ public abstract class PlayerEntityMixin extends LivingEntity implements JetpackS
         }
     }
 
-    @Inject(method = "handleFallDamage", at = @At("HEAD"), cancellable = true)
-    private void elemental$cancelJetpackFallDamage(float fallDistance, float damageMultiplier, net.minecraft.entity.damage.DamageSource damageSource, org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<Boolean> cir) {
-        if (this.elemental$jetpackStack != null && this.elemental$jetpackStack.getItem() instanceof com.elemental.item.ElementalJetpackItem) {
-            cir.setReturnValue(false);
-        }
-    }
-
     @Inject(method = "updatePose", at = @At("HEAD"), cancellable = true)
     private void elemental$preventFlightCrouch(CallbackInfo ci) {
-        if (!this.isOnGround() && !this.isTouchingWater() && !this.isSwimming() && !this.isFallFlying()) {
+        if (this.elemental$jetpackEnabled && !this.isOnGround() && !this.isTouchingWater() && !this.isSwimming() && !this.isFallFlying()) {
             if (this.elemental$jetpackStack != null && this.elemental$jetpackStack.getItem() instanceof com.elemental.item.ElementalJetpackItem) {
                 this.setPose(net.minecraft.entity.EntityPose.STANDING);
                 ci.cancel();

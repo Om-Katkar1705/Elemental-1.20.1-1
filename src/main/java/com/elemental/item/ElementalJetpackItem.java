@@ -101,6 +101,11 @@ public class ElementalJetpackItem extends Item {
         ItemStack jetpackStack = JetpackSlotHolder.getJetpackStack(player);
         if (!(jetpackStack.getItem() instanceof ElementalJetpackItem)) return;
 
+        // Verify jetpack is enabled (toggle key)
+        if (!JetpackSlotHolder.isJetpackEnabled(player)) {
+            return;
+        }
+
         Vec3d vel = player.getVelocity();
         Vec3d look = player.getRotationVec(1.0f);
 
@@ -126,15 +131,30 @@ public class ElementalJetpackItem extends Item {
         player.velocityModified = true;
         player.fallDistance = 0.0f;
 
-        if (player.age % 3 == 0 && player.getWorld() instanceof ServerWorld serverWorld) {
-            serverWorld.spawnParticles(ParticleTypes.CLOUD, player.getX(), player.getY() + 0.1, player.getZ(), 2, 0.1, 0.05, 0.1, 0.02);
-            serverWorld.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, player.getX(), player.getY() + 0.1, player.getZ(), 2, 0.08, 0.02, 0.08, 0.03);
+        // Accurate particle emission from the jetpack's twin exhaust nozzles
+        if (player.age % 2 == 0 && player.getWorld() instanceof ServerWorld serverWorld) {
+            com.elemental.util.JetpackParticleHelper.spawnFlightParticlesServer(serverWorld, player, hasForwardInput);
+        }
+
+        // Low-volume 3D spatialized sound broadcast to other players in the area (loops naturally every ~7.5 seconds)
+        if (player.age % 150 == 0 && player.getWorld() instanceof ServerWorld serverWorld) {
+            serverWorld.playSound(
+                    player, // Passes player as except so they don't get duplicate audio from local client
+                    player.getX(),
+                    player.getY(),
+                    player.getZ(),
+                    ModSounds.JETPACK_THRUST,
+                    SoundCategory.PLAYERS,
+                    0.35f,
+                    1.0f
+            );
         }
     }
 
     public static void performGlide(ServerPlayerEntity player) {
         ItemStack jetpackStack = JetpackSlotHolder.getJetpackStack(player);
         if (!(jetpackStack.getItem() instanceof ElementalJetpackItem)) return;
+        if (!JetpackSlotHolder.isJetpackEnabled(player)) return;
 
         Vec3d vel = player.getVelocity();
         if (vel.y < -0.15) {
@@ -147,6 +167,7 @@ public class ElementalJetpackItem extends Item {
     @Override
     public void appendTooltip(ItemStack stack, @Nullable World world, List<Text> tooltip, TooltipContext context) {
         tooltip.add(Text.translatable("tooltip.elemental.jetpack.desc").formatted(Formatting.GOLD));
+        tooltip.add(Text.translatable("tooltip.elemental.jetpack.toggle").formatted(Formatting.YELLOW));
         tooltip.add(Text.translatable("tooltip.elemental.jetpack.thrust").formatted(Formatting.AQUA));
         tooltip.add(Text.translatable("tooltip.elemental.jetpack.glide").formatted(Formatting.BLUE));
         tooltip.add(Text.translatable("tooltip.elemental.jetpack.guidance").formatted(Formatting.LIGHT_PURPLE));

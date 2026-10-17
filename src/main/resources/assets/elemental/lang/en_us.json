@@ -29,12 +29,15 @@
 
   "entity.elemental.chronicle_guide": "Aeron, the Last Skywright",
   "entity.elemental.chronicle_guide.name": "Aeron, the Last Skywright",
+  "entity.elemental.rocky": "Rocky",
+  "item.elemental.rocky_spawn_egg": "Rocky Spawn Egg",
 
   "item.elemental.pneumatic_piston": "Pneumatic Piston",
   "item.elemental.aerogel_core": "Aerogel Core",
   "item.elemental.elemental_jetpack": "Elemental Jetpack",
 
   "tooltip.elemental.jetpack.desc": "Forged with salvaged Skyforge avionics and buoyant aerogel.",
+  "tooltip.elemental.jetpack.toggle": "► Press [`] to toggle the jetpack on/off.",
   "tooltip.elemental.jetpack.thrust": "► Hold [Space] airborne to thrust at Elytra speed in your look direction.",
   "tooltip.elemental.jetpack.glide": "► Hold [Sneak] while falling to glide safely.",
   "tooltip.elemental.jetpack.guidance": "► Press [G] to toggle Waypoint Guidance HUD.",
@@ -46,6 +49,7 @@
   "container.elemental.aerons_chest": "Aeron's Supply Stash",
 
   "key.elemental.jetpack_guidance": "Toggle Waypoint Guidance",
+  "key.elemental.jetpack_toggle": "Toggle Jetpack On/Off",
 
   "dialogue.elemental.aeron.busy": "Aeron is speaking... (Right-click him or click [Skip] to skip)",
   "dialogue.elemental.aeron.too_far": "You are too far from Aeron to speak with him.",
@@ -120,6 +124,10 @@
   "message.elemental.already_claimed": "§7[!] You have already claimed your Elemental Jetpack from Aeron.",
   "message.elemental.guidance_enabled": "Waypoint Guidance: [ENABLED]",
   "message.elemental.guidance_disabled": "Waypoint Guidance: [DISABLED]",
+  "message.elemental.jetpack_enabled": "Jetpack: [ENABLED]",
+  "message.elemental.jetpack_disabled": "Jetpack: [DISABLED]",
+  "message.elemental.jetpack_spooling": "⚡ Jetpack Spooling: %s",
+  "message.elemental.jetpack_engaged": "⚡ Thrusters Engaged!",
   "container.elemental.desert_sanctuary_chest": "Sunforged Sanctuary Archive",
 
   "subtitles.elemental.npc_dialogue": "NPC Speaks",
@@ -127,5 +135,6 @@
   "subtitles.elemental.objective_updated": "Objective Updated",
   "subtitles.elemental.quest_completed": "Quest Completed",
   "subtitles.elemental.jetpack_guidance": "Waypoint Guidance Chime",
-  "subtitles.elemental.jetpack_thrust": "Jetpack Thrusters Firing"
+  "subtitles.elemental.jetpack_thrust": "Jetpack Thrusters Firing",
+  "subtitles.elemental.jetpack_warmup": "Jetpack Spooling Up"
 }

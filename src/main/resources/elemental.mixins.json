@@ -9,7 +9,8 @@
 		"ServerPlayerEntityMixin",
 		"SlotAccessor",
 		"MapStateMixin",
-		"FilledMapItemMixin"
+		"FilledMapItemMixin",
+		"EntityTrackerEntryMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

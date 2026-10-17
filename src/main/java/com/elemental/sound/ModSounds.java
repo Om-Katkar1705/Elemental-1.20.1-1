@@ -13,6 +13,7 @@ public class ModSounds {
     public static final SoundEvent QUEST_COMPLETED = registerSound("quest_completed");
     public static final SoundEvent JETPACK_GUIDANCE = registerSound("jetpack_guidance");
     public static final SoundEvent JETPACK_THRUST = registerSound("jetpack_thrust");
+    public static final SoundEvent JETPACK_WARMUP = registerSound("jetpack_warmup");
 
     private static SoundEvent registerSound(String name) {
         Identifier id = Elemental.id(name);

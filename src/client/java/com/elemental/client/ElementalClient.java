@@ -2,6 +2,7 @@ package com.elemental.client;
 
 import com.elemental.client.renderer.AshenRiftBladeRenderer;
 import com.elemental.client.renderer.EverlivingKnightRenderer;
+import com.elemental.client.renderer.RockyRenderer;
 import com.elemental.client.renderer.FrostwakePickRenderer;
 import com.elemental.client.renderer.RootboundAxeRenderer;
 import com.elemental.client.renderer.SolarArcRenderer;
@@ -46,6 +47,12 @@ import net.minecraft.entity.EntityType;
 
 public class ElementalClient implements ClientModInitializer {
 	private static KeyBinding dashKey;
+	private static KeyBinding toggleJetpackKey;
+	private static int groundWarmupTicks = 0;
+	private static int thrustSoundTicks = 0;
+	private static boolean wasJumpPressedLastTick = false;
+	private static boolean isTakeoffSpooling = false;
+	private static com.elemental.client.sound.JetpackFlightSoundInstance currentFlightSound = null;
 
 	@Override
 	public void onInitializeClient() {
@@ -152,6 +159,9 @@ public class ElementalClient implements ClientModInitializer {
 		// Register Chronicle Guide entity renderer (Aeron, the Last Skywright)
 		EntityRendererRegistry.register(ModEntities.CHRONICLE_GUIDE, com.elemental.client.renderer.ChronicleGuideRenderer::new);
 
+		// Register GeckoLib animated renderer for Rocky (Project Hail Mary alien companion)
+		EntityRendererRegistry.register(ModEntities.ROCKY, RockyRenderer::new);
+
 		// Register Jetpack 3D model layer and player feature renderer
 		EntityModelLayerRegistry.registerModelLayer(JetpackFeatureRenderer.JETPACK_LAYER, JetpackModel::getTexturedModelData);
 		LivingEntityFeatureRendererRegistrationCallback.EVENT.register((entityType, entityRenderer, registrationHelper, context) -> {
@@ -182,6 +192,14 @@ public class ElementalClient implements ClientModInitializer {
 				"category.elemental"
 		));
 
+		// Register Jetpack On/Off toggle keybinding (` key)
+		toggleJetpackKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+				"key.elemental.jetpack_toggle",
+				InputUtil.Type.KEYSYM,
+				GLFW.GLFW_KEY_GRAVE_ACCENT,
+				"category.elemental"
+		));
+
 		// Register Quest Sync Client Receiver
 		ClientPlayNetworking.registerGlobalReceiver(com.elemental.network.QuestNetworking.QUEST_SYNC_PACKET_ID, (client, handler, buf, responseSender) -> {
 			int stateId = buf.readInt();
@@ -208,17 +226,38 @@ public class ElementalClient implements ClientModInitializer {
 			});
 		});
 
-		// Register Extra Jetpack Slot Sync Client Receiver
+		// Register Extra Jetpack Slot Sync Client Receiver (replicated to all players)
 		ClientPlayNetworking.registerGlobalReceiver(com.elemental.network.QuestNetworking.EXTRA_SLOT_SYNC_PACKET_ID, (client, handler, buf, responseSender) -> {
+			int entityId = buf.readInt();
 			ItemStack stack = buf.readItemStack();
+			boolean enabled = buf.readBoolean();
 			client.execute(() -> {
-				if (client.player instanceof com.elemental.util.JetpackSlotHolder holder) {
+				com.elemental.client.util.ClientJetpackSync.update(entityId, stack, enabled);
+				net.minecraft.entity.Entity entity = null;
+				if (client.world != null) {
+					entity = client.world.getEntityById(entityId);
+				}
+				if (entity == null && client.player != null && client.player.getId() == entityId) {
+					entity = client.player;
+				}
+				if (entity instanceof com.elemental.util.JetpackSlotHolder holder) {
 					holder.elemental$setJetpackSlot(stack);
+					holder.elemental$setJetpackEnabled(enabled);
 				}
 			});
 		});
 
+		// Register Player Fist Bump Animation Client Receiver
+		ClientPlayNetworking.registerGlobalReceiver(com.elemental.network.QuestNetworking.PLAYER_FIST_BUMP_PACKET_ID, (client, handler, buf, responseSender) -> {
+			int entityId = buf.readInt();
+			int durationTicks = buf.readInt();
+			client.execute(() -> {
+				com.elemental.client.util.ClientFistBumpSync.startAnimation(entityId, durationTicks);
+			});
+		});
+
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
+			com.elemental.client.util.ClientFistBumpSync.clientTick();
 			if (client.player == null) return;
 
 			// Weapon R ability (Tidebreaker dash or Stormcaller thunderclap)
@@ -267,69 +306,215 @@ public class ElementalClient implements ClientModInitializer {
 				ClientPlayNetworking.send(com.elemental.network.QuestNetworking.JETPACK_TOGGLE_GUIDANCE_PACKET_ID, PacketByteBufs.empty());
 			}
 
+			// Jetpack toggle on/off (` key)
+			while (toggleJetpackKey.wasPressed()) {
+				boolean newState = !com.elemental.util.JetpackSlotHolder.isJetpackEnabled(client.player);
+				if (client.player instanceof com.elemental.util.JetpackSlotHolder holder) {
+					holder.elemental$setJetpackEnabled(newState);
+				}
+				com.elemental.client.util.ClientJetpackSync.update(client.player.getId(), com.elemental.util.JetpackSlotHolder.getJetpackStack(client.player), newState);
+
+				client.player.playSound(
+						newState ? net.minecraft.sound.SoundEvents.BLOCK_NOTE_BLOCK_CHIME.value() : net.minecraft.sound.SoundEvents.BLOCK_NOTE_BLOCK_BASS.value(),
+						0.8f,
+						newState ? 1.4f : 0.7f
+				);
+				client.player.sendMessage(
+						net.minecraft.text.Text.translatable(newState ? "message.elemental.jetpack_enabled" : "message.elemental.jetpack_disabled")
+								.formatted(newState ? net.minecraft.util.Formatting.GREEN : net.minecraft.util.Formatting.RED),
+						true
+				);
+
+				ClientPlayNetworking.send(com.elemental.network.QuestNetworking.JETPACK_TOGGLE_PACKET_ID, PacketByteBufs.empty());
+			}
+
 			// Jetpack flight controls
 			ItemStack extra = com.elemental.util.JetpackSlotHolder.getJetpackStack(client.player);
 			boolean isWearingJetpack = extra.getItem() instanceof com.elemental.item.ElementalJetpackItem;
+			boolean isJetpackEnabled = com.elemental.util.JetpackSlotHolder.isJetpackEnabled(client.player);
 
-			if (isWearingJetpack) {
-				// Jump key held airborne -> Elytra-speed flight or vertical climb
-				if (client.options.jumpKey.isPressed() && !client.player.isTouchingWater() && !client.player.getAbilities().flying) {
-					boolean hasForward = client.options.forwardKey.isPressed() || client.player.input.movementForward > 0;
-					PacketByteBuf buf = PacketByteBufs.create();
-					buf.writeBoolean(hasForward);
-					ClientPlayNetworking.send(com.elemental.network.QuestNetworking.JETPACK_THRUST_PACKET_ID, buf);
+			if (isWearingJetpack && isJetpackEnabled) {
+				boolean isJumpPressed = client.options.jumpKey.isPressed();
+				boolean isTouchingWater = client.player.isTouchingWater();
+				boolean isCreativeFlying = client.player.getAbilities().flying;
 
-					net.minecraft.util.math.Vec3d vel = client.player.getVelocity();
-					net.minecraft.util.math.Vec3d look = client.player.getRotationVec(1.0f);
-
-					double targetX;
-					double targetY;
-					double targetZ;
-
-					if (hasForward) {
-						// Elytra-speed flight along look direction (~1.45 blocks/tick = ~29 m/s)
-						double targetSpeed = 1.45;
-						net.minecraft.util.math.Vec3d targetVel = look.multiply(targetSpeed);
-						targetX = vel.x * 0.70 + targetVel.x * 0.30;
-						targetY = vel.y * 0.70 + targetVel.y * 0.30;
-						targetZ = vel.z * 0.70 + targetVel.z * 0.30;
-					} else {
-						// Vertical climb
-						targetY = Math.min(vel.y + 0.15, 0.75);
-						targetX = vel.x * 0.85;
-						targetZ = vel.z * 0.85;
+				if (isJumpPressed && !isTouchingWater && !isCreativeFlying) {
+					// Check initial press of jump key
+					if (!wasJumpPressedLastTick) {
+						if (client.player.isOnGround()) {
+							// Grounded when Space first pressed -> start 2-second takeoff spooling
+							isTakeoffSpooling = true;
+							groundWarmupTicks = 0;
+						} else {
+							// Already in mid-air when Space pressed -> thrust activates immediately with NO delay!
+							isTakeoffSpooling = false;
+							groundWarmupTicks = 0;
+						}
+						wasJumpPressedLastTick = true;
 					}
 
-					client.player.setVelocity(targetX, targetY, targetZ);
-					client.player.fallDistance = 0.0f;
+					boolean canThrust = false;
 
-					// Visual flame and smoke particles trailing behind player on client
-					net.minecraft.util.math.Vec3d backOffset = look.multiply(-0.4);
-					client.particleManager.addParticle(
-							net.minecraft.particle.ParticleTypes.SOUL_FIRE_FLAME,
-							client.player.getX() + backOffset.x,
-							client.player.getY() + 0.5,
-							client.player.getZ() + backOffset.z,
-							-look.x * 0.2 + (Math.random() - 0.5) * 0.05,
-							-0.1,
-							-look.z * 0.2 + (Math.random() - 0.5) * 0.05
-					);
-					client.particleManager.addParticle(
-							net.minecraft.particle.ParticleTypes.CLOUD,
-							client.player.getX() + backOffset.x,
-							client.player.getY() + 0.5,
-							client.player.getZ() + backOffset.z,
-							-look.x * 0.1,
-							-0.05,
-							-look.z * 0.1
-					);
+					if (isTakeoffSpooling) {
+						groundWarmupTicks++;
+
+						// Suppress vanilla jumping hop so the player stays planted on the ground while engines spool up
+						net.minecraft.util.math.Vec3d curVel = client.player.getVelocity();
+						if (curVel.y > 0.0) {
+							client.player.setVelocity(curVel.x, 0.0, curVel.z);
+						}
+
+						// Warm-up feedback: sparks/smoke sputtering from exhaust nozzles
+						net.minecraft.util.math.Vec3d[] nozzles = com.elemental.util.JetpackParticleHelper.getThrusterExhaustPositions(client.player);
+						for (net.minecraft.util.math.Vec3d nozzle : nozzles) {
+							client.particleManager.addParticle(
+									net.minecraft.particle.ParticleTypes.SMOKE,
+									nozzle.x + (Math.random() - 0.5) * 0.04,
+									nozzle.y,
+									nozzle.z + (Math.random() - 0.5) * 0.04,
+									(Math.random() - 0.5) * 0.02,
+									-0.03,
+									(Math.random() - 0.5) * 0.02
+							);
+							if (groundWarmupTicks % 3 == 0) {
+								client.particleManager.addParticle(
+										net.minecraft.particle.ParticleTypes.SMALL_FLAME,
+										nozzle.x,
+										nozzle.y,
+										nozzle.z,
+										0.0,
+										-0.02,
+										0.0
+								);
+							}
+						}
+
+						// Rising pitch warm-up sound
+						if (groundWarmupTicks % 8 == 1) {
+							float warmupPitch = 0.7f + (groundWarmupTicks / 40.0f) * 0.7f;
+							client.player.playSound(com.elemental.sound.ModSounds.JETPACK_WARMUP, 0.25f, warmupPitch);
+						}
+
+						// UI indicator in actionbar
+						if (groundWarmupTicks < 40) {
+							float secondsRemaining = Math.max(0.1f, (40 - groundWarmupTicks) / 20.0f);
+							client.player.sendMessage(
+									net.minecraft.text.Text.translatable("message.elemental.jetpack_spooling", String.format(java.util.Locale.ROOT, "%.1fs", secondsRemaining))
+											.formatted(net.minecraft.util.Formatting.GOLD),
+									true
+							);
+						} else {
+							// 40 ticks (2.0s) reached! Launch!
+							isTakeoffSpooling = false;
+							canThrust = true;
+							client.player.sendMessage(
+									net.minecraft.text.Text.translatable("message.elemental.jetpack_engaged")
+											.formatted(net.minecraft.util.Formatting.AQUA),
+									true
+							);
+						}
+					} else {
+						// Airborne or finished takeoff spooling: instant thrust
+						canThrust = true;
+					}
+
+					if (canThrust) {
+						boolean hasForward = client.options.forwardKey.isPressed() || client.player.input.movementForward > 0;
+						PacketByteBuf buf = PacketByteBufs.create();
+						buf.writeBoolean(hasForward);
+						ClientPlayNetworking.send(com.elemental.network.QuestNetworking.JETPACK_THRUST_PACKET_ID, buf);
+
+						net.minecraft.util.math.Vec3d vel = client.player.getVelocity();
+						net.minecraft.util.math.Vec3d look = client.player.getRotationVec(1.0f);
+
+						double targetX;
+						double targetY;
+						double targetZ;
+
+						if (hasForward) {
+							// Elytra-speed flight along look direction (~1.45 blocks/tick = ~29 m/s)
+							double targetSpeed = 1.45;
+							net.minecraft.util.math.Vec3d targetVel = look.multiply(targetSpeed);
+							targetX = vel.x * 0.70 + targetVel.x * 0.30;
+							targetY = vel.y * 0.70 + targetVel.y * 0.30;
+							targetZ = vel.z * 0.70 + targetVel.z * 0.30;
+						} else {
+							// Vertical climb
+							targetY = Math.min(vel.y + 0.15, 0.75);
+							targetX = vel.x * 0.85;
+							targetZ = vel.z * 0.85;
+						}
+
+						client.player.setVelocity(targetX, targetY, targetZ);
+						client.player.fallDistance = 0.0f;
+
+						// Visual flame and smoke particles trailing accurately from the jetpack's twin exhaust nozzles
+						net.minecraft.util.math.Vec3d[] nozzles = com.elemental.util.JetpackParticleHelper.getThrusterExhaustPositions(client.player);
+						for (net.minecraft.util.math.Vec3d nozzle : nozzles) {
+							double pvx = hasForward ? (-look.x * 0.25 + (Math.random() - 0.5) * 0.04) : ((Math.random() - 0.5) * 0.04);
+							double pvy = hasForward ? (-look.y * 0.25 - 0.05) : -0.25;
+							double pvz = hasForward ? (-look.z * 0.25 + (Math.random() - 0.5) * 0.04) : ((Math.random() - 0.5) * 0.04);
+
+							client.particleManager.addParticle(
+									net.minecraft.particle.ParticleTypes.SOUL_FIRE_FLAME,
+									nozzle.x,
+									nozzle.y,
+									nozzle.z,
+									pvx,
+									pvy,
+									pvz
+							);
+							client.particleManager.addParticle(
+									net.minecraft.particle.ParticleTypes.CLOUD,
+									nozzle.x,
+									nozzle.y,
+									nozzle.z,
+									pvx * 0.5,
+									pvy * 0.5,
+									pvz * 0.5
+							);
+						}
+
+						// Start looping flight sound using custom thruster audio
+						if (currentFlightSound == null || currentFlightSound.isDone()) {
+							currentFlightSound = new com.elemental.client.sound.JetpackFlightSoundInstance(client.player);
+							client.getSoundManager().play(currentFlightSound);
+						}
+					} else {
+						// While still warming up on ground: stop flight sound
+						if (currentFlightSound != null) {
+							currentFlightSound.stopSound();
+							currentFlightSound = null;
+						}
+					}
+				} else {
+					// Input released: stop flight sound and reset warmup / spooling state immediately (anti-exploit)
+					if (currentFlightSound != null) {
+						currentFlightSound.stopSound();
+						currentFlightSound = null;
+					}
+					wasJumpPressedLastTick = false;
+					isTakeoffSpooling = false;
+					groundWarmupTicks = 0;
+					thrustSoundTicks = 0;
+
+					// Sneak key held while falling -> gliding descent
+					if (client.options.sneakKey.isPressed() && client.player.getVelocity().y < -0.15) {
+						ClientPlayNetworking.send(com.elemental.network.QuestNetworking.JETPACK_GLIDE_PACKET_ID, PacketByteBufs.empty());
+						client.player.setVelocity(client.player.getVelocity().x, -0.15, client.player.getVelocity().z);
+						client.player.fallDistance = 0.0f;
+					}
 				}
-				// Sneak key held while falling -> gliding descent
-				else if (client.options.sneakKey.isPressed() && client.player.getVelocity().y < -0.15) {
-					ClientPlayNetworking.send(com.elemental.network.QuestNetworking.JETPACK_GLIDE_PACKET_ID, PacketByteBufs.empty());
-					client.player.setVelocity(client.player.getVelocity().x, -0.15, client.player.getVelocity().z);
-					client.player.fallDistance = 0.0f;
+			} else {
+				// Jetpack unequipped or disabled via toggle key: stop flight sound and reset immediately
+				if (currentFlightSound != null) {
+					currentFlightSound.stopSound();
+					currentFlightSound = null;
 				}
+				wasJumpPressedLastTick = false;
+				isTakeoffSpooling = false;
+				groundWarmupTicks = 0;
+				thrustSoundTicks = 0;
 			}
 		});
 	}

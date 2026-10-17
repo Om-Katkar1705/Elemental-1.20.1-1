@@ -60,9 +60,20 @@ public class ModEntities {
                     .build()
     );
 
+    public static final EntityType<RockyEntity> ROCKY = Registry.register(
+            Registries.ENTITY_TYPE,
+            Elemental.id("rocky"),
+            FabricEntityTypeBuilder.<RockyEntity>create(SpawnGroup.CREATURE, RockyEntity::new)
+                    .dimensions(EntityDimensions.fixed(1.0f, 0.9f))
+                    .trackRangeBlocks(64)
+                    .trackedUpdateRate(3)
+                    .build()
+    );
+
     public static void registerModEntities() {
         Elemental.LOGGER.info("Registering mod entities for " + Elemental.MOD_ID);
         FabricDefaultAttributeRegistry.register(EVERLIVING_KNIGHT, EverlivingKnightEntity.createKnightAttributes());
         FabricDefaultAttributeRegistry.register(CHRONICLE_GUIDE, ChronicleGuideEntity.createGuideAttributes());
+        FabricDefaultAttributeRegistry.register(ROCKY, RockyEntity.createRockyAttributes());
     }
 }

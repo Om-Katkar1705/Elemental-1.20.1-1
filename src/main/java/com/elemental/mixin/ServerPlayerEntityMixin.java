@@ -20,6 +20,14 @@ public class ServerPlayerEntityMixin {
             ItemStack stack = ((JetpackSlotHolder) oldPlayer).elemental$getJetpackSlot();
             ((JetpackSlotHolder) newPlayer).elemental$setJetpackSlot(stack);
         }
+        // Persist toggle state during gameplay (alive = true, e.g. dimension switch),
+        // but reset to enabled sensibly on respawn (alive = false).
+        if (alive) {
+            boolean enabled = ((JetpackSlotHolder) oldPlayer).elemental$isJetpackEnabled();
+            ((JetpackSlotHolder) newPlayer).elemental$setJetpackEnabled(enabled);
+        } else {
+            ((JetpackSlotHolder) newPlayer).elemental$setJetpackEnabled(true);
+        }
         QuestNetworking.sendExtraSlotSync(newPlayer);
     }
 }

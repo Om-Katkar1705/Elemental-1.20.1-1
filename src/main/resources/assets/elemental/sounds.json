@@ -44,8 +44,25 @@
     "subtitle": "subtitles.elemental.jetpack_thrust",
     "sounds": [
       {
-        "name": "item/firecharge/use",
-        "volume": 0.4,
+        "name": "elemental:jetpack_thrust",
+        "volume": 0.45,
+        "pitch": 1.0,
+        "attenuation_distance": 32,
+        "stream": false
+      }
+    ]
+  },
+  "jetpack_warmup": {
+    "subtitle": "subtitles.elemental.jetpack_warmup",
+    "sounds": [
+      {
+        "name": "block/furnace/fire_crackle",
+        "volume": 0.35,
+        "pitch": 1.4
+      },
+      {
+        "name": "block/beacon/power_select",
+        "volume": 0.3,
         "pitch": 1.6
       }
     ]

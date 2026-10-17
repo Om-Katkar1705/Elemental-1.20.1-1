@@ -5,8 +5,10 @@ import com.elemental.block.ModBlocks;
 import net.fabricmc.fabric.api.item.v1.FabricItemSettings;
 import net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroupEntries;
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
+import com.elemental.entity.ModEntities;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemGroups;
+import net.minecraft.item.SpawnEggItem;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.util.Identifier;
@@ -90,7 +92,13 @@ public class ModItems {
     public static final Item ELEMENTAL_JETPACK = registerItem("elemental_jetpack",
             new ElementalJetpackItem(new FabricItemSettings().maxDamage(480).rarity(Rarity.RARE)));
 
+    public static final Item ROCKY_SPAWN_EGG = registerItem("rocky_spawn_egg",
+            new SpawnEggItem(ModEntities.ROCKY, 0x3E3832, 0x247A70, new FabricItemSettings()));
+
     public static void registerModItems() {
+        ItemGroupEvents.modifyEntriesEvent(ItemGroups.SPAWN_EGGS).register(entries -> {
+            entries.add(ROCKY_SPAWN_EGG);
+        });
         ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(entries -> {
             entries.add(SUNFORGED_SCIMITAR);
             entries.add(ROOTBOUND_AXE);

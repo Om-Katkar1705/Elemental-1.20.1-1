@@ -34,7 +34,17 @@ public class JetpackFeatureRenderer extends FeatureRenderer<AbstractClientPlayer
     public void render(MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light, AbstractClientPlayerEntity player, float limbAngle, float limbDistance, float tickDelta, float animationProgress, float headYaw, float headPitch) {
         ItemStack jetpackStack = JetpackSlotHolder.getJetpackStack(player);
         if (jetpackStack.isEmpty() || !(jetpackStack.getItem() instanceof ElementalJetpackItem)) {
-            return;
+            // Check replicated client cache if holder hasn't populated yet
+            ItemStack cached = com.elemental.client.util.ClientJetpackSync.getStack(player.getId());
+            if (cached.getItem() instanceof ElementalJetpackItem) {
+                if (player instanceof JetpackSlotHolder holder) {
+                    holder.elemental$setJetpackSlot(cached);
+                    holder.elemental$setJetpackEnabled(com.elemental.client.util.ClientJetpackSync.isEnabled(player.getId()));
+                }
+                jetpackStack = cached;
+            } else {
+                return;
+            }
         }
 
         if (player.isInvisible() || player.isSpectator()) {

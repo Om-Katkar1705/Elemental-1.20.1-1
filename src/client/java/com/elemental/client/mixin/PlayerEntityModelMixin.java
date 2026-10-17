@@ -35,7 +35,19 @@ public abstract class PlayerEntityModelMixin<T extends LivingEntity> extends Bip
         if (!(entity instanceof AbstractClientPlayerEntity player)) return;
 
         ItemStack jetpackStack = JetpackSlotHolder.getJetpackStack(player);
-        if (jetpackStack.isEmpty() || !(jetpackStack.getItem() instanceof ElementalJetpackItem)) return;
+        if (jetpackStack.isEmpty() || !(jetpackStack.getItem() instanceof ElementalJetpackItem)) {
+            ItemStack cached = com.elemental.client.util.ClientJetpackSync.getStack(player.getId());
+            if (cached.getItem() instanceof ElementalJetpackItem) {
+                jetpackStack = cached;
+            } else {
+                return;
+            }
+        }
+
+        // Only apply flight pose when jetpack is toggled on
+        if (!JetpackSlotHolder.isJetpackEnabled(player) && !com.elemental.client.util.ClientJetpackSync.isEnabled(player.getId())) {
+            return;
+        }
 
         if (player.isOnGround() || player.isTouchingWater() || player.isSwimming() || player.isSleeping() || player.hasVehicle() || player.isFallFlying()) {
             return;
@@ -89,5 +101,16 @@ public abstract class PlayerEntityModelMixin<T extends LivingEntity> extends Bip
         this.rightSleeve.copyTransform(this.rightArm);
         this.leftSleeve.copyTransform(this.leftArm);
         this.jacket.copyTransform(this.body);
+    }
+
+    @Inject(method = "setAngles(Lnet/minecraft/entity/LivingEntity;FFFFF)V", at = @At("TAIL"))
+    private void elemental$fistBumpPose(T entity, float limbAngle, float limbDistance, float animationProgress, float headYaw, float headPitch, CallbackInfo ci) {
+        if (!(entity instanceof AbstractClientPlayerEntity player)) return;
+
+        if (com.elemental.client.util.ClientFistBumpSync.isAnimating(player.getId())) {
+            float tickDelta = net.minecraft.client.MinecraftClient.getInstance().getTickDelta();
+            float currentTick = com.elemental.client.util.ClientFistBumpSync.getAnimationTick(player.getId(), tickDelta);
+            com.elemental.client.animation.PlayerFistBumpAnimation.applyPose((PlayerEntityModel<?>) (Object) this, currentTick);
+        }
     }
 }
