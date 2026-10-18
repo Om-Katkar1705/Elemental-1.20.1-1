@@ -38,3 +38,10 @@ hs_err_*.log
 replay_*.log
 *.hprof
 *.jfr
+
+# root-level temporary Blockbench and scratch files
+/*.bbmodel
+/*.txt
+/*.png
+/*.geo.json
+/*.animation.json

@@ -86,6 +86,13 @@ public class Elemental implements ModInitializer {
 			QuestNetworking.sendExtraSlotSync(player);
 		});
 
+		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+			ServerPlayerEntity player = handler.getPlayer();
+			pendingSpawnDelays.remove(player.getUuid());
+			com.elemental.combat.StormcallerServerCombatHandler.handlePlayerDisconnect(player);
+			com.elemental.quest.DialogueManager.cancelConversation(player);
+		});
+
 		// Server tick event for dialogues, village spawn, and quest objectives
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
 			// 1. Tick active timed 2-way NPC conversations

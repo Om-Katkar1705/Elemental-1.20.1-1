@@ -1,3 +1,0 @@
-
-Checking for update
-Update for version 5.2.2 is not available (latest version: 5.2.2, downgrade is disallowed).

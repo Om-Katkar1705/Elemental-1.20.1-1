@@ -155,14 +155,17 @@ public class StormcallerServerCombatHandler {
         // Broadcast player animation to client & tracking players
         StormcallerNetworking.broadcastPlayAnimation(player, "animation.stormcaller_hammer.melee_swing");
 
-        // Animate the hammer item model via GeckoLib (if applicable)
-        StormcallerHammerItem hammer = (StormcallerHammerItem) stack.getItem();
-        hammer.triggerAnim(player, GeoItem.getOrAssignId(stack, world), "controller", "attack");
-
         world.playSound(null, player.getX(), player.getY(), player.getZ(),
                 SoundEvents.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.PLAYERS, 0.9f, 0.8f);
 
         return true;
+    }
+
+    public static void handlePlayerDisconnect(ServerPlayerEntity player) {
+        if (player != null) {
+            ACTIVE_ATTACKS.remove(player.getUuid());
+            AIMING_PLAYERS.remove(player.getUuid());
+        }
     }
 
     private static void handleMeleeTick(ServerWorld world, ServerPlayerEntity player, ItemStack stack, ActiveAttack attack) {
@@ -272,9 +275,6 @@ public class StormcallerServerCombatHandler {
         // Broadcast release animation
         StormcallerNetworking.broadcastPlayAnimation(player, "animation.stormcaller_hammer.lightning_release");
 
-        // Trigger item GeckoLib animation
-        hammer.triggerAnim(player, GeoItem.getOrAssignId(stack, world), "controller", "release");
-
         world.playSound(null, player.getX(), player.getY(), player.getZ(),
                 SoundEvents.ITEM_TRIDENT_THUNDER, SoundCategory.PLAYERS, 1.0f, 1.2f);
 
@@ -359,9 +359,6 @@ public class StormcallerServerCombatHandler {
 
         // Broadcast player animation
         StormcallerNetworking.broadcastPlayAnimation(player, "animation.stormcaller_hammer.ground_smash");
-
-        // Trigger item GeckoLib animation
-        hammer.triggerAnim(player, GeoItem.getOrAssignId(stack, world), "controller", "thunderclap");
 
         // Wind-up audio cue
         world.playSound(null, player.getX(), player.getY(), player.getZ(),
