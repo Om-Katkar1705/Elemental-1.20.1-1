@@ -211,6 +211,9 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
         super.postHit(stack, target, attacker);
         World world = attacker.getWorld();
         if (!world.isClient()) {
+            if (attacker instanceof ServerPlayerEntity serverPlayer) {
+                com.elemental.combat.StormcallerServerCombatHandler.startMeleeSwing(serverPlayer);
+            }
             boolean onCooldown = isCoolingDown(world, stack);
             if (onCooldown) {
                 world.playSound(null, target.getX(), target.getY(), target.getZ(),

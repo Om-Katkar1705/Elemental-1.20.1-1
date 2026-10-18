@@ -23,6 +23,9 @@ public class EntityTrackerEntryMixin {
     private void elemental$syncJetpackOnStartTracking(ServerPlayerEntity player, CallbackInfo ci) {
         if (this.entity instanceof ServerPlayerEntity trackedPlayer) {
             QuestNetworking.sendExtraSlotSyncTo(trackedPlayer, player);
+            if (com.elemental.combat.StormcallerServerCombatHandler.isAiming(trackedPlayer)) {
+                com.elemental.network.StormcallerNetworking.sendPlayAnimationTo(player, trackedPlayer, "animation.stormcaller_hammer.lightning_aim_idle");
+            }
         }
     }
 }

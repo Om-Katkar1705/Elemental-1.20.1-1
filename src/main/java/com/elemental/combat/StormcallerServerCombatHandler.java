@@ -168,6 +168,14 @@ public class StormcallerServerCombatHandler {
         }
     }
 
+    public static boolean isAiming(ServerPlayerEntity player) {
+        return player != null && AIMING_PLAYERS.contains(player.getUuid());
+    }
+
+    public static ActiveAttack getActiveAttack(ServerPlayerEntity player) {
+        return player != null ? ACTIVE_ATTACKS.get(player.getUuid()) : null;
+    }
+
     private static void handleMeleeTick(ServerWorld world, ServerPlayerEntity player, ItemStack stack, ActiveAttack attack) {
         // Active damage window: ticks 6 to 9 (0.30s to 0.45s, centered on keyframe tick 7)
         if (attack.currentTick >= MELEE_HIT_START_TICK && attack.currentTick <= MELEE_HIT_END_TICK) {

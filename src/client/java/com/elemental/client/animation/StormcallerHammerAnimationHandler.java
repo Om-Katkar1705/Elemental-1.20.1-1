@@ -11,6 +11,7 @@ import dev.kosmx.playerAnim.api.layered.ModifierLayer;
 import dev.kosmx.playerAnim.core.data.KeyframeAnimation;
 import dev.kosmx.playerAnim.core.data.gson.AnimationSerializing;
 import dev.kosmx.playerAnim.minecraftApi.PlayerAnimationAccess;
+import dev.kosmx.playerAnim.minecraftApi.PlayerAnimationFactory;
 import dev.kosmx.playerAnim.minecraftApi.PlayerAnimationRegistry;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -36,6 +37,8 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class StormcallerHammerAnimationHandler {
 
+    public static final Identifier LAYER_ID = new Identifier("elemental", "stormcaller_layer");
+
     // Per-player animation layer mapping
     private static final Map<UUID, ModifierLayer<IAnimation>> PLAYER_LAYERS = new ConcurrentHashMap<>();
 
@@ -52,13 +55,26 @@ public class StormcallerHammerAnimationHandler {
     private static float screenShakeIntensity = 0.0f;
 
     public static void initClient() {
-        // Register animation layer for each player
+        // Register animation layer factory for all player entities (local client and other players in multiplayer)
+        PlayerAnimationFactory.ANIMATION_DATA_FACTORY.registerFactory(
+                LAYER_ID,
+                1000,
+                player -> {
+                    ModifierLayer<IAnimation> layer = new ModifierLayer<>();
+                    PLAYER_LAYERS.put(player.getUuid(), layer);
+                    return layer;
+                }
+        );
+
+        // Fallback registration event
         PlayerAnimationAccess.REGISTER_ANIMATION_EVENT.register((player, animationStack) -> {
-            ModifierLayer<IAnimation> layer = new ModifierLayer<>();
-            animationStack.addAnimLayer(1000, layer);
-            PLAYER_LAYERS.put(player.getUuid(), layer);
+            ModifierLayer<IAnimation> layer = PLAYER_LAYERS.computeIfAbsent(player.getUuid(), k -> {
+                ModifierLayer<IAnimation> l = new ModifierLayer<>();
+                animationStack.addAnimLayer(1000, l);
+                return l;
+            });
             try {
-                PlayerAnimationAccess.getPlayerAssociatedData(player).set(new Identifier("elemental", "stormcaller_layer"), layer);
+                PlayerAnimationAccess.getPlayerAssociatedData(player).set(LAYER_ID, layer);
             } catch (Exception ignored) {}
         });
 
@@ -157,9 +173,11 @@ public class StormcallerHammerAnimationHandler {
      * Uses FIRST_PERSON_MODEL mode so heavy hammer animations are visible in first person.
      */
     public static void playPlayerAnimation(AbstractClientPlayerEntity player, String animName) {
+        if (player == null || animName == null) return;
+
         ModifierLayer<IAnimation> layer = null;
         try {
-            layer = (ModifierLayer<IAnimation>) PlayerAnimationAccess.getPlayerAssociatedData(player).get(new Identifier("elemental", "stormcaller_layer"));
+            layer = (ModifierLayer<IAnimation>) PlayerAnimationAccess.getPlayerAssociatedData(player).get(LAYER_ID);
         } catch (Exception ignored) {}
 
         if (layer == null) {
@@ -174,7 +192,7 @@ public class StormcallerHammerAnimationHandler {
                     stack.addAnimLayer(1000, layer);
                     PLAYER_LAYERS.put(player.getUuid(), layer);
                     try {
-                        PlayerAnimationAccess.getPlayerAssociatedData(player).set(new Identifier("elemental", "stormcaller_layer"), layer);
+                        PlayerAnimationAccess.getPlayerAssociatedData(player).set(LAYER_ID, layer);
                     } catch (Exception ignored) {}
                 }
             } catch (Exception ignored) {}
@@ -211,9 +229,10 @@ public class StormcallerHammerAnimationHandler {
     }
 
     public static void stopPlayerAnimation(AbstractClientPlayerEntity player) {
+        if (player == null) return;
         ModifierLayer<IAnimation> layer = null;
         try {
-            layer = (ModifierLayer<IAnimation>) PlayerAnimationAccess.getPlayerAssociatedData(player).get(new Identifier("elemental", "stormcaller_layer"));
+            layer = (ModifierLayer<IAnimation>) PlayerAnimationAccess.getPlayerAssociatedData(player).get(LAYER_ID);
         } catch (Exception ignored) {}
         if (layer == null) {
             layer = PLAYER_LAYERS.get(player.getUuid());

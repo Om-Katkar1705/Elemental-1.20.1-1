@@ -97,4 +97,15 @@ public class StormcallerNetworking {
             ServerPlayNetworking.send(player, S2C_GROUND_IMPACT, buf);
         }
     }
+
+    /**
+     * Sends animation playback for playerToAnimate to a specific receiver player (e.g. late tracker / joiner).
+     */
+    public static void sendPlayAnimationTo(ServerPlayerEntity receiver, ServerPlayerEntity playerToAnimate, String animName) {
+        if (receiver == null || playerToAnimate == null) return;
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeInt(playerToAnimate.getId());
+        buf.writeString(animName);
+        ServerPlayNetworking.send(receiver, S2C_PLAY_ANIMATION, buf);
+    }
 }

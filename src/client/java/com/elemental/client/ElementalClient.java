@@ -149,6 +149,16 @@ public class ElementalClient implements ClientModInitializer {
 		// Initialize Stormcaller Hammer PlayerAnimator handler
 		com.elemental.client.animation.StormcallerHammerAnimationHandler.initClient();
 
+		// Trigger Stormcaller Hammer melee swing immediately when attacking an entity on client
+		net.fabricmc.fabric.api.event.player.AttackEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
+			if (hand == net.minecraft.util.Hand.MAIN_HAND && player.getMainHandStack().isOf(ModItems.STORMCALLER_HAMMER)) {
+				if (world.isClient()) {
+					com.elemental.client.animation.StormcallerHammerAnimationHandler.triggerMeleeSwing();
+				}
+			}
+			return net.minecraft.util.ActionResult.PASS;
+		});
+
 		// Register GeckoLib animated renderer for the Solar Arc projectile
 		EntityRendererRegistry.register(ModEntities.SOLAR_ARC, SolarArcRenderer::new);
 
@@ -280,10 +290,12 @@ public class ElementalClient implements ClientModInitializer {
 				}
 			}
 
-			// Attack / Swing animation for all six custom weapons on left-click swing
+			// Attack / Swing animation for custom weapons on left-click swing
 			if (client.player.handSwinging && client.player.handSwingTicks == 0) {
 				ItemStack main = client.player.getMainHandStack();
-				if (main.getItem() instanceof GeoItem geoItem) {
+				if (main.isOf(ModItems.STORMCALLER_HAMMER)) {
+					com.elemental.client.animation.StormcallerHammerAnimationHandler.triggerMeleeSwing();
+				} else if (main.getItem() instanceof GeoItem geoItem) {
 					long id = GeoItem.getId(main);
 					if (id != Long.MAX_VALUE) {
 						if (main.isOf(ModItems.SUNFORGED_SCIMITAR)) {
@@ -294,8 +306,6 @@ public class ElementalClient implements ClientModInitializer {
 							geoItem.triggerAnim(client.player, id, "controller", "wide_sweep");
 						} else if (main.isOf(ModItems.TIDEBREAKER_TRIDENT)) {
 							geoItem.triggerAnim(client.player, id, "controller", "swing");
-						} else if (main.isOf(ModItems.STORMCALLER_HAMMER)) {
-							com.elemental.client.animation.StormcallerHammerAnimationHandler.triggerMeleeSwing();
 						} else if (main.isOf(ModItems.ASHEN_RIFT_BLADE)) {
 							geoItem.triggerAnim(client.player, id, "controller", "attack");
 						}
