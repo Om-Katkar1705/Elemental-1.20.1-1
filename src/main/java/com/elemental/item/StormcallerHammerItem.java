@@ -67,18 +67,23 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
             EntityAttributeModifier.Operation.ADDITION
     );
 
-    // GeckoLib animation definitions
+    // GeckoLib animation definitions (weapon model idle and cooldown ONLY; player animations handled by PlayerAnimator)
     private static final RawAnimation IDLE_ANIM = RawAnimation.begin().thenLoop("animation.stormcaller_hammer.idle");
-    private static final RawAnimation ATTACK_ANIM = RawAnimation.begin().thenPlay("animation.stormcaller_hammer.attack");
-    private static final RawAnimation THUNDERCLAP_ANIM = RawAnimation.begin().thenPlay("animation.stormcaller_hammer.thunderclap").thenLoop("animation.stormcaller_hammer.cooldown");
-    private static final RawAnimation CHARGE_ANIM = RawAnimation.begin().thenLoop("animation.stormcaller_hammer.charge");
-    private static final RawAnimation RELEASE_ANIM = RawAnimation.begin().thenPlay("animation.stormcaller_hammer.release").thenLoop("animation.stormcaller_hammer.cooldown");
     private static final RawAnimation COOLDOWN_ANIM = RawAnimation.begin().thenLoop("animation.stormcaller_hammer.cooldown");
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     private final Supplier<Object> renderProvider = GeoItem.makeRenderer(this);
 
     public static Consumer<Consumer<Object>> RENDER_PROVIDER_CONSUMER;
+
+    @FunctionalInterface
+    public interface ReleaseCallback {
+        void onRelease(PlayerEntity player, int targetEntityId, float chargeProgress);
+    }
+
+    public static Consumer<PlayerEntity> CLIENT_AIM_START_CALLBACK = null;
+    public static Consumer<PlayerEntity> CLIENT_AIM_STOP_CALLBACK = null;
+    public static ReleaseCallback CLIENT_RELEASE_CALLBACK = null;
 
     private final Multimap<EntityAttribute, EntityAttributeModifier> attributeModifiers;
 
@@ -118,11 +123,7 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
                 }
             }
             return state.setAndContinue(IDLE_ANIM);
-        }).triggerableAnim("attack", ATTACK_ANIM)
-          .triggerableAnim("thunderclap", THUNDERCLAP_ANIM)
-          .triggerableAnim("charge", CHARGE_ANIM)
-          .triggerableAnim("release", RELEASE_ANIM)
-          .triggerableAnim("cooldown", COOLDOWN_ANIM)
+        }).triggerableAnim("cooldown", COOLDOWN_ANIM)
           .triggerableAnim("idle", IDLE_ANIM));
     }
 
@@ -209,15 +210,7 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
     public boolean postHit(ItemStack stack, LivingEntity target, LivingEntity attacker) {
         super.postHit(stack, target, attacker);
         World world = attacker.getWorld();
-        if (world.isClient()) {
-            long id = GeoItem.getId(stack);
-            if (id != Long.MAX_VALUE) {
-                triggerAnim(attacker, id, "controller", "attack");
-            }
-        } else {
-            if (attacker instanceof ServerPlayerEntity serverPlayer && world instanceof ServerWorld serverWorld) {
-                triggerAnim(serverPlayer, GeoItem.getOrAssignId(stack, serverWorld), "controller", "attack");
-            }
+        if (!world.isClient()) {
             boolean onCooldown = isCoolingDown(world, stack);
             if (onCooldown) {
                 world.playSound(null, target.getX(), target.getY(), target.getZ(),
@@ -237,91 +230,15 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
     }
 
     // ==========================================
-    // ABILITY 1: THUNDERCLAP (PRESS R)
+    // ==========================================
+    // ABILITY 1: GROUND SMASH / THUNDERCLAP (PRESS R)
     // ==========================================
 
     public static void performThunderclap(ServerPlayerEntity player) {
         if (player == null || !player.isAlive() || player.isSpectator()) {
             return;
         }
-
-        ItemStack stack = player.getMainHandStack();
-        Hand hand = Hand.MAIN_HAND;
-        if (!(stack.getItem() instanceof StormcallerHammerItem)) {
-            stack = player.getOffHandStack();
-            hand = Hand.OFF_HAND;
-            if (!(stack.getItem() instanceof StormcallerHammerItem)) {
-                return;
-            }
-        }
-
-        ServerWorld world = player.getServerWorld();
-
-        StormcallerHammerItem hammer = (StormcallerHammerItem) stack.getItem();
-
-        // Edge case: repeated ability use while cooling down
-        if (isCoolingDown(world, stack)) {
-            int remainingSec = getRemainingCooldownSeconds(world, stack);
-            player.sendMessage(Text.literal("§c⚡ Thunderclap is cooling down! (" + remainingSec + "s remaining)").formatted(Formatting.RED), true);
-            world.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.PLAYERS, 0.6f, 1.4f);
-            hammer.triggerAnim(player, GeoItem.getOrAssignId(stack, world), "controller", "cooldown");
-            return;
-        }
-
-        // Trigger GeckoLib Thunderclap smash animation
-        hammer.triggerAnim(player, GeoItem.getOrAssignId(stack, world), "controller", "thunderclap");
-
-        // Audio impact
-        world.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.PLAYERS, 1.2f, 0.6f);
-        world.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.ENTITY_LIGHTNING_BOLT_IMPACT, SoundCategory.PLAYERS, 1.0f, 0.8f);
-        world.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.BLOCK_ANVIL_LAND, SoundCategory.PLAYERS, 1.0f, 0.5f);
-
-        // Visual earthquake impact particles in 4-block radius without modifying terrain/blocks
-        world.spawnParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE, player.getX(), player.getY() + 0.1, player.getZ(), 60, 2.0, 0.2, 2.0, 0.02);
-        world.spawnParticles(ParticleTypes.POOF, player.getX(), player.getY() + 0.1, player.getZ(), 50, 2.0, 0.1, 2.0, 0.03);
-        world.spawnParticles(ParticleTypes.CRIT, player.getX(), player.getY() + 0.3, player.getZ(), 60, 2.2, 0.25, 2.2, 0.05);
-        world.spawnParticles(ParticleTypes.EXPLOSION, player.getX(), player.getY() + 0.5, player.getZ(), 2, 0.5, 0.2, 0.5, 0.0);
-        world.spawnParticles(ParticleTypes.FLASH, player.getX(), player.getY() + 0.5, player.getZ(), 1, 0, 0, 0, 0);
-
-        // Affect mobs inside 4-block radius
-        Box box = new Box(player.getX() - 4.0, player.getY() - 2.0, player.getZ() - 4.0,
-                player.getX() + 4.0, player.getY() + 3.0, player.getZ() + 4.0);
-        List<LivingEntity> targets = world.getEntitiesByClass(LivingEntity.class, box, e ->
-                e != player && !(e instanceof PlayerEntity) && e.isAlive() && !e.isSpectator() && e.squaredDistanceTo(player) <= 16.0
-        );
-
-        for (LivingEntity target : targets) {
-
-            boolean heavy = isHeavyMob(target);
-            // Heavy mobs receive reduced launch effect but must still be affected
-            double vy = heavy ? 0.38 : 0.88;
-
-            Vec3d diff = target.getPos().subtract(player.getPos());
-            Vec3d horiz = new Vec3d(diff.x, 0, diff.z);
-            double vx = 0;
-            double vz = 0;
-            if (horiz.lengthSquared() > 0.001) {
-                Vec3d norm = horiz.normalize().multiply(heavy ? 0.20 : 0.45);
-                vx = norm.x;
-                vz = norm.z;
-            }
-
-            target.setVelocity(vx, vy, vz);
-            target.velocityModified = true;
-            if (target instanceof ServerPlayerEntity targetPlayer) {
-                targetPlayer.networkHandler.sendPacket(new net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket(targetPlayer));
-            }
-
-            // Controlled earthquake damage
-            target.damage(world.getDamageSources().playerAttack(player), 7.0f);
-            world.spawnParticles(ParticleTypes.CRIT, target.getX(), target.getY() + 0.5, target.getZ(), 10, 0.2, 0.3, 0.2, 0.1);
-        }
-
-        // Apply 15-second cooldown and durability loss
-        applyCooldown(world, player, stack, COOLDOWN_TICKS);
-        Hand finalHand = hand;
-        stack.damage(2, player, p -> p.sendToolBreakStatus(finalHand));
-        player.sendMessage(Text.literal("§6⚡ Thunderclap! §cStormcaller cooling down (15s) - Damage reduced").formatted(Formatting.GOLD), true);
+        com.elemental.combat.StormcallerServerCombatHandler.startGroundSmash(player);
     }
 
     public static boolean isHeavyMob(LivingEntity entity) {
@@ -348,7 +265,7 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
 
     @Override
     public UseAction getUseAction(ItemStack stack) {
-        return UseAction.BOW;
+        return UseAction.NONE;
     }
 
     @Override
@@ -365,12 +282,11 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
         user.setCurrentHand(hand);
         world.playSound(null, user.getX(), user.getY(), user.getZ(), SoundEvents.ITEM_CROSSBOW_LOADING_START, SoundCategory.PLAYERS, 0.8f, 0.7f);
         if (world.isClient()) {
-            long id = GeoItem.getId(stack);
-            if (id != Long.MAX_VALUE) {
-                triggerAnim(user, id, "controller", "charge");
+            if (CLIENT_AIM_START_CALLBACK != null) {
+                CLIENT_AIM_START_CALLBACK.accept(user);
             }
         } else if (user instanceof ServerPlayerEntity serverPlayer) {
-            triggerAnim(serverPlayer, GeoItem.getOrAssignId(stack, (ServerWorld) world), "controller", "charge");
+            com.elemental.combat.StormcallerServerCombatHandler.startLightningAim(serverPlayer, true);
         }
         return TypedActionResult.consume(stack);
     }
@@ -404,15 +320,20 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
 
     @Override
     public void onStoppedUsing(ItemStack stack, World world, LivingEntity user, int remainingUseTicks) {
+        int chargeTicks = getMaxUseTime(stack) - remainingUseTicks;
+        float chargeProgress = Math.min(1.0f, (float) chargeTicks / 40.0f);
+
         if (world.isClient()) {
             if (user instanceof PlayerEntity player) {
-                long id = GeoItem.getId(stack);
-                if (id != Long.MAX_VALUE) {
-                    int chargeTicks = getMaxUseTime(stack) - remainingUseTicks;
-                    if (chargeTicks >= 5) {
-                        triggerAnim(player, id, "controller", "release");
-                    } else {
-                        triggerAnim(player, id, "controller", isCoolingDown(world, stack) ? "cooldown" : "idle");
+                if (chargeTicks >= 5) {
+                    LivingEntity target = findTargetedMob(player, 36.0);
+                    int targetId = target != null ? target.getId() : -1;
+                    if (CLIENT_RELEASE_CALLBACK != null) {
+                        CLIENT_RELEASE_CALLBACK.onRelease(player, targetId, chargeProgress);
+                    }
+                } else {
+                    if (CLIENT_AIM_STOP_CALLBACK != null) {
+                        CLIENT_AIM_STOP_CALLBACK.accept(player);
                     }
                 }
             }
@@ -423,65 +344,14 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
             return;
         }
 
-        ServerWorld serverWorld = player.getServerWorld();
-        int chargeTicks = getMaxUseTime(stack) - remainingUseTicks;
-
-        // Minimum charge threshold
         if (chargeTicks < 5) {
-            triggerAnim(player, GeoItem.getOrAssignId(stack, serverWorld), "controller", isCoolingDown(serverWorld, stack) ? "cooldown" : "idle");
+            com.elemental.combat.StormcallerServerCombatHandler.startLightningAim(player, false);
             return;
         }
 
-        // Aim raycast to find targeted mob
         LivingEntity target = findTargetedMob(player, 36.0);
-
-        // Edge case: If no valid mob is targeted, safely cancel the ability without triggering a cooldown
-        if (target == null || !target.isAlive() || target.isRemoved()) {
-            player.sendMessage(Text.literal("§7⚡ No valid mob targeted — ability safely cancelled.").formatted(Formatting.GRAY), true);
-            serverWorld.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.PLAYERS, 0.5f, 1.5f);
-            triggerAnim(player, GeoItem.getOrAssignId(stack, serverWorld), "controller", isCoolingDown(serverWorld, stack) ? "cooldown" : "idle");
-            return;
-        }
-
-        // Calculate charge progress and strike count:
-        // Minimum charge: 1 lightning strike
-        // Full charge: 15–20 lightning strikes on target
-        float chargeProgress = Math.min(1.0f, (float) chargeTicks / 40.0f);
-        int strikeCount;
-        if (chargeProgress < 0.25f) {
-            strikeCount = 1;
-        } else {
-            int maxStrikes = 15 + serverWorld.random.nextInt(6); // 15 to 20
-            strikeCount = Math.max(1, Math.round(1 + (maxStrikes - 1) * chargeProgress));
-        }
-
-        // Damage scaling: during cooldown, weapon deals less damage than normal
-        boolean onCooldown = isCoolingDown(serverWorld, stack);
-        float damagePerStrike = (strikeCount == 1) ? 9.0f : (38.0f / strikeCount);
-        if (onCooldown) {
-            // At full charge during cooldown, the weapon deals less damage than normal
-            damagePerStrike *= 0.55f;
-        }
-
-        // Spread strikes over short duration
-        int intervalTicks = (strikeCount > 10) ? 1 : 2;
-        StormcallerLightningScheduler.scheduleBarrage(serverWorld, player, target, strikeCount, damagePerStrike, intervalTicks);
-
-        serverWorld.playSound(null, player.getX(), player.getY(), player.getZ(),
-                SoundEvents.ITEM_TRIDENT_THUNDER, SoundCategory.PLAYERS, 1.2f, 1.0f);
-
-        // Trigger GeckoLib release animation
-        triggerAnim(player, GeoItem.getOrAssignId(stack, serverWorld), "controller", "release");
-
-        // Apply 15-second cooldown and durability
-        applyCooldown(serverWorld, player, stack, COOLDOWN_TICKS);
-        stack.damage(2, player, p -> p.sendToolBreakStatus(player.getActiveHand()));
-
-        if (onCooldown) {
-            player.sendMessage(Text.literal("§6⚡ Charged Lightning Strike! §c(Reduced damage during cooldown)").formatted(Formatting.YELLOW), true);
-        } else {
-            player.sendMessage(Text.literal("§6⚡ Charged Lightning Strike unleashed! (" + strikeCount + " strikes)").formatted(Formatting.GOLD), true);
-        }
+        int targetId = target != null ? target.getId() : -1;
+        com.elemental.combat.StormcallerServerCombatHandler.releaseLightningStrike(player, targetId, chargeProgress);
     }
 
     public static LivingEntity findTargetedMob(ServerPlayerEntity player, double maxDistance) {
@@ -520,6 +390,41 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
             }
         }
 
+        return closest;
+    }
+
+    public static LivingEntity findTargetedMob(PlayerEntity player, double maxDistance) {
+        Vec3d eyePos = player.getEyePos();
+        Vec3d lookDir = player.getRotationVec(1.0F);
+        Vec3d endPos = eyePos.add(lookDir.multiply(maxDistance));
+        World world = player.getWorld();
+
+        // Check line of sight against solid blocks
+        BlockHitResult blockHit = world.raycast(new RaycastContext(
+                eyePos, endPos, RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, player
+        ));
+        if (blockHit.getType() != HitResult.Type.MISS) {
+            endPos = blockHit.getPos();
+        }
+
+        Box searchBox = new Box(eyePos, endPos).expand(1.2);
+        List<LivingEntity> list = world.getEntitiesByClass(LivingEntity.class, searchBox, e ->
+                e != player && !(e instanceof PlayerEntity) && e.isAlive() && !e.isSpectator()
+        );
+
+        LivingEntity closest = null;
+        double closestDistSq = Double.MAX_VALUE;
+        for (LivingEntity entity : list) {
+            Box box = entity.getBoundingBox().expand(0.5);
+            Optional<Vec3d> hit = box.raycast(eyePos, endPos);
+            if (hit.isPresent()) {
+                double distSq = eyePos.squaredDistanceTo(hit.get());
+                if (distSq < closestDistSq) {
+                    closestDistSq = distSq;
+                    closest = entity;
+                }
+            }
+        }
         return closest;
     }
 

@@ -13,6 +13,10 @@ repositories {
 		name = 'GeckoLib'
 		url 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/'
 	}
+	maven {
+		name = "KosmX's Maven"
+		url = 'https://maven.kosmx.dev/'
+	}
 }
 
 loom {
@@ -43,6 +47,9 @@ dependencies {
 
 	// GeckoLib for Minecraft 1.20.1 Fabric
 	modImplementation "software.bernie.geckolib:geckolib-fabric-1.20.1:4.4.7"
+
+	// Player Animation Library for Fabric 1.20.1
+	modImplementation "dev.kosmx.player-anim:player-animation-lib-fabric:1.0.2-rc1+1.20"
 }
 
 processResources {

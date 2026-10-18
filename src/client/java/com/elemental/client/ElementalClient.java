@@ -146,6 +146,9 @@ public class ElementalClient implements ClientModInitializer {
 			});
 		};
 
+		// Initialize Stormcaller Hammer PlayerAnimator handler
+		com.elemental.client.animation.StormcallerHammerAnimationHandler.initClient();
+
 		// Register GeckoLib animated renderer for the Solar Arc projectile
 		EntityRendererRegistry.register(ModEntities.SOLAR_ARC, SolarArcRenderer::new);
 
@@ -270,8 +273,7 @@ public class ElementalClient implements ClientModInitializer {
 						ClientPlayNetworking.send(TidebreakerNetworking.DASH_PACKET_ID, buf);
 					}
 				} else if (main.isOf(ModItems.STORMCALLER_HAMMER) || off.isOf(ModItems.STORMCALLER_HAMMER)) {
-					PacketByteBuf buf = PacketByteBufs.create();
-					ClientPlayNetworking.send(com.elemental.network.StormcallerNetworking.THUNDERCLAP_PACKET_ID, buf);
+					com.elemental.client.animation.StormcallerHammerAnimationHandler.triggerGroundSmash();
 				} else if (main.isOf(ModItems.ASHEN_RIFT_BLADE) || off.isOf(ModItems.ASHEN_RIFT_BLADE)) {
 					PacketByteBuf buf = PacketByteBufs.create();
 					ClientPlayNetworking.send(com.elemental.network.AshenRiftNetworking.RIFT_COLLAPSE_PACKET_ID, buf);
@@ -293,7 +295,7 @@ public class ElementalClient implements ClientModInitializer {
 						} else if (main.isOf(ModItems.TIDEBREAKER_TRIDENT)) {
 							geoItem.triggerAnim(client.player, id, "controller", "swing");
 						} else if (main.isOf(ModItems.STORMCALLER_HAMMER)) {
-							geoItem.triggerAnim(client.player, id, "controller", "attack");
+							com.elemental.client.animation.StormcallerHammerAnimationHandler.triggerMeleeSwing();
 						} else if (main.isOf(ModItems.ASHEN_RIFT_BLADE)) {
 							geoItem.triggerAnim(client.player, id, "controller", "attack");
 						}

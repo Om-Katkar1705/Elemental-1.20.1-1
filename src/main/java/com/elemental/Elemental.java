@@ -56,6 +56,7 @@ public class Elemental implements ModInitializer {
 		TidebreakerNetworking.registerServerReceivers();
 		StormcallerNetworking.registerServerReceivers();
 		StormcallerLightningScheduler.register();
+		com.elemental.combat.StormcallerServerCombatHandler.register();
 		AshenRiftNetworking.registerServerReceivers();
 		AshenRiftScheduler.register();
 		QuestNetworking.registerServerReceivers();
