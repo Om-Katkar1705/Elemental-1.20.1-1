@@ -38,6 +38,7 @@ public class NbtStructureManager {
     public static final Identifier AERONS_CAMP_ID = new Identifier(Elemental.MOD_ID, "aerons_camp");
     public static final Identifier SKYFORGE_SHIP_ID = new Identifier(Elemental.MOD_ID, "crashed_skyforge_ship");
     public static final Identifier DESERT_SANCTUARY_ID = new Identifier(Elemental.MOD_ID, "desert_sanctuary");
+    public static final Identifier FINAL_ARENA_ID = new Identifier(Elemental.MOD_ID, "final_arena");
 
     /**
      * Generic loader and placer for NBT structure templates.
