@@ -337,8 +337,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                     this.getX(), this.getY() + 0.1, this.getZ(),
                     4, 0.8, 0.05, 0.8, 0.01);
 
-            // Screen shake nearby (18 block radius)
-            SeismicColossusNetworking.sendScreenShakeNearby(serverWorld, this.getPos(), 18.0, 0.65f, 6);
+            // Screen shake nearby (22 block radius)
+            SeismicColossusNetworking.sendScreenShakeNearby(serverWorld, this.getPos(), 22.0, 1.5f, 8);
         }
     }
 
@@ -387,7 +387,6 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
         if (this.getHealth() - amount <= 0.0f) {
             int currentPhase = getPhase();
             if (currentPhase < 3) {
-                this.setHealth(1.0f);
                 this.startPhaseTransition(currentPhase + 1);
                 return false;
             }
@@ -482,8 +481,16 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     // ==================== PHASE TRANSITIONS ====================
     public void startPhaseTransition(int nextPhase) {
         setAttackState(STATE_PHASE_TRANSITION);
-        this.actionStateTicks = 60; // 3 seconds invulnerable transition
+        this.actionStateTicks = 30; // 1.5 seconds snappy transition
         setInvulnerablePhase(true);
+        this.setPhase(nextPhase);
+
+        ElementalConfig config = ElementalConfig.get();
+        float maxHp = (nextPhase == 2) ? config.seismicColossusPhase2Health : config.seismicColossusPhase3Health;
+        if (this.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH) != null) {
+            this.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH).setBaseValue(maxHp);
+        }
+        this.setHealth(Math.max(5.0f, maxHp * 0.05f));
 
         if (this.getWorld() instanceof ServerWorld serverWorld) {
             // Roar sound
@@ -497,11 +504,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                     this.getX(), this.getY() + 2.0, this.getZ(), 5, 1.0, 1.0, 1.0, 0.0);
 
             // Heavy screen shake
-            SeismicColossusNetworking.sendScreenShakeNearby(serverWorld, this.getPos(), 32.0, 2.0f, 30);
+            SeismicColossusNetworking.sendScreenShakeNearby(serverWorld, this.getPos(), 36.0, 4.5f, 30);
         }
-
-        // Schedule phase completion
-        this.setPhase(nextPhase);
     }
 
     public void completePhaseTransition() {
@@ -606,7 +610,7 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             }
 
             // Screen shake
-            SeismicColossusNetworking.sendScreenShakeNearby(serverWorld, this.getPos(), 22.0, 1.8f, 15);
+            SeismicColossusNetworking.sendScreenShakeNearby(serverWorld, this.getPos(), 28.0, 3.5f, 18);
 
             // Damage and Slowness to nearby players
             Box box = this.getBoundingBox().expand(radius, 2.0, radius);
@@ -630,7 +634,7 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
                     this.getX(), this.getY() + 0.1, this.getZ(), 40, 1.5, 0.1, 1.5, 0.2);
 
-            SeismicColossusNetworking.sendScreenShakeNearby(serverWorld, this.getPos(), 16.0, 1.4f, 12);
+            SeismicColossusNetworking.sendScreenShakeNearby(serverWorld, this.getPos(), 20.0, 2.4f, 14);
 
             Box box = this.getBoundingBox().expand(5.0, 1.5, 5.0);
             List<PlayerEntity> players = serverWorld.getEntitiesByClass(PlayerEntity.class, box, LivingEntity::isAlive);
@@ -776,7 +780,7 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             serverWorld.spawnParticles(ParticleTypes.EXPLOSION_EMITTER, this.getX(), this.getY() + 2.0, this.getZ(), 1, 0, 0, 0, 0);
             serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
                     this.getX(), this.getY() + 2.0, this.getZ(), 120, 2.0, 2.0, 2.0, 0.2);
-            SeismicColossusNetworking.sendScreenShakeNearby(serverWorld, this.getPos(), 32.0, 2.5f, 40);
+            SeismicColossusNetworking.sendScreenShakeNearby(serverWorld, this.getPos(), 36.0, 5.5f, 40);
         }
     }
 
@@ -852,14 +856,18 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
         @Override
         public void tick() {
             this.timer++;
-            if (this.timer >= 60) {
+            float maxHp = this.boss.getMaxHealth();
+            float progress = Math.min(1.0f, (float) this.timer / 25.0f);
+            this.boss.setHealth(Math.max(1.0f, maxHp * progress));
+
+            if (this.timer >= 30) {
                 this.boss.completePhaseTransition();
             }
         }
 
         @Override
         public boolean shouldContinue() {
-            return this.boss.getAttackState() == STATE_PHASE_TRANSITION && this.timer < 60;
+            return this.boss.getAttackState() == STATE_PHASE_TRANSITION && this.timer < 30;
         }
     }
 

@@ -1,6 +1,7 @@
 package com.elemental.client.mixin;
 
 import com.elemental.client.animation.StormcallerHammerAnimationHandler;
+import com.elemental.client.util.CameraShakeManager;
 import net.minecraft.client.render.Camera;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
@@ -14,17 +15,20 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Camera.class)
 public abstract class CameraMixin {
 
+    @Shadow protected abstract void setRotation(float yaw, float pitch);
     @Shadow private float pitch;
     @Shadow private float yaw;
 
     @Inject(method = "update", at = @At("TAIL"))
-    private void elemental$applyStormcallerSmashCamera(BlockView area, Entity focusedEntity, boolean thirdPerson, boolean inverseView, float tickDelta, CallbackInfo ci) {
-        // Only apply in first person for the player during ground smash or seismic events
-        if (!thirdPerson && focusedEntity instanceof PlayerEntity) {
-            float pitchOffset = StormcallerHammerAnimationHandler.getCameraPitchOffset(tickDelta);
-            this.pitch += pitchOffset;
-            this.pitch += com.elemental.client.util.CameraShakeManager.getPitchOffset();
-            this.yaw += com.elemental.client.util.CameraShakeManager.getYawOffset();
+    private void elemental$applyCameraEffects(BlockView area, Entity focusedEntity, boolean thirdPerson, boolean inverseView, float tickDelta, CallbackInfo ci) {
+        if (focusedEntity instanceof PlayerEntity) {
+            float shakePitch = CameraShakeManager.getPitchOffset(tickDelta);
+            float shakeYaw = CameraShakeManager.getYawOffset(tickDelta);
+            float hammerPitch = (!thirdPerson) ? StormcallerHammerAnimationHandler.getCameraPitchOffset(tickDelta) : 0.0f;
+
+            if (shakePitch != 0.0f || shakeYaw != 0.0f || hammerPitch != 0.0f) {
+                this.setRotation(this.yaw + shakeYaw, this.pitch + shakePitch + hammerPitch);
+            }
         }
     }
 }
