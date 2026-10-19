@@ -21,10 +21,61 @@ public class QuestSaveData extends PersistentState {
     private BlockPos aeronsTentLocation = null;
     private BlockPos skyforgeAirshipLocation = null;
     private BlockPos desertLocation = null;
+    // Collective Quest Progress (Shared across all players on the server)
+    private QuestState collectiveState = QuestState.CRAFT_STONE_TOOLS;
+    private int collectiveBlueprintsFound = 0;
+    private boolean collectiveCompletedPhase1Dialogue = false;
+    private boolean collectiveClaimedJetpack = false;
+    private BlockPos collectiveTargetWaypoint = null;
     private final Map<UUID, PlayerQuestData> playerDataMap = new HashMap<>();
 
     public QuestSaveData() {
         super();
+    }
+
+    public QuestState getCollectiveState() {
+        return collectiveState;
+    }
+
+    public void setCollectiveState(QuestState state) {
+        this.collectiveState = state;
+        this.markDirty();
+    }
+
+    public int getCollectiveBlueprintsFound() {
+        return collectiveBlueprintsFound;
+    }
+
+    public void setCollectiveBlueprintsFound(int count) {
+        this.collectiveBlueprintsFound = count;
+        this.markDirty();
+    }
+
+    public boolean isCollectiveCompletedPhase1Dialogue() {
+        return collectiveCompletedPhase1Dialogue;
+    }
+
+    public void setCollectiveCompletedPhase1Dialogue(boolean val) {
+        this.collectiveCompletedPhase1Dialogue = val;
+        this.markDirty();
+    }
+
+    public boolean isCollectiveClaimedJetpack() {
+        return collectiveClaimedJetpack;
+    }
+
+    public void setCollectiveClaimedJetpack(boolean val) {
+        this.collectiveClaimedJetpack = val;
+        this.markDirty();
+    }
+
+    public BlockPos getCollectiveTargetWaypoint() {
+        return collectiveTargetWaypoint;
+    }
+
+    public void setCollectiveTargetWaypoint(BlockPos waypoint) {
+        this.collectiveTargetWaypoint = waypoint;
+        this.markDirty();
     }
 
     public boolean isGuideSpawned() {
@@ -74,7 +125,7 @@ public class QuestSaveData extends PersistentState {
 
     public PlayerQuestData getPlayerData(UUID uuid) {
         return playerDataMap.computeIfAbsent(uuid, id -> {
-            PlayerQuestData data = new PlayerQuestData(id);
+            PlayerQuestData data = new PlayerQuestData(id, this);
             this.markDirty();
             return data;
         });
@@ -84,6 +135,20 @@ public class QuestSaveData extends PersistentState {
         QuestSaveData data = new QuestSaveData();
         data.guideSpawned = nbt.getBoolean("GuideSpawned");
         data.tentGenerated = nbt.getBoolean("TentGenerated");
+
+        if (nbt.contains("CollectiveState")) {
+            data.collectiveState = QuestState.fromId(nbt.getInt("CollectiveState"));
+            data.collectiveBlueprintsFound = nbt.getInt("CollectiveBlueprintsFound");
+            data.collectiveCompletedPhase1Dialogue = nbt.getBoolean("CollectiveCompletedPhase1");
+            data.collectiveClaimedJetpack = nbt.getBoolean("CollectiveClaimedJetpack");
+            if (nbt.contains("CollectiveTargetX")) {
+                data.collectiveTargetWaypoint = new BlockPos(
+                        nbt.getInt("CollectiveTargetX"),
+                        nbt.getInt("CollectiveTargetY"),
+                        nbt.getInt("CollectiveTargetZ")
+                );
+            }
+        }
 
         if (nbt.contains("TentX") && nbt.contains("TentY") && nbt.contains("TentZ")) {
             data.aeronsTentLocation = new BlockPos(
@@ -120,9 +185,19 @@ public class QuestSaveData extends PersistentState {
             for (int i = 0; i < list.size(); i++) {
                 NbtCompound playerNbt = list.getCompound(i);
                 UUID uuid = playerNbt.getUuid("PlayerUuid");
-                PlayerQuestData pData = new PlayerQuestData(uuid);
+                PlayerQuestData pData = new PlayerQuestData(uuid, data);
                 pData.readNbt(playerNbt);
                 data.playerDataMap.put(uuid, pData);
+                // Backward compatibility: If no collective state was stored, infer from player data
+                if (!nbt.contains("CollectiveState") && pData.getState().getId() > data.collectiveState.getId()) {
+                    data.collectiveState = pData.getState();
+                    data.collectiveBlueprintsFound = Math.max(data.collectiveBlueprintsFound, pData.getBlueprintsFound());
+                    data.collectiveCompletedPhase1Dialogue = data.collectiveCompletedPhase1Dialogue || pData.hasCompletedPhase1Dialogue();
+                    data.collectiveClaimedJetpack = data.collectiveClaimedJetpack || pData.hasClaimedJetpack();
+                    if (pData.getTargetWaypoint() != null) {
+                        data.collectiveTargetWaypoint = pData.getTargetWaypoint();
+                    }
+                }
             }
         }
 
@@ -133,6 +208,16 @@ public class QuestSaveData extends PersistentState {
     public NbtCompound writeNbt(NbtCompound nbt) {
         nbt.putBoolean("GuideSpawned", this.guideSpawned);
         nbt.putBoolean("TentGenerated", this.tentGenerated);
+
+        nbt.putInt("CollectiveState", this.collectiveState.getId());
+        nbt.putInt("CollectiveBlueprintsFound", this.collectiveBlueprintsFound);
+        nbt.putBoolean("CollectiveCompletedPhase1", this.collectiveCompletedPhase1Dialogue);
+        nbt.putBoolean("CollectiveClaimedJetpack", this.collectiveClaimedJetpack);
+        if (this.collectiveTargetWaypoint != null) {
+            nbt.putInt("CollectiveTargetX", this.collectiveTargetWaypoint.getX());
+            nbt.putInt("CollectiveTargetY", this.collectiveTargetWaypoint.getY());
+            nbt.putInt("CollectiveTargetZ", this.collectiveTargetWaypoint.getZ());
+        }
 
         if (this.aeronsTentLocation != null) {
             nbt.putInt("TentX", this.aeronsTentLocation.getX());

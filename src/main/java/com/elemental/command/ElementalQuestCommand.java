@@ -39,7 +39,7 @@ public class ElementalQuestCommand {
                                     saveData.setGuideSpawned(false);
                                     saveData.setTentGenerated(false);
                                     saveData.markDirty();
-                                    QuestManager.syncToClient(player);
+                                    QuestManager.syncToAll(player.server);
 
                                     ctx.getSource().sendFeedback(() -> Text.literal("§aReset quest state, dialogue phase, and Aeron camp for " + player.getName().getString()), true);
                                     return 1;

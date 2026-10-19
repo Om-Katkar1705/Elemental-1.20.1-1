@@ -218,8 +218,30 @@ public class BlueprintMaps {
         return found.size();
     }
 
-    public static boolean hasAllBlueprints(PlayerEntity player) {
-        return countUniqueBlueprints(player) >= Type.values().length;
+    public static int countUniqueBlueprintsCombined(Iterable<? extends PlayerEntity> players) {
+        if (players == null) return 0;
+        java.util.EnumSet<Type> found = java.util.EnumSet.noneOf(Type.class);
+        for (PlayerEntity player : players) {
+            for (int i = 0; i < player.getInventory().size(); i++) {
+                ItemStack stack = player.getInventory().getStack(i);
+                Type type = getBlueprintType(stack);
+                if (type != null) {
+                    found.add(type);
+                }
+            }
+            if (player.currentScreenHandler != null) {
+                ItemStack cursorStack = player.currentScreenHandler.getCursorStack();
+                Type type = getBlueprintType(cursorStack);
+                if (type != null) {
+                    found.add(type);
+                }
+            }
+        }
+        return found.size();
+    }
+
+    public static boolean hasAllBlueprintsCombined(Iterable<? extends PlayerEntity> players) {
+        return countUniqueBlueprintsCombined(players) >= Type.values().length;
     }
 
     public static int removeAllBlueprintMaps(PlayerEntity player) {
@@ -242,6 +264,15 @@ public class BlueprintMaps {
         player.getInventory().markDirty();
         if (player.playerScreenHandler != null) {
             player.playerScreenHandler.syncState();
+        }
+        return removed;
+    }
+
+    public static int removeAllBlueprintMapsFromAll(Iterable<? extends PlayerEntity> players) {
+        if (players == null) return 0;
+        int removed = 0;
+        for (PlayerEntity p : players) {
+            removed += removeAllBlueprintMaps(p);
         }
         return removed;
     }

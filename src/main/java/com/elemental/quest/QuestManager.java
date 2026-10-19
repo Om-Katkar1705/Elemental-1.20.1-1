@@ -30,7 +30,7 @@ public class QuestManager {
         data.setState(newState);
         updateWaypointForState(player, data);
         QuestSaveData.getServerState(player.server).markDirty();
-        syncToClient(player);
+        syncToAll(player.server);
     }
 
     public static void updateWaypointForState(ServerPlayerEntity player, PlayerQuestData data) {
@@ -92,7 +92,7 @@ public class QuestManager {
     }
 
     /**
-     * Periodic server-side check for inventory items, proximity, and objective advancement.
+     * Periodic server-side check for inventory items, proximity, and collective objective advancement.
      */
     public static void tickPlayer(ServerPlayerEntity player) {
         PlayerQuestData data = getPlayerData(player);
@@ -100,37 +100,27 @@ public class QuestManager {
 
         boolean updated = false;
 
-        // 1. Initial State: Craft any Stone Tool -> advance to FIND_AERON
+        // 1. Initial State: Any player crafts any Stone Tool -> advance to FIND_AERON collectively
         if (state == QuestState.CRAFT_STONE_TOOLS) {
             if (hasStoneTool(player)) {
                 data.setState(QuestState.FIND_AERON);
                 updateWaypointForState(player, data);
-                player.sendMessage(Text.translatable("message.elemental.stone_tool_crafted").formatted(Formatting.GOLD), false);
-                player.getWorld().playSound(null, player.getX(), player.getY(), player.getZ(),
-                        ModSounds.OBJECTIVE_UPDATED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+                player.server.getPlayerManager().broadcast(Text.translatable("message.elemental.stone_tool_crafted").formatted(Formatting.GOLD), false);
+                for (ServerPlayerEntity p : player.server.getPlayerManager().getPlayerList()) {
+                    p.playSound(ModSounds.OBJECTIVE_UPDATED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+                }
+                syncToAll(player.server);
                 updated = true;
             }
         }
 
-        // Count quest items in player inventory
-        int pistonCount = countItem(player, ModItems.PNEUMATIC_PISTON);
-        int aerogelCount = countItem(player, ModItems.AEROGEL_CORE);
-        int blueprintsCount = BlueprintMaps.countUniqueBlueprints(player);
-        boolean hasAllBlueprints = BlueprintMaps.hasAllBlueprints(player);
-        boolean hasJetpack = hasItemOrWorn(player, ModItems.ELEMENTAL_JETPACK);
+        // Count combined blueprints across all online players
+        int blueprintsCount = BlueprintMaps.countUniqueBlueprintsCombined(player.server.getPlayerManager().getPlayerList());
+        boolean hasAllBlueprints = blueprintsCount >= BlueprintMaps.Type.values().length;
 
-        if (pistonCount != data.getPistonsSalvaged()) {
-            data.setPistonsSalvaged(pistonCount);
-            updated = true;
-        }
-        if (aerogelCount != data.getAerogelExtracted()) {
-            data.setAerogelExtracted(aerogelCount);
-            updated = true;
-        }
-        // Blueprints count: track while discovering/salvaging. Once returned to Aeron or later,
-        // Aeron takes the maps to examine them, so preserve 4 blueprints salvaged without regressing to 0.
+        // Track blueprints count collectively
         if (state.getId() < QuestState.RETURN_TO_AERON.getId() && !data.hasClaimedJetpack()) {
-            if (blueprintsCount != data.getBlueprintsFound()) {
+            if (blueprintsCount > data.getBlueprintsFound()) {
                 data.setBlueprintsFound(blueprintsCount);
                 updated = true;
             }
@@ -139,15 +129,17 @@ public class QuestManager {
             updated = true;
         }
 
-        // 2. Proximity check for LOCATE_SKYFORGE -> SALVAGE_MODULES
+        // 2. Proximity check for LOCATE_SKYFORGE -> SALVAGE_MODULES collectively
         if (state == QuestState.LOCATE_SKYFORGE) {
             BlockPos target = data.getTargetWaypoint();
             if (target != null && player.squaredDistanceTo(target.getX(), target.getY(), target.getZ()) <= 32 * 32) {
                 data.setState(QuestState.SALVAGE_MODULES);
                 NbtStructureManager.ensureAirshipChestsPopulated(player.getServerWorld(), target);
-                player.sendMessage(Text.translatable("quest.elemental.airship_reached").formatted(Formatting.GOLD), false);
-                player.getWorld().playSound(null, player.getX(), player.getY(), player.getZ(),
-                        ModSounds.OBJECTIVE_UPDATED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+                player.server.getPlayerManager().broadcast(Text.translatable("quest.elemental.airship_reached").formatted(Formatting.GOLD), false);
+                for (ServerPlayerEntity p : player.server.getPlayerManager().getPlayerList()) {
+                    p.playSound(ModSounds.OBJECTIVE_UPDATED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+                }
+                syncToAll(player.server);
                 updated = true;
             }
         }
@@ -161,9 +153,11 @@ public class QuestManager {
             if (hasAllBlueprints) {
                 data.setState(QuestState.RETURN_TO_AERON);
                 updateWaypointForState(player, data);
-                player.sendMessage(Text.translatable("quest.elemental.all_blueprints_salvaged").formatted(Formatting.AQUA, Formatting.BOLD), false);
-                player.getWorld().playSound(null, player.getX(), player.getY(), player.getZ(),
-                        ModSounds.OBJECTIVE_UPDATED, SoundCategory.PLAYERS, 1.0f, 1.2f);
+                player.server.getPlayerManager().broadcast(Text.translatable("quest.elemental.all_blueprints_salvaged").formatted(Formatting.AQUA, Formatting.BOLD), false);
+                for (ServerPlayerEntity p : player.server.getPlayerManager().getPlayerList()) {
+                    p.playSound(ModSounds.OBJECTIVE_UPDATED, SoundCategory.PLAYERS, 1.0f, 1.2f);
+                }
+                syncToAll(player.server);
                 updated = true;
             }
         }
@@ -172,26 +166,29 @@ public class QuestManager {
         if (state == QuestState.CRAFT_JETPACK && hasAllBlueprints) {
             data.setState(QuestState.RETURN_TO_AERON);
             updateWaypointForState(player, data);
+            syncToAll(player.server);
             updated = true;
         }
 
-        // 5. Proximity check for DESERT_EXPEDITION -> arrival at Desert Sanctuary
+        // 5. Proximity check for DESERT_EXPEDITION -> arrival at Desert Sanctuary collectively
         if (state == QuestState.DESERT_EXPEDITION) {
             BlockPos target = data.getTargetWaypoint();
             if (target != null && player.squaredDistanceTo(target.getX(), target.getY(), target.getZ()) <= 32 * 32) {
                 data.setState(QuestState.QUEST_COMPLETE);
                 updateWaypointForState(player, data);
-                player.sendMessage(Text.translatable("quest.elemental.desert_sanctuary_reached").formatted(Formatting.GOLD, Formatting.BOLD), false);
-                player.sendMessage(Text.translatable("quest.elemental.quest_complete").formatted(Formatting.GREEN, Formatting.BOLD), false);
-                player.getWorld().playSound(null, player.getX(), player.getY(), player.getZ(),
-                        ModSounds.QUEST_COMPLETED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+                player.server.getPlayerManager().broadcast(Text.translatable("quest.elemental.desert_sanctuary_reached").formatted(Formatting.GOLD, Formatting.BOLD), false);
+                player.server.getPlayerManager().broadcast(Text.translatable("quest.elemental.quest_complete").formatted(Formatting.GREEN, Formatting.BOLD), false);
+                for (ServerPlayerEntity p : player.server.getPlayerManager().getPlayerList()) {
+                    p.playSound(ModSounds.QUEST_COMPLETED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+                }
+                syncToAll(player.server);
                 updated = true;
             }
         }
 
         if (updated) {
             QuestSaveData.getServerState(player.server).markDirty();
-            syncToClient(player);
+            syncToAll(player.server);
         }
     }
 
@@ -230,5 +227,12 @@ public class QuestManager {
     public static void syncToClient(ServerPlayerEntity player) {
         PlayerQuestData data = getPlayerData(player);
         QuestNetworking.sendQuestSync(player, data);
+    }
+
+    public static void syncToAll(net.minecraft.server.MinecraftServer server) {
+        if (server == null) return;
+        for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+            syncToClient(p);
+        }
     }
 }

@@ -96,6 +96,9 @@ public class ChronicleGuideEntity extends PathAwareEntity {
             if (DialogueManager.isInConversation(serverPlayer)) {
                 DialogueManager.skipConversation(serverPlayer);
                 return ActionResult.SUCCESS;
+            } else if (DialogueManager.isAnyConversationActive()) {
+                serverPlayer.sendMessage(Text.literal("§6[Aeron] §7Aeron is speaking with the adventurers... Please listen."), false);
+                return ActionResult.SUCCESS;
             }
 
             PlayerQuestData questData = QuestManager.getPlayerData(serverPlayer);
@@ -105,13 +108,23 @@ public class ChronicleGuideEntity extends PathAwareEntity {
             if (!questData.hasCompletedPhase1Dialogue()) {
                 startPhase1Conversation(serverPlayer, false);
             }
-            // Phase 2: After the ship (completed discovery & gathered blueprints)
-            else if ((state == QuestState.RETURN_TO_AERON || state == QuestState.CRAFT_JETPACK || BlueprintMaps.hasAllBlueprints(serverPlayer))
+            // Phase 2: After the ship (completed discovery & gathered blueprints collectively)
+            else if ((state == QuestState.RETURN_TO_AERON || state == QuestState.CRAFT_JETPACK || BlueprintMaps.hasAllBlueprintsCombined(serverPlayer.server.getPlayerManager().getPlayerList()))
                     && !questData.hasClaimedJetpack()) {
                 startPhase2Conversation(serverPlayer);
             }
             // After Phase 2 or Jetpack already claimed: Desert expedition reminders & questions
             else if (questData.hasClaimedJetpack() || state == QuestState.DESERT_EXPEDITION || state == QuestState.QUEST_COMPLETE) {
+                if (!hasItemOrWorn(serverPlayer, ModItems.ELEMENTAL_JETPACK)) {
+                    ItemStack jetpack = new ItemStack(ModItems.ELEMENTAL_JETPACK, 1);
+                    if (!serverPlayer.getInventory().insertStack(jetpack)) {
+                        serverPlayer.dropItem(jetpack, false);
+                    }
+                    serverPlayer.sendMessage(Text.literal("§6[Aeron] §eHere is your Elemental Jetpack as well, Element-Smith!").formatted(Formatting.GOLD, Formatting.BOLD), false);
+                    serverPlayer.getWorld().playSound(null, serverPlayer.getX(), serverPlayer.getY(), serverPlayer.getZ(),
+                            SoundEvents.ITEM_ARMOR_EQUIP_NETHERITE, SoundCategory.PLAYERS, 1.0f, 1.0f);
+                    unlockJetpackRecipes(serverPlayer);
+                }
                 startDesertReminderConversation(serverPlayer);
             }
             // Between Phase 1 and Phase 2: Remind about searching the ship
@@ -235,16 +248,9 @@ public class ChronicleGuideEntity extends PathAwareEntity {
                 qData.setCompletedPhase1Dialogue(true);
                 QuestManager.setQuestState(player, QuestState.LOCATE_SKYFORGE);
                 QuestSaveData.getServerState(player.server).markDirty();
-                player.getWorld().playSound(
-                        null,
-                        player.getX(),
-                        player.getY(),
-                        player.getZ(),
-                        ModSounds.QUEST_ACCEPTED,
-                        SoundCategory.PLAYERS,
-                        1.0f,
-                        1.0f
-                );
+                for (ServerPlayerEntity sp : player.server.getPlayerManager().getPlayerList()) {
+                    sp.playSound(ModSounds.QUEST_ACCEPTED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+                }
             }
             showDialogueChoices(player);
         });
@@ -269,11 +275,12 @@ public class ChronicleGuideEntity extends PathAwareEntity {
                 ModSounds.NPC_DIALOGUE, 1.1f,
                 30,
                 p -> {
-                    int removed = BlueprintMaps.removeAllBlueprintMaps(p);
+                    int removed = BlueprintMaps.removeAllBlueprintMapsFromAll(p.server.getPlayerManager().getPlayerList());
                     if (removed > 0) {
-                        p.sendMessage(Text.translatable("message.elemental.blueprints_taken").formatted(Formatting.YELLOW, Formatting.ITALIC), false);
-                        p.getWorld().playSound(null, p.getX(), p.getY(), p.getZ(),
-                                SoundEvents.ENTITY_ITEM_PICKUP, SoundCategory.PLAYERS, 0.8f, 1.2f);
+                        p.server.getPlayerManager().broadcast(Text.translatable("message.elemental.blueprints_taken").formatted(Formatting.YELLOW, Formatting.ITALIC), false);
+                        for (ServerPlayerEntity sp : p.server.getPlayerManager().getPlayerList()) {
+                            sp.playSound(SoundEvents.ENTITY_ITEM_PICKUP, SoundCategory.PLAYERS, 0.8f, 1.2f);
+                        }
                     }
                 }
         ));
@@ -309,21 +316,23 @@ public class ChronicleGuideEntity extends PathAwareEntity {
                 ModSounds.NPC_DIALOGUE, 1.1f,
                 25,
                 p -> {
-                    BlueprintMaps.removeAllBlueprintMaps(p);
+                    BlueprintMaps.removeAllBlueprintMapsFromAll(p.server.getPlayerManager().getPlayerList());
                     PlayerQuestData data = QuestManager.getPlayerData(p);
                     if (!data.hasClaimedJetpack()) {
                         data.setClaimedJetpack(true);
-                        if (!hasItemOrWorn(p, ModItems.ELEMENTAL_JETPACK)) {
-                            ItemStack jetpack = new ItemStack(ModItems.ELEMENTAL_JETPACK, 1);
-                            if (!p.getInventory().insertStack(jetpack)) {
-                                p.dropItem(jetpack, false);
+                        for (ServerPlayerEntity sp : p.server.getPlayerManager().getPlayerList()) {
+                            unlockJetpackRecipes(sp);
+                            if (!hasItemOrWorn(sp, ModItems.ELEMENTAL_JETPACK)) {
+                                ItemStack jetpack = new ItemStack(ModItems.ELEMENTAL_JETPACK, 1);
+                                if (!sp.getInventory().insertStack(jetpack)) {
+                                    sp.dropItem(jetpack, false);
+                                }
+                                sp.sendMessage(Text.translatable("message.elemental.jetpack_received").formatted(Formatting.GREEN, Formatting.BOLD), false);
+                                sp.playSound(SoundEvents.ITEM_ARMOR_EQUIP_NETHERITE, SoundCategory.PLAYERS, 1.0f, 1.0f);
                             }
-                            p.sendMessage(Text.translatable("message.elemental.jetpack_received").formatted(Formatting.GREEN, Formatting.BOLD), false);
-                            p.getWorld().playSound(null, p.getX(), p.getY(), p.getZ(),
-                                    SoundEvents.ITEM_ARMOR_EQUIP_NETHERITE, SoundCategory.PLAYERS, 1.0f, 1.0f);
                         }
-                        unlockJetpackRecipes(p);
                         QuestSaveData.getServerState(p.server).markDirty();
+                        QuestManager.syncToAll(p.server);
                     }
                 }
         ));
@@ -362,35 +371,31 @@ public class ChronicleGuideEntity extends PathAwareEntity {
         ));
 
         DialogueManager.startConversation(player, lines, () -> {
-            BlueprintMaps.removeAllBlueprintMaps(player);
+            BlueprintMaps.removeAllBlueprintMapsFromAll(player.server.getPlayerManager().getPlayerList());
             PlayerQuestData data = QuestManager.getPlayerData(player);
             // Ensure jetpack claimed and recipes unlocked even if skipped
             if (!data.hasClaimedJetpack()) {
                 data.setClaimedJetpack(true);
-                if (!hasItemOrWorn(player, ModItems.ELEMENTAL_JETPACK)) {
-                    ItemStack jetpack = new ItemStack(ModItems.ELEMENTAL_JETPACK, 1);
-                    if (!player.getInventory().insertStack(jetpack)) {
-                        player.dropItem(jetpack, false);
+                for (ServerPlayerEntity sp : player.server.getPlayerManager().getPlayerList()) {
+                    unlockJetpackRecipes(sp);
+                    if (!hasItemOrWorn(sp, ModItems.ELEMENTAL_JETPACK)) {
+                        ItemStack jetpack = new ItemStack(ModItems.ELEMENTAL_JETPACK, 1);
+                        if (!sp.getInventory().insertStack(jetpack)) {
+                            sp.dropItem(jetpack, false);
+                        }
+                        sp.sendMessage(Text.translatable("message.elemental.jetpack_received").formatted(Formatting.GREEN, Formatting.BOLD), false);
+                        sp.playSound(SoundEvents.ITEM_ARMOR_EQUIP_NETHERITE, SoundCategory.PLAYERS, 1.0f, 1.0f);
                     }
-                    player.sendMessage(Text.translatable("message.elemental.jetpack_received").formatted(Formatting.GREEN, Formatting.BOLD), false);
                 }
-                unlockJetpackRecipes(player);
             }
 
             BlockPos desertPos = com.elemental.world.NbtStructureManager.findOrGenerateDesertSanctuary(player.getServerWorld(), player.getBlockPos());
             data.setTargetWaypoint(desertPos);
             QuestManager.setQuestState(player, QuestState.DESERT_EXPEDITION);
-            player.sendMessage(Text.translatable("message.elemental.desert_coords", desertPos.getX(), desertPos.getZ()).formatted(Formatting.GOLD, Formatting.BOLD), false);
-            player.getWorld().playSound(
-                    null,
-                    player.getX(),
-                    player.getY(),
-                    player.getZ(),
-                    ModSounds.QUEST_COMPLETED,
-                    SoundCategory.PLAYERS,
-                    1.0f,
-                    1.0f
-            );
+            player.server.getPlayerManager().broadcast(Text.translatable("message.elemental.desert_coords", desertPos.getX(), desertPos.getZ()).formatted(Formatting.GOLD, Formatting.BOLD), false);
+            for (ServerPlayerEntity sp : player.server.getPlayerManager().getPlayerList()) {
+                sp.playSound(ModSounds.QUEST_COMPLETED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+            }
             showDialogueChoices(player);
         });
     }
@@ -441,30 +446,30 @@ public class ChronicleGuideEntity extends PathAwareEntity {
 
         switch (topic.toLowerCase()) {
             case "elements" -> {
-                player.sendMessage(Text.literal("§b<" + name + "> §f").append(Text.translatable("dialogue.elemental.choice.elements")), false);
-                player.sendMessage(Text.literal("§6[Aeron] §e").append(Text.translatable("dialogue.elemental.aeron.elements")), false);
-                playNpcSound(player);
+                player.server.getPlayerManager().broadcast(Text.literal("§b<" + name + "> §f").append(Text.translatable("dialogue.elemental.choice.elements")), false);
+                player.server.getPlayerManager().broadcast(Text.literal("§6[Aeron] §e").append(Text.translatable("dialogue.elemental.aeron.elements")), false);
+                playNpcSoundAll(player.server);
                 showDialogueChoices(player);
                 return 1;
             }
             case "solvane" -> {
-                player.sendMessage(Text.literal("§b<" + name + "> §f").append(Text.translatable("dialogue.elemental.choice.solvane")), false);
-                player.sendMessage(Text.literal("§6[Aeron] §c").append(Text.translatable("dialogue.elemental.aeron.solvane")), false);
-                playNpcSound(player);
+                player.server.getPlayerManager().broadcast(Text.literal("§b<" + name + "> §f").append(Text.translatable("dialogue.elemental.choice.solvane")), false);
+                player.server.getPlayerManager().broadcast(Text.literal("§6[Aeron] §c").append(Text.translatable("dialogue.elemental.aeron.solvane")), false);
+                playNpcSoundAll(player.server);
                 showDialogueChoices(player);
                 return 1;
             }
             case "terrakon" -> {
-                player.sendMessage(Text.literal("§b<" + name + "> §f").append(Text.translatable("dialogue.elemental.choice.terrakon")), false);
-                player.sendMessage(Text.literal("§6[Aeron] §6").append(Text.translatable("dialogue.elemental.aeron.terrakon")), false);
-                playNpcSound(player);
+                player.server.getPlayerManager().broadcast(Text.literal("§b<" + name + "> §f").append(Text.translatable("dialogue.elemental.choice.terrakon")), false);
+                player.server.getPlayerManager().broadcast(Text.literal("§6[Aeron] §6").append(Text.translatable("dialogue.elemental.aeron.terrakon")), false);
+                playNpcSoundAll(player.server);
                 showDialogueChoices(player);
                 return 1;
             }
             case "help" -> {
-                player.sendMessage(Text.literal("§b<" + name + "> §f").append(Text.translatable("dialogue.elemental.choice.help")), false);
-                player.sendMessage(Text.literal("§6[Aeron] §e").append(Text.translatable("dialogue.elemental.aeron.help")), false);
-                playNpcSound(player);
+                player.server.getPlayerManager().broadcast(Text.literal("§b<" + name + "> §f").append(Text.translatable("dialogue.elemental.choice.help")), false);
+                player.server.getPlayerManager().broadcast(Text.literal("§6[Aeron] §e").append(Text.translatable("dialogue.elemental.aeron.help")), false);
+                playNpcSoundAll(player.server);
                 showDialogueChoices(player);
                 return 1;
             }
@@ -491,6 +496,13 @@ public class ChronicleGuideEntity extends PathAwareEntity {
         );
     }
 
+    private static void playNpcSoundAll(net.minecraft.server.MinecraftServer server) {
+        if (server == null) return;
+        for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+            p.playSound(ModSounds.NPC_DIALOGUE, SoundCategory.PLAYERS, 0.8f, 1.0f);
+        }
+    }
+
     public static ChronicleGuideEntity findNearestGuide(ServerPlayerEntity player, double radius) {
         List<ChronicleGuideEntity> guides = player.getServerWorld().getEntitiesByClass(
                 ChronicleGuideEntity.class,
@@ -501,19 +513,19 @@ public class ChronicleGuideEntity extends PathAwareEntity {
     }
 
     private void startShipReminderConversation(ServerPlayerEntity player) {
-        this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(), ModSounds.NPC_DIALOGUE, SoundCategory.PLAYERS, 0.8f, 1.0f);
-        player.sendMessage(Text.literal("§6[Aeron] §e").append(Text.translatable("dialogue.elemental.aeron.reminder_ship")), false);
+        playNpcSoundAll(player.server);
+        player.server.getPlayerManager().broadcast(Text.literal("§6[Aeron] §e").append(Text.translatable("dialogue.elemental.aeron.reminder_ship")), false);
         showDialogueChoices(player);
     }
 
     private void startDesertReminderConversation(ServerPlayerEntity player) {
-        this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(), ModSounds.NPC_DIALOGUE, SoundCategory.PLAYERS, 0.8f, 1.0f);
+        playNpcSoundAll(player.server);
         BlockPos desertPos = com.elemental.world.NbtStructureManager.findOrGenerateDesertSanctuary(player.getServerWorld(), player.getBlockPos());
         PlayerQuestData qData = QuestManager.getPlayerData(player);
         qData.setTargetWaypoint(desertPos);
-        QuestManager.syncToClient(player);
-        player.sendMessage(Text.literal("§6[Aeron] §e").append(Text.translatable("dialogue.elemental.aeron.reminder_desert", desertPos.getX(), desertPos.getZ())), false);
-        player.sendMessage(Text.translatable("message.elemental.desert_coords", desertPos.getX(), desertPos.getZ()).formatted(Formatting.GOLD, Formatting.BOLD), false);
+        QuestManager.syncToAll(player.server);
+        player.server.getPlayerManager().broadcast(Text.literal("§6[Aeron] §e").append(Text.translatable("dialogue.elemental.aeron.reminder_desert", desertPos.getX(), desertPos.getZ())), false);
+        player.server.getPlayerManager().broadcast(Text.translatable("message.elemental.desert_coords", desertPos.getX(), desertPos.getZ()).formatted(Formatting.GOLD, Formatting.BOLD), false);
         showDialogueChoices(player);
     }
 

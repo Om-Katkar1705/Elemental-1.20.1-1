@@ -7,6 +7,7 @@ import java.util.UUID;
 
 public class PlayerQuestData {
     private final UUID playerUuid;
+    private QuestSaveData parent;
     private QuestState state = QuestState.CRAFT_STONE_TOOLS;
     private int pistonsSalvaged = 0;
     private int aerogelExtracted = 0;
@@ -17,7 +18,16 @@ public class PlayerQuestData {
     private boolean guidanceActive = true;
 
     public PlayerQuestData(UUID playerUuid) {
+        this(playerUuid, null);
+    }
+
+    public PlayerQuestData(UUID playerUuid, QuestSaveData parent) {
         this.playerUuid = playerUuid;
+        this.parent = parent;
+    }
+
+    public void setParent(QuestSaveData parent) {
+        this.parent = parent;
     }
 
     public UUID getPlayerUuid() {
@@ -25,11 +35,15 @@ public class PlayerQuestData {
     }
 
     public QuestState getState() {
-        return state;
+        return parent != null ? parent.getCollectiveState() : state;
     }
 
     public void setState(QuestState state) {
-        this.state = state;
+        if (parent != null) {
+            parent.setCollectiveState(state);
+        } else {
+            this.state = state;
+        }
     }
 
     public int getPistonsSalvaged() {
@@ -49,45 +63,61 @@ public class PlayerQuestData {
     }
 
     public int getBlueprintsFound() {
-        return blueprintsFound;
+        return parent != null ? parent.getCollectiveBlueprintsFound() : blueprintsFound;
     }
 
     public void setBlueprintsFound(int blueprintsFound) {
-        this.blueprintsFound = blueprintsFound;
+        if (parent != null) {
+            parent.setCollectiveBlueprintsFound(blueprintsFound);
+        } else {
+            this.blueprintsFound = blueprintsFound;
+        }
     }
 
     public boolean isBlueprintFound() {
-        return blueprintsFound >= 4;
+        return getBlueprintsFound() >= 4;
     }
 
     public void setBlueprintFound(boolean found) {
-        if (found && this.blueprintsFound == 0) {
-            this.blueprintsFound = 4;
+        if (found && getBlueprintsFound() == 0) {
+            setBlueprintsFound(4);
         }
     }
 
     public boolean hasClaimedJetpack() {
-        return claimedJetpack;
+        return parent != null ? parent.isCollectiveClaimedJetpack() : claimedJetpack;
     }
 
     public void setClaimedJetpack(boolean claimedJetpack) {
-        this.claimedJetpack = claimedJetpack;
+        if (parent != null) {
+            parent.setCollectiveClaimedJetpack(claimedJetpack);
+        } else {
+            this.claimedJetpack = claimedJetpack;
+        }
     }
 
     public boolean hasCompletedPhase1Dialogue() {
-        return completedPhase1Dialogue;
+        return parent != null ? parent.isCollectiveCompletedPhase1Dialogue() : completedPhase1Dialogue;
     }
 
     public void setCompletedPhase1Dialogue(boolean completedPhase1Dialogue) {
-        this.completedPhase1Dialogue = completedPhase1Dialogue;
+        if (parent != null) {
+            parent.setCollectiveCompletedPhase1Dialogue(completedPhase1Dialogue);
+        } else {
+            this.completedPhase1Dialogue = completedPhase1Dialogue;
+        }
     }
 
     public BlockPos getTargetWaypoint() {
-        return targetWaypoint;
+        return parent != null ? parent.getCollectiveTargetWaypoint() : targetWaypoint;
     }
 
     public void setTargetWaypoint(BlockPos targetWaypoint) {
-        this.targetWaypoint = targetWaypoint;
+        if (parent != null) {
+            parent.setCollectiveTargetWaypoint(targetWaypoint);
+        } else {
+            this.targetWaypoint = targetWaypoint;
+        }
     }
 
     public boolean isGuidanceActive() {
@@ -100,17 +130,18 @@ public class PlayerQuestData {
 
     public void writeNbt(NbtCompound nbt) {
         nbt.putUuid("PlayerUuid", this.playerUuid);
-        nbt.putInt("State", this.state.getId());
+        nbt.putInt("State", getState().getId());
         nbt.putInt("Pistons", this.pistonsSalvaged);
         nbt.putInt("Aerogel", this.aerogelExtracted);
-        nbt.putInt("BlueprintsFound", this.blueprintsFound);
-        nbt.putBoolean("ClaimedJetpack", this.claimedJetpack);
-        nbt.putBoolean("CompletedPhase1", this.completedPhase1Dialogue);
+        nbt.putInt("BlueprintsFound", getBlueprintsFound());
+        nbt.putBoolean("ClaimedJetpack", hasClaimedJetpack());
+        nbt.putBoolean("CompletedPhase1", hasCompletedPhase1Dialogue());
         nbt.putBoolean("GuidanceActive", this.guidanceActive);
-        if (this.targetWaypoint != null) {
-            nbt.putInt("TargetX", this.targetWaypoint.getX());
-            nbt.putInt("TargetY", this.targetWaypoint.getY());
-            nbt.putInt("TargetZ", this.targetWaypoint.getZ());
+        BlockPos wp = getTargetWaypoint();
+        if (wp != null) {
+            nbt.putInt("TargetX", wp.getX());
+            nbt.putInt("TargetY", wp.getY());
+            nbt.putInt("TargetZ", wp.getZ());
         }
     }
 

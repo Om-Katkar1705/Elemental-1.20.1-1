@@ -50,6 +50,10 @@ public class DialogueManager {
 
     private static final Map<UUID, ActiveConversation> ACTIVE_CONVERSATIONS = new HashMap<>();
 
+    public static boolean isAnyConversationActive() {
+        return !ACTIVE_CONVERSATIONS.isEmpty();
+    }
+
     public static boolean isInConversation(ServerPlayerEntity player) {
         return ACTIVE_CONVERSATIONS.containsKey(player.getUuid());
     }
@@ -76,6 +80,9 @@ public class DialogueManager {
             if (conv.onComplete != null) {
                 conv.onComplete.run();
             }
+            if (player.server != null) {
+                player.server.getPlayerManager().broadcast(Text.literal("§7[Dialogue skipped by " + player.getName().getString() + "]"), false);
+            }
         }
     }
 
@@ -100,19 +107,13 @@ public class DialogueManager {
 
             if (conv.currentIndex < conv.lines.size()) {
                 DialogueEntry line = conv.lines.get(conv.currentIndex);
-                player.sendMessage(line.text(), false);
+                // Broadcast to whole chat across the server
+                server.getPlayerManager().broadcast(line.text(), false);
 
                 if (line.sound() != null) {
-                    player.getWorld().playSound(
-                            null,
-                            player.getX(),
-                            player.getY(),
-                            player.getZ(),
-                            line.sound(),
-                            SoundCategory.PLAYERS,
-                            0.8f,
-                            line.pitch()
-                    );
+                    for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+                        p.playSound(line.sound(), SoundCategory.PLAYERS, 0.8f, line.pitch());
+                    }
                 }
 
                 if (line.onDisplay() != null) {
