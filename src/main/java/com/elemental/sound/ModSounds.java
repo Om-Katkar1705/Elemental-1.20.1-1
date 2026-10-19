@@ -15,6 +15,15 @@ public class ModSounds {
     public static final SoundEvent JETPACK_THRUST = registerSound("jetpack_thrust");
     public static final SoundEvent JETPACK_WARMUP = registerSound("jetpack_warmup");
 
+    // Seismic Colossus
+    public static final SoundEvent SEISMIC_COLOSSUS_STEP = registerSound("seismic_colossus_step");
+    public static final SoundEvent SEISMIC_COLOSSUS_SLAM = registerSound("seismic_colossus_slam");
+    public static final SoundEvent SEISMIC_COLOSSUS_ROAR = registerSound("seismic_colossus_roar");
+    public static final SoundEvent SEISMIC_COLOSSUS_THROW = registerSound("seismic_colossus_throw");
+    public static final SoundEvent SEISMIC_COLOSSUS_HURT = registerSound("seismic_colossus_hurt");
+    public static final SoundEvent SEISMIC_COLOSSUS_DEATH = registerSound("seismic_colossus_death");
+    public static final SoundEvent HAMMER_SPARK = registerSound("hammer_spark");
+
     private static SoundEvent registerSound(String name) {
         Identifier id = Elemental.id(name);
         return Registry.register(Registries.SOUND_EVENT, id, SoundEvent.of(id));

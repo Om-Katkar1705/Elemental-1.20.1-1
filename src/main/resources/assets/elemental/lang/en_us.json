@@ -136,5 +136,17 @@
   "subtitles.elemental.quest_completed": "Quest Completed",
   "subtitles.elemental.jetpack_guidance": "Waypoint Guidance Chime",
   "subtitles.elemental.jetpack_thrust": "Jetpack Thrusters Firing",
-  "subtitles.elemental.jetpack_warmup": "Jetpack Spooling Up"
+  "subtitles.elemental.jetpack_warmup": "Jetpack Spooling Up",
+
+  "entity.elemental.seismic_colossus": "Seismic Colossus",
+  "entity.elemental.colossus_mini": "Colossus Mini",
+  "entity.elemental.seismic_rock": "Seismic Rock",
+  "entity.elemental.seismic_thrown_block": "Thrown Terrain Block",
+  "subtitles.elemental.seismic_colossus_step": "Seismic Colossus steps heavily",
+  "subtitles.elemental.seismic_colossus_slam": "Seismic Colossus slams ground",
+  "subtitles.elemental.seismic_colossus_roar": "Seismic Colossus roars",
+  "subtitles.elemental.seismic_colossus_throw": "Seismic Colossus throws stone",
+  "subtitles.elemental.seismic_colossus_hurt": "Seismic Colossus groans",
+  "subtitles.elemental.seismic_colossus_death": "Seismic Colossus collapses",
+  "subtitles.elemental.hammer_spark": "Stormcaller Hammer sparks"
 }

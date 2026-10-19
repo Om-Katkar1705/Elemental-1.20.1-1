@@ -66,5 +66,110 @@
         "pitch": 1.6
       }
     ]
+  },
+  "seismic_colossus_step": {
+    "subtitle": "subtitles.elemental.seismic_colossus_step",
+    "sounds": [
+      {
+        "name": "mob/irongolem/step",
+        "pitch": 0.4,
+        "volume": 1.8
+      },
+      {
+        "name": "block/anvil/land",
+        "pitch": 0.3,
+        "volume": 0.8
+      }
+    ]
+  },
+  "seismic_colossus_slam": {
+    "subtitle": "subtitles.elemental.seismic_colossus_slam",
+    "sounds": [
+      {
+        "name": "random/explode",
+        "pitch": 0.6,
+        "volume": 2.0
+      },
+      {
+        "name": "mob/ravager/roar",
+        "pitch": 0.5,
+        "volume": 1.5
+      }
+    ]
+  },
+  "seismic_colossus_roar": {
+    "subtitle": "subtitles.elemental.seismic_colossus_roar",
+    "sounds": [
+      {
+        "name": "mob/enderdragon/growl",
+        "pitch": 0.5,
+        "volume": 2.5
+      },
+      {
+        "name": "mob/warden/roar",
+        "pitch": 0.6,
+        "volume": 2.0
+      }
+    ]
+  },
+  "seismic_colossus_throw": {
+    "subtitle": "subtitles.elemental.seismic_colossus_throw",
+    "sounds": [
+      {
+        "name": "mob/irongolem/throw",
+        "pitch": 0.5,
+        "volume": 1.5
+      },
+      {
+        "name": "mob/witch/throw",
+        "pitch": 0.6,
+        "volume": 1.2
+      }
+    ]
+  },
+  "seismic_colossus_hurt": {
+    "subtitle": "subtitles.elemental.seismic_colossus_hurt",
+    "sounds": [
+      {
+        "name": "mob/irongolem/hit",
+        "pitch": 0.5,
+        "volume": 1.5
+      },
+      {
+        "name": "block/stone/hit",
+        "pitch": 0.4,
+        "volume": 1.2
+      }
+    ]
+  },
+  "seismic_colossus_death": {
+    "subtitle": "subtitles.elemental.seismic_colossus_death",
+    "sounds": [
+      {
+        "name": "mob/irongolem/death",
+        "pitch": 0.4,
+        "volume": 2.0
+      },
+      {
+        "name": "random/explode",
+        "pitch": 0.4,
+        "volume": 2.0
+      }
+    ]
+  },
+  "hammer_spark": {
+    "subtitle": "subtitles.elemental.hammer_spark",
+    "sounds": [
+      {
+        "name": "block/anvil/use",
+        "pitch": 1.2,
+        "volume": 1.5
+      },
+      {
+        "name": "random/anvil_land",
+        "pitch": 1.4,
+        "volume": 1.0
+      }
+    ]
   }
 }

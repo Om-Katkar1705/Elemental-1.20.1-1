@@ -175,6 +175,24 @@ public class ElementalClient implements ClientModInitializer {
 		// Register GeckoLib animated renderer for Rocky (Project Hail Mary alien companion)
 		EntityRendererRegistry.register(ModEntities.ROCKY, RockyRenderer::new);
 
+		// Register Seismic Colossus boss, minion, and projectile renderers
+		EntityRendererRegistry.register(ModEntities.SEISMIC_COLOSSUS, com.elemental.client.renderer.SeismicColossusRenderer::new);
+		EntityRendererRegistry.register(ModEntities.COLOSSUS_MINI, com.elemental.client.renderer.ColossusMiniRenderer::new);
+		EntityRendererRegistry.register(ModEntities.SEISMIC_ROCK, com.elemental.client.renderer.SeismicRockRenderer::new);
+		EntityRendererRegistry.register(ModEntities.SEISMIC_THROWN_BLOCK, com.elemental.client.renderer.SeismicThrownBlockRenderer::new);
+
+		// Register Screen Shake Client Receiver
+		ClientPlayNetworking.registerGlobalReceiver(com.elemental.network.SeismicColossusNetworking.S2C_SCREEN_SHAKE, (client, handler, buf, responseSender) -> {
+			float intensity = buf.readFloat();
+			int duration = buf.readInt();
+			client.execute(() -> {
+				com.elemental.client.util.CameraShakeManager.addShake(intensity, duration);
+			});
+		});
+
+		// Tick Camera Shake Manager
+		ClientTickEvents.END_CLIENT_TICK.register(client -> com.elemental.client.util.CameraShakeManager.clientTick());
+
 		// Register Jetpack 3D model layer and player feature renderer
 		EntityModelLayerRegistry.registerModelLayer(JetpackFeatureRenderer.JETPACK_LAYER, JetpackModel::getTexturedModelData);
 		LivingEntityFeatureRendererRegistrationCallback.EVENT.register((entityType, entityRenderer, registrationHelper, context) -> {

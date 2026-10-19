@@ -70,10 +70,52 @@ public class ModEntities {
                     .build()
     );
 
+    public static final EntityType<SeismicColossusEntity> SEISMIC_COLOSSUS = Registry.register(
+            Registries.ENTITY_TYPE,
+            Elemental.id("seismic_colossus"),
+            FabricEntityTypeBuilder.<SeismicColossusEntity>create(SpawnGroup.MONSTER, SeismicColossusEntity::new)
+                    .dimensions(EntityDimensions.fixed(2.5f, 3.8f))
+                    .trackRangeBlocks(64)
+                    .trackedUpdateRate(3)
+                    .build()
+    );
+
+    public static final EntityType<ColossusMiniEntity> COLOSSUS_MINI = Registry.register(
+            Registries.ENTITY_TYPE,
+            Elemental.id("colossus_mini"),
+            FabricEntityTypeBuilder.<ColossusMiniEntity>create(SpawnGroup.MONSTER, ColossusMiniEntity::new)
+                    .dimensions(EntityDimensions.fixed(0.7f, 1.1f))
+                    .trackRangeBlocks(32)
+                    .trackedUpdateRate(3)
+                    .build()
+    );
+
+    public static final EntityType<SeismicRockEntity> SEISMIC_ROCK = Registry.register(
+            Registries.ENTITY_TYPE,
+            Elemental.id("seismic_rock"),
+            FabricEntityTypeBuilder.<SeismicRockEntity>create(SpawnGroup.MISC, SeismicRockEntity::new)
+                    .dimensions(EntityDimensions.fixed(0.5f, 0.5f))
+                    .trackRangeBlocks(64)
+                    .trackedUpdateRate(10)
+                    .build()
+    );
+
+    public static final EntityType<SeismicThrownBlockEntity> SEISMIC_THROWN_BLOCK = Registry.register(
+            Registries.ENTITY_TYPE,
+            Elemental.id("seismic_thrown_block"),
+            FabricEntityTypeBuilder.<SeismicThrownBlockEntity>create(SpawnGroup.MISC, SeismicThrownBlockEntity::new)
+                    .dimensions(EntityDimensions.fixed(0.9f, 0.9f))
+                    .trackRangeBlocks(64)
+                    .trackedUpdateRate(10)
+                    .build()
+    );
+
     public static void registerModEntities() {
         Elemental.LOGGER.info("Registering mod entities for " + Elemental.MOD_ID);
         FabricDefaultAttributeRegistry.register(EVERLIVING_KNIGHT, EverlivingKnightEntity.createKnightAttributes());
         FabricDefaultAttributeRegistry.register(CHRONICLE_GUIDE, ChronicleGuideEntity.createGuideAttributes());
         FabricDefaultAttributeRegistry.register(ROCKY, RockyEntity.createRockyAttributes());
+        FabricDefaultAttributeRegistry.register(SEISMIC_COLOSSUS, SeismicColossusEntity.createColossusAttributes());
+        FabricDefaultAttributeRegistry.register(COLOSSUS_MINI, ColossusMiniEntity.createMiniAttributes());
     }
 }

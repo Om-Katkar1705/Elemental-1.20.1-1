@@ -40,6 +40,16 @@ public class TidebreakerTridentEntity extends PersistentProjectileEntity impleme
     private ItemStack tridentStack = new ItemStack(ModItems.TIDEBREAKER_TRIDENT);
     private boolean dealtDamage;
     public int returnTimer;
+    public int returnDelay = 0;
+    public java.util.UUID stuckEntityUuid = null;
+    public Vec3d stuckOffset = Vec3d.ZERO;
+
+    public void stickToEntity(Entity entity, Vec3d offset, int delayTicks) {
+        this.stuckEntityUuid = entity.getUuid();
+        this.stuckOffset = offset;
+        this.returnDelay = delayTicks;
+        this.dealtDamage = true;
+    }
 
     public TidebreakerTridentEntity(EntityType<? extends TidebreakerTridentEntity> entityType, World world) {
         super(entityType, world);
@@ -73,6 +83,20 @@ public class TidebreakerTridentEntity extends PersistentProjectileEntity impleme
 
     @Override
     public void tick() {
+        if (this.returnDelay > 0) {
+            this.returnDelay--;
+            if (this.stuckEntityUuid != null && this.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
+                Entity stuckTarget = serverWorld.getEntity(this.stuckEntityUuid);
+                if (stuckTarget != null && stuckTarget.isAlive()) {
+                    Vec3d targetPos = stuckTarget.getPos().add(this.stuckOffset);
+                    this.setPos(targetPos.x, targetPos.y, targetPos.z);
+                    this.setVelocity(Vec3d.ZERO);
+                }
+            }
+            super.tick();
+            return;
+        }
+
         if (this.inGroundTime > 4) {
             this.dealtDamage = true;
         }

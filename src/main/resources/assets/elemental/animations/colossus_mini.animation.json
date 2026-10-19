@@ -1,0 +1,237 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.colossus_mini.idle": {
+      "loop": true,
+      "animation_length": 2.0,
+      "bones": {
+        "h_head2": {
+          "rotation": {
+            "0.0": {
+              "vector": [
+                0,
+                0,
+                0
+              ]
+            },
+            "1.0": {
+              "vector": [
+                3,
+                0,
+                0
+              ]
+            },
+            "2.0": {
+              "vector": [
+                0,
+                0,
+                0
+              ]
+            }
+          }
+        },
+        "h_jaw2": {
+          "rotation": {
+            "0.0": {
+              "vector": [
+                0,
+                0,
+                0
+              ]
+            },
+            "1.0": {
+              "vector": [
+                -5,
+                0,
+                0
+              ]
+            },
+            "2.0": {
+              "vector": [
+                0,
+                0,
+                0
+              ]
+            }
+          }
+        }
+      }
+    },
+    "animation.colossus_mini.walk": {
+      "loop": true,
+      "animation_length": 1.0,
+      "bones": {
+        "left_leg": {
+          "rotation": {
+            "0.0": {
+              "vector": [
+                -25,
+                0,
+                0
+              ]
+            },
+            "0.5": {
+              "vector": [
+                25,
+                0,
+                0
+              ]
+            },
+            "1.0": {
+              "vector": [
+                -25,
+                0,
+                0
+              ]
+            }
+          }
+        },
+        "right_leg": {
+          "rotation": {
+            "0.0": {
+              "vector": [
+                25,
+                0,
+                0
+              ]
+            },
+            "0.5": {
+              "vector": [
+                -25,
+                0,
+                0
+              ]
+            },
+            "1.0": {
+              "vector": [
+                25,
+                0,
+                0
+              ]
+            }
+          }
+        },
+        "left_arm": {
+          "rotation": {
+            "0.0": {
+              "vector": [
+                20,
+                0,
+                0
+              ]
+            },
+            "0.5": {
+              "vector": [
+                -20,
+                0,
+                0
+              ]
+            },
+            "1.0": {
+              "vector": [
+                20,
+                0,
+                0
+              ]
+            }
+          }
+        },
+        "right_arm": {
+          "rotation": {
+            "0.0": {
+              "vector": [
+                -20,
+                0,
+                0
+              ]
+            },
+            "0.5": {
+              "vector": [
+                20,
+                0,
+                0
+              ]
+            },
+            "1.0": {
+              "vector": [
+                -20,
+                0,
+                0
+              ]
+            }
+          }
+        }
+      }
+    },
+    "animation.colossus_mini.attack": {
+      "loop": false,
+      "animation_length": 0.6,
+      "bones": {
+        "left_arm": {
+          "rotation": {
+            "0.0": {
+              "vector": [
+                0,
+                0,
+                0
+              ]
+            },
+            "0.2": {
+              "vector": [
+                -60,
+                0,
+                0
+              ]
+            },
+            "0.4": {
+              "vector": [
+                30,
+                0,
+                0
+              ]
+            },
+            "0.6": {
+              "vector": [
+                0,
+                0,
+                0
+              ]
+            }
+          }
+        },
+        "right_arm": {
+          "rotation": {
+            "0.0": {
+              "vector": [
+                0,
+                0,
+                0
+              ]
+            },
+            "0.2": {
+              "vector": [
+                -60,
+                0,
+                0
+              ]
+            },
+            "0.4": {
+              "vector": [
+                30,
+                0,
+                0
+              ]
+            },
+            "0.6": {
+              "vector": [
+                0,
+                0,
+                0
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}
