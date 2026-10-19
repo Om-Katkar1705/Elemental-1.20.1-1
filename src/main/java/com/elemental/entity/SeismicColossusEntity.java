@@ -114,6 +114,7 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     // ==================== COMBAT TIMERS & COOLDOWNS ====================
     private int attackCooldownTicks = 0;
     private int actionStateTicks = 0;
+    private int phaseTransitionTimer = 0;
     private int footstepTicker = 0;
     private int tridentStuckTicks = 0;
     private BlockState heldRipBlockState = null;
@@ -215,6 +216,16 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
         this.updateBossBarTitle();
     }
 
+    public float getPhaseMaxHealth(int phase) {
+        ElementalConfig config = ElementalConfig.get();
+        if (phase == 2) {
+            return config.seismicColossusPhase2Health;
+        } else if (phase == 3) {
+            return config.seismicColossusPhase3Health;
+        }
+        return config.seismicColossusPhase1Health;
+    }
+
     public int getAttackState() {
         return this.dataTracker.get(ATTACK_STATE);
     }
@@ -310,8 +321,30 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             }
         }
 
-        // 4. Attack action ticker
-        if (this.actionStateTicks > 0) {
+        // 4. Server-side Phase Transition & Snappy Regeneration (Prevents permanent invulnerability bug)
+        if (!this.getWorld().isClient()) {
+            if (getAttackState() == STATE_PHASE_TRANSITION) {
+                this.getNavigation().stop();
+                this.phaseTransitionTimer++;
+                float maxHp = this.getMaxHealth();
+                float progress = Math.min(1.0f, (float) this.phaseTransitionTimer / 25.0f);
+                this.setHealth(Math.max(1.0f, maxHp * progress));
+
+                if (this.phaseTransitionTimer % 4 == 0 && this.getWorld() instanceof ServerWorld sw) {
+                    sw.spawnParticles(ParticleTypes.WAX_OFF, this.getX(), this.getY() + 1.8, this.getZ(), 8, 0.8, 1.0, 0.8, 0.05);
+                }
+
+                if (this.phaseTransitionTimer >= 30) {
+                    this.completePhaseTransition();
+                }
+            } else if (isInvulnerablePhase()) {
+                // Safety failsafe: If not actively transitioning, invulnerability MUST be turned off
+                setInvulnerablePhase(false);
+            }
+        }
+
+        // 5. Attack action ticker (for punches/slams/stomps - never cancel phase transition)
+        if (getAttackState() != STATE_PHASE_TRANSITION && this.actionStateTicks > 0) {
             this.actionStateTicks--;
             if (this.actionStateTicks <= 0) {
                 setAttackState(STATE_IDLE);
@@ -345,6 +378,11 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     // ==================== DAMAGE & WEAPON-STICKING ====================
     @Override
     public boolean damage(DamageSource source, float amount) {
+        // Safety failsafe: if not in active phase transition, force clear invulnerability
+        if (getAttackState() != STATE_PHASE_TRANSITION && isInvulnerablePhase()) {
+            setInvulnerablePhase(false);
+        }
+
         if (isInvulnerablePhase() && !source.isOf(DamageTypes.OUT_OF_WORLD)) {
             return false;
         }
@@ -480,13 +518,13 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
 
     // ==================== PHASE TRANSITIONS ====================
     public void startPhaseTransition(int nextPhase) {
+        this.phaseTransitionTimer = 0;
         setAttackState(STATE_PHASE_TRANSITION);
-        this.actionStateTicks = 30; // 1.5 seconds snappy transition
+        this.actionStateTicks = 0;
         setInvulnerablePhase(true);
         this.setPhase(nextPhase);
 
-        ElementalConfig config = ElementalConfig.get();
-        float maxHp = (nextPhase == 2) ? config.seismicColossusPhase2Health : config.seismicColossusPhase3Health;
+        float maxHp = getPhaseMaxHealth(nextPhase);
         if (this.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH) != null) {
             this.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH).setBaseValue(maxHp);
         }
@@ -509,20 +547,15 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     }
 
     public void completePhaseTransition() {
+        this.phaseTransitionTimer = 0;
+        this.actionStateTicks = 0;
         setInvulnerablePhase(false);
         setAttackState(STATE_IDLE);
 
-        ElementalConfig config = ElementalConfig.get();
         int phase = getPhase();
+        float maxHp = getPhaseMaxHealth(phase);
 
-        float maxHp;
-        if (phase == 2) {
-            maxHp = config.seismicColossusPhase2Health;
-        } else {
-            maxHp = config.seismicColossusPhase3Health;
-        }
-
-        // Adjust Max Health and fully heal
+        // Adjust Max Health and fully heal (equalized across all phases)
         if (this.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH) != null) {
             this.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH).setBaseValue(maxHp);
         }
@@ -530,6 +563,7 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
 
         // Phase 3 10% stat boost
         if (phase == 3) {
+            ElementalConfig config = ElementalConfig.get();
             double boostedDamage = config.seismicColossusBaseDamage * 1.10;
             double boostedSpeed = config.seismicColossusSpeed * 1.10;
             if (this.getAttributeInstance(EntityAttributes.GENERIC_ATTACK_DAMAGE) != null) {
@@ -835,7 +869,6 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     // ==================== AI GOAL CLASSES ====================
     public static class ColossusPhaseTransitionGoal extends Goal {
         private final SeismicColossusEntity boss;
-        private int timer = 0;
 
         public ColossusPhaseTransitionGoal(SeismicColossusEntity boss) {
             this.boss = boss;
@@ -849,25 +882,19 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
 
         @Override
         public void start() {
-            this.timer = 0;
             this.boss.getNavigation().stop();
         }
 
         @Override
-        public void tick() {
-            this.timer++;
-            float maxHp = this.boss.getMaxHealth();
-            float progress = Math.min(1.0f, (float) this.timer / 25.0f);
-            this.boss.setHealth(Math.max(1.0f, maxHp * progress));
-
-            if (this.timer >= 30) {
-                this.boss.completePhaseTransition();
-            }
+        public boolean shouldContinue() {
+            return this.boss.getAttackState() == STATE_PHASE_TRANSITION;
         }
 
         @Override
-        public boolean shouldContinue() {
-            return this.boss.getAttackState() == STATE_PHASE_TRANSITION && this.timer < 30;
+        public void stop() {
+            if (this.boss.getAttackState() == STATE_PHASE_TRANSITION) {
+                this.boss.completePhaseTransition();
+            }
         }
     }
 
@@ -987,7 +1014,7 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             setPhase(nbt.getInt("Phase"));
         }
         if (nbt.contains("Invulnerable")) {
-            setInvulnerablePhase(nbt.getBoolean("Invulnerable"));
+            setInvulnerablePhase(nbt.getBoolean("Invulnerable") && getAttackState() == STATE_PHASE_TRANSITION);
         }
         if (nbt.contains("StuckWeapons")) {
             this.stuckWeapons.clear();

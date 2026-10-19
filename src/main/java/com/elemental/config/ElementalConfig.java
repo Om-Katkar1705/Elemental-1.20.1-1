@@ -18,10 +18,10 @@ public class ElementalConfig {
     public int markerRenderDistance = 1000;
     public boolean spawnOnFirstPlayerJoin = true;
 
-    // Seismic Colossus Boss Settings
+    // Seismic Colossus Boss Settings (Health is identical across all phases)
     public float seismicColossusPhase1Health = 400.0f;
-    public float seismicColossusPhase2Health = 300.0f;
-    public float seismicColossusPhase3Health = 250.0f;
+    public float seismicColossusPhase2Health = 400.0f;
+    public float seismicColossusPhase3Health = 400.0f;
     public float seismicColossusBaseDamage = 16.0f;
     public double seismicColossusSpeed = 0.22;
     public int seismicColossusAttackCooldown = 40;
