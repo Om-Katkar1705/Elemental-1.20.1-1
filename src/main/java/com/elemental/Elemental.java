@@ -66,6 +66,32 @@ public class Elemental implements ModInitializer {
 			ElementalQuestCommand.register(dispatcher);
 		});
 
+		// Right-click inspection and sync for Blueprint Maps
+		net.fabricmc.fabric.api.event.player.UseItemCallback.EVENT.register((player, world, hand) -> {
+			net.minecraft.item.ItemStack stack = player.getStackInHand(hand);
+			if (com.elemental.item.BlueprintMaps.isBlueprint(stack)) {
+				if (!world.isClient() && player instanceof ServerPlayerEntity serverPlayer && world instanceof ServerWorld serverWorld) {
+					com.elemental.item.BlueprintMaps.ensureBlueprintMapInitialized(stack, world);
+					Integer mapId = net.minecraft.item.FilledMapItem.getMapId(stack);
+					if (mapId != null) {
+						net.minecraft.item.map.MapState mapState = serverWorld.getMapState(net.minecraft.item.FilledMapItem.getMapName(mapId));
+						if (mapState != null) {
+							net.minecraft.item.map.MapState.UpdateData updateData = new net.minecraft.item.map.MapState.UpdateData(0, 0, 128, 128, mapState.colors);
+							serverPlayer.networkHandler.sendPacket(new net.minecraft.network.packet.s2c.play.MapUpdateS2CPacket(mapId, mapState.scale, mapState.locked, java.util.Collections.emptyList(), updateData));
+						}
+					}
+					com.elemental.item.BlueprintMaps.Type type = com.elemental.item.BlueprintMaps.getBlueprintType(stack);
+					if (type != null) {
+						serverPlayer.sendMessage(net.minecraft.text.Text.literal("§d[Schematic] §e" + type.getTitle() + ": §f" + type.getRecipeDesc()), true);
+						serverPlayer.getWorld().playSound(null, serverPlayer.getX(), serverPlayer.getY(), serverPlayer.getZ(),
+								net.minecraft.sound.SoundEvents.ITEM_BOOK_PAGE_TURN, net.minecraft.sound.SoundCategory.PLAYERS, 0.8f, 1.1f);
+					}
+				}
+				return net.minecraft.util.TypedActionResult.success(stack);
+			}
+			return net.minecraft.util.TypedActionResult.pass(stack);
+		});
+
 		// First world spawn and village placement logic
 		java.util.Map<java.util.UUID, Integer> pendingSpawnDelays = new java.util.HashMap<>();
 
