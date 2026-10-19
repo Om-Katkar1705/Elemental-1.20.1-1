@@ -144,6 +144,7 @@ public class QuestManager {
             BlockPos target = data.getTargetWaypoint();
             if (target != null && player.squaredDistanceTo(target.getX(), target.getY(), target.getZ()) <= 32 * 32) {
                 data.setState(QuestState.SALVAGE_MODULES);
+                NbtStructureManager.ensureAirshipChestsPopulated(player.getServerWorld(), target);
                 player.sendMessage(Text.translatable("quest.elemental.airship_reached").formatted(Formatting.GOLD), false);
                 player.getWorld().playSound(null, player.getX(), player.getY(), player.getZ(),
                         ModSounds.OBJECTIVE_UPDATED, SoundCategory.PLAYERS, 1.0f, 1.0f);
@@ -151,9 +152,13 @@ public class QuestManager {
             }
         }
 
-        // 3. Transition from SALVAGE_MODULES to RETURN_TO_AERON once all 4 blueprints are found
+        // 3. In SALVAGE_MODULES: ensure chests are populated, and advance to RETURN_TO_AERON ONLY when all 4 recipe maps are collected
         if (state == QuestState.SALVAGE_MODULES) {
-            if (hasAllBlueprints || hasJetpack) {
+            BlockPos target = data.getTargetWaypoint();
+            if (target != null && player.squaredDistanceTo(target.getX(), target.getY(), target.getZ()) <= 48 * 48) {
+                NbtStructureManager.ensureAirshipChestsPopulated(player.getServerWorld(), target);
+            }
+            if (hasAllBlueprints) {
                 data.setState(QuestState.RETURN_TO_AERON);
                 updateWaypointForState(player, data);
                 player.sendMessage(Text.translatable("quest.elemental.all_blueprints_salvaged").formatted(Formatting.AQUA, Formatting.BOLD), false);
@@ -163,13 +168,10 @@ public class QuestManager {
             }
         }
 
-        // 4. Transition to RETURN_TO_AERON upon crafting/acquiring jetpack
-        if (state == QuestState.CRAFT_JETPACK && hasJetpack) {
+        // 4. Legacy CRAFT_JETPACK state transition: advance to RETURN_TO_AERON once all maps are held
+        if (state == QuestState.CRAFT_JETPACK && hasAllBlueprints) {
             data.setState(QuestState.RETURN_TO_AERON);
             updateWaypointForState(player, data);
-            player.sendMessage(Text.translatable("quest.elemental.jetpack_assembled").formatted(Formatting.GREEN, Formatting.BOLD), false);
-            player.getWorld().playSound(null, player.getX(), player.getY(), player.getZ(),
-                    ModSounds.OBJECTIVE_UPDATED, SoundCategory.PLAYERS, 1.0f, 1.1f);
             updated = true;
         }
 

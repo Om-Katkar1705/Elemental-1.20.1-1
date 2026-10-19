@@ -5,9 +5,11 @@ import com.elemental.config.ElementalConfig;
 import com.elemental.entity.ChronicleGuideEntity;
 import com.elemental.entity.ModEntities;
 import com.elemental.quest.QuestSaveData;
+import com.elemental.item.BlueprintMaps;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.block.entity.ChestBlockEntity;
 import net.minecraft.registry.tag.BiomeTags;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -174,10 +176,74 @@ public class NbtStructureManager {
         // Place directly from crashed_skyforge_ship.nbt
         placeNbtStructure(world, SKYFORGE_SHIP_ID, placePos);
 
+        // Populate chest with initialized blueprint maps
+        populateAirshipChests(world, placePos);
+
         saveData.setSkyforgeAirshipLocation(crashPos);
         saveData.markDirty();
         Elemental.LOGGER.info("Crashed Skyforge Ship initialized from NBT at cliff: {}", crashPos);
         return crashPos;
+    }
+
+    public static void populateAirshipChests(ServerWorld world, BlockPos placePos) {
+        BlockPos mainChestPos = placePos.add(5, 1, 7);
+        if (world.getBlockEntity(mainChestPos) instanceof ChestBlockEntity chest) {
+            chest.clear();
+            chest.setStack(10, BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.PNEUMATIC_PISTON));
+            chest.setStack(12, BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.AEROGEL_CORE));
+            chest.setStack(14, BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.ELEMENT_CORE));
+            chest.setStack(16, BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.ELEMENTAL_JETPACK));
+            chest.markDirty();
+        }
+        for (BlockPos otherPos : new BlockPos[]{placePos.add(7, 1, 6), placePos.add(6, 1, 5)}) {
+            if (world.getBlockEntity(otherPos) instanceof ChestBlockEntity otherChest) {
+                otherChest.clear();
+                otherChest.markDirty();
+            }
+        }
+    }
+
+    public static void ensureAirshipChestsPopulated(ServerWorld world, BlockPos crashPos) {
+        BlockPos placePos = crashPos.add(-6, 0, -6);
+        BlockPos mainChestPos = placePos.add(5, 1, 7);
+        ChestBlockEntity targetChest = null;
+        if (world.getBlockEntity(mainChestPos) instanceof ChestBlockEntity chest) {
+            targetChest = chest;
+        } else {
+            // Search nearby area in case ship was placed with slightly different origin
+            for (BlockPos p : BlockPos.iterate(crashPos.add(-8, -4, -8), crashPos.add(8, 6, 8))) {
+                if (world.getBlockEntity(p) instanceof ChestBlockEntity chest) {
+                    targetChest = chest;
+                    mainChestPos = p;
+                    break;
+                }
+            }
+        }
+
+        if (targetChest != null) {
+            boolean hasAll = true;
+            for (BlueprintMaps.Type t : BlueprintMaps.Type.values()) {
+                boolean found = false;
+                for (int i = 0; i < targetChest.size(); i++) {
+                    if (BlueprintMaps.isBlueprint(targetChest.getStack(i), t)) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    hasAll = false;
+                    break;
+                }
+            }
+            if (!hasAll) {
+                targetChest.clear();
+                targetChest.setStack(10, BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.PNEUMATIC_PISTON));
+                targetChest.setStack(12, BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.AEROGEL_CORE));
+                targetChest.setStack(14, BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.ELEMENT_CORE));
+                targetChest.setStack(16, BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.ELEMENTAL_JETPACK));
+                targetChest.markDirty();
+            }
+        }
     }
 
     // ==========================================

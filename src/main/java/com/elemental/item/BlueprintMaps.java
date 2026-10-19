@@ -123,18 +123,29 @@ public class BlueprintMaps {
     public static Type getBlueprintType(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return null;
         if (!stack.isOf(Items.FILLED_MAP) && !stack.isOf(Items.MAP)) return null;
+
         if (stack.hasNbt() && stack.getNbt().contains(BLUEPRINT_TAG)) {
-            String id = stack.getNbt().getString(BLUEPRINT_TAG);
+            String id = stack.getNbt().getString(BLUEPRINT_TAG).toLowerCase();
             for (Type t : Type.values()) {
                 if (t.getId().equals(id)) return t;
             }
+            if (id.contains("piston") || id.contains("thruster")) return Type.PNEUMATIC_PISTON;
+            if (id.contains("aerogel") || id.contains("wings") || id.contains("harness")) return Type.AEROGEL_CORE;
+            if (id.contains("element_core") || id.equals("core")) return Type.ELEMENT_CORE;
+            if (id.contains("jetpack")) return Type.ELEMENTAL_JETPACK;
         }
+
         String name = stack.getName().getString().toLowerCase();
         for (Type t : Type.values()) {
-            if (name.contains("blueprint") && name.contains(t.getId().replace("_", " "))) {
+            if (name.contains(t.getId().replace("_", " "))) {
                 return t;
             }
         }
+        if (name.contains("piston") || name.contains("thruster")) return Type.PNEUMATIC_PISTON;
+        if (name.contains("aerogel") || name.contains("wings") || name.contains("harness")) return Type.AEROGEL_CORE;
+        if (name.contains("element core") || (name.contains("core") && !name.contains("aerogel"))) return Type.ELEMENT_CORE;
+        if (name.contains("jetpack")) return Type.ELEMENTAL_JETPACK;
+
         return null;
     }
 
@@ -149,15 +160,35 @@ public class BlueprintMaps {
     public static void ensureBlueprintMapInitialized(ItemStack stack, World world) {
         Type type = getBlueprintType(stack);
         if (type == null) return;
-        MapState state = FilledMapItem.getMapState(stack, world);
-        if (state != null) {
-            if (state instanceof BlueprintMapStateAccessor accessor) {
-                if (accessor.elemental$getBlueprintType() == null) {
-                    applyBlueprintToMap(state, type);
-                }
-            } else {
-                applyBlueprintToMap(state, type);
+        if (world.isClient()) return;
+
+        if (world instanceof ServerWorld serverWorld) {
+            Integer mapId = FilledMapItem.getMapId(stack);
+            MapState state = (mapId != null) ? FilledMapItem.getMapState(mapId, serverWorld) : null;
+
+            if (state == null) {
+                // Allocate dynamic map ID in this world
+                int newMapId = serverWorld.getNextMapId();
+                stack.getOrCreateNbt().putInt("map", newMapId);
+                state = MapState.of(0.0, 0.0, (byte) 2, false, false, serverWorld.getRegistryKey());
+                serverWorld.putMapState(FilledMapItem.getMapName(newMapId), state);
             }
+
+            // Ensure name and blueprint tag are standardized
+            stack.setCustomName(Text.literal(type.getTitle()));
+            stack.getOrCreateNbt().putString(BLUEPRINT_TAG, type.getId());
+
+            // Ensure display lore
+            NbtCompound display = stack.getOrCreateSubNbt(ItemStack.DISPLAY_KEY);
+            if (!display.contains(ItemStack.LORE_KEY)) {
+                NbtList loreList = new NbtList();
+                loreList.add(NbtString.of(Text.Serializer.toJson(Text.literal("§7Ancient Skyforge Technical Schematic").formatted(Formatting.GRAY))));
+                loreList.add(NbtString.of(Text.Serializer.toJson(Text.literal("§eCrafting: §f" + type.getRecipeDesc()))));
+                loreList.add(NbtString.of(Text.Serializer.toJson(Text.literal("§dDeliver to Aeron at camp to decipher recipe!").formatted(Formatting.LIGHT_PURPLE))));
+                display.put(ItemStack.LORE_KEY, loreList);
+            }
+
+            applyBlueprintToMap(state, type);
         }
     }
 
