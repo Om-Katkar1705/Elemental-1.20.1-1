@@ -326,15 +326,35 @@ public class NbtStructureManager {
     public static BlockPos findOrGenerateAirship(ServerWorld world, BlockPos nearPos) {
         QuestSaveData saveData = QuestSaveData.getServerState(world.getServer());
         BlockPos existing = saveData.getSkyforgeAirshipLocation();
+        BlockPos bestSurfacePos;
+        BlockPos crashPos;
+        BlockPos placePos;
+
         if (existing != null) {
-            return existing;
+            BlockPos testPos = existing.add(-6, 0, -6);
+            boolean hasShip = false;
+            for (BlockPos p : BlockPos.iterate(testPos, testPos.add(11, 4, 10))) {
+                if (world.getBlockEntity(p) instanceof ChestBlockEntity || world.getBlockState(p).isOf(Blocks.BLAST_FURNACE) || world.getBlockState(p).isOf(Blocks.DARK_OAK_PLANKS)) {
+                    hasShip = true;
+                    break;
+                }
+            }
+            if (hasShip) {
+                return existing;
+            }
+            // Ship missing at existing saved location (e.g. prior load failure); respawn at existing location!
+            crashPos = existing;
+            bestSurfacePos = existing.add(0, 6, 0);
+            placePos = testPos;
+        } else {
+            bestSurfacePos = findSafeCliffSite(world, nearPos);
+            int surfaceY = bestSurfacePos.getY();
+            int crashY = surfaceY - 6;
+            crashPos = new BlockPos(bestSurfacePos.getX(), crashY, bestSurfacePos.getZ());
+            placePos = crashPos.add(-6, 0, -6);
         }
 
-        BlockPos bestSurfacePos = findSafeCliffSite(world, nearPos);
         int surfaceY = bestSurfacePos.getY();
-        int crashY = surfaceY - 6;
-        BlockPos crashPos = new BlockPos(bestSurfacePos.getX(), crashY, bestSurfacePos.getZ());
-        BlockPos placePos = crashPos.add(-6, 0, -6);
 
         // Check blocks and biome around generation area to choose matching variant
         AirshipVariant variant = selectAirshipVariant(world, bestSurfacePos);
@@ -352,7 +372,7 @@ public class NbtStructureManager {
                         }
                     }
                     int maxY = Math.max(surfaceY + 6, crashPos.getY() + 8);
-                    for (int y = crashPos.getY() + 1; y <= maxY; y++) {
+                    for (int y = crashPos.getY() + 5; y <= maxY; y++) {
                         world.setBlockState(new BlockPos(crashPos.getX() + dx, y, crashPos.getZ() + dz), Blocks.AIR.getDefaultState());
                     }
                 }
@@ -421,6 +441,18 @@ public class NbtStructureManager {
                     world.setBlockState(p, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);
                 }
             }
+        }
+
+        if (targetChest == null) {
+            // Ship structure missing or unspawned (e.g. prior load failure); spawn it now!
+            AirshipVariant variant = selectAirshipVariant(world, crashPos.add(0, 6, 0));
+            Identifier variantId = new Identifier(Elemental.MOD_ID, variant.structureName);
+            if (!placeNbtStructure(world, variantId, placePos)) {
+                placeNbtStructure(world, SKYFORGE_SHIP_ID, placePos);
+            }
+            blendCraterPerimeter(world, crashPos, variant);
+            populateAirshipChests(world, placePos);
+            return;
         }
 
         if (targetChest != null && targetChestPos != null) {
