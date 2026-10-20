@@ -56,7 +56,7 @@ public class NbtStructureManager {
         StructurePlacementData placementData = new StructurePlacementData()
                 .setMirror(BlockMirror.NONE)
                 .setRotation(BlockRotation.NONE)
-                .setIgnoreEntities(false);
+                .setIgnoreEntities(structureId.equals(AERONS_CAMP_ID));
 
         StructureTemplate template = templateOpt.get();
         template.place(world, placePos, placePos, placementData, world.getRandom(), Block.NOTIFY_LISTENERS);
@@ -101,14 +101,11 @@ public class NbtStructureManager {
         // Place directly from aerons_camp.nbt
         placeNbtStructure(world, AERONS_CAMP_ID, placePos);
 
-        if (ElementalConfig.get().enableIntroNpc) {
-            spawnAeron(world, safeCampPos);
-            saveData.setGuideSpawned(true);
-        }
-
         saveData.setAeronsTentLocation(safeCampPos);
         saveData.setTentGenerated(true);
         saveData.markDirty();
+
+        ensureGuideAtCamp(world, safeCampPos, saveData);
         Elemental.LOGGER.info("Aeron's Camp initialized from NBT at safe dry land: {}", safeCampPos);
     }
 
@@ -123,6 +120,11 @@ public class NbtStructureManager {
             spawnAeron(world, campPos);
             saveData.setGuideSpawned(true);
             saveData.markDirty();
+        } else if (existingGuides.size() > 1) {
+            // Keep exactly one guide entity, remove any extra duplicate guides
+            for (int i = 1; i < existingGuides.size(); i++) {
+                existingGuides.get(i).discard();
+            }
         }
     }
 

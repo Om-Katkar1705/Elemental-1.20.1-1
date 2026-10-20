@@ -186,6 +186,12 @@ public class QuestManager {
             }
         }
 
+        // Ensure Aeron's camp has exactly one guide when player is in proximity
+        BlockPos campPos = QuestSaveData.getServerState(player.server).getAeronsTentLocation();
+        if (campPos != null && player.squaredDistanceTo(campPos.getX(), campPos.getY(), campPos.getZ()) <= 64 * 64) {
+            NbtStructureManager.ensureGuideAtCamp(player.getServerWorld(), campPos, QuestSaveData.getServerState(player.server));
+        }
+
         if (updated) {
             QuestSaveData.getServerState(player.server).markDirty();
             syncToAll(player.server);
