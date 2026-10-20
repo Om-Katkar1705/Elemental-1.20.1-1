@@ -138,8 +138,190 @@ public class NbtStructureManager {
     }
 
     // ==========================================
-    // 2. Crashed Skyforge Ship (Airship)
+    // 2. Crashed Skyforge Ship (Airship) - Biome-Adaptive
     // ==========================================
+
+    public enum AirshipVariant {
+        PLAINS_FOREST("crashed_skyforge_ship_plains", Blocks.GRASS_BLOCK, Blocks.DIRT, Blocks.STONE),
+        DESERT("crashed_skyforge_ship_desert", Blocks.SAND, Blocks.SANDSTONE, Blocks.STONE),
+        BADLANDS_RED_SAND("crashed_skyforge_ship_badlands", Blocks.RED_SAND, Blocks.RED_SANDSTONE, Blocks.STONE),
+        BADLANDS_TERRACOTTA("crashed_skyforge_ship_badlands_terracotta", Blocks.TERRACOTTA, Blocks.TERRACOTTA, Blocks.STONE),
+        OLD_GROWTH_TAIGA("crashed_skyforge_ship_old_growth_taiga", Blocks.PODZOL, Blocks.DIRT, Blocks.STONE),
+        WINDSWEPT_FOREST("crashed_skyforge_ship_windswept_forest", Blocks.COARSE_DIRT, Blocks.DIRT, Blocks.STONE),
+        SNOWY_PLAINS("crashed_skyforge_ship_snowy_plains", Blocks.SNOW, Blocks.GRASS_BLOCK, Blocks.STONE),
+        SNOWY_SLOPES("crashed_skyforge_ship_snowy_slopes", Blocks.SNOW_BLOCK, Blocks.DIRT, Blocks.STONE),
+        GRAVELLY_HILLS("crashed_skyforge_ship_gravelly_hills", Blocks.GRAVEL, Blocks.STONE, Blocks.STONE),
+        STONY_PEAKS("crashed_skyforge_ship_stony_peaks", Blocks.STONE, Blocks.STONE, Blocks.STONE),
+        CALCITE("crashed_skyforge_ship_calcite", Blocks.CALCITE, Blocks.STONE, Blocks.STONE),
+        SWAMP("crashed_skyforge_ship_swamp", Blocks.MUD, Blocks.STONE, Blocks.STONE),
+        BEACH("crashed_skyforge_ship_beach", Blocks.SAND, Blocks.STONE, Blocks.STONE),
+        FROZEN_OCEAN("crashed_skyforge_ship_frozen_ocean", Blocks.ICE, Blocks.STONE, Blocks.STONE);
+
+        public final String structureName;
+        public final Block topBlock;
+        public final Block midBlock;
+        public final Block baseBlock;
+
+        AirshipVariant(String structureName, Block topBlock, Block midBlock, Block baseBlock) {
+            this.structureName = structureName;
+            this.topBlock = topBlock;
+            this.midBlock = midBlock;
+            this.baseBlock = baseBlock;
+        }
+    }
+
+    public static AirshipVariant selectAirshipVariant(ServerWorld world, BlockPos center) {
+        int grassCount = 0;
+        int sandCount = 0;
+        int sandstoneCount = 0;
+        int redSandCount = 0;
+        int redSandstoneCount = 0;
+        int terracottaCount = 0;
+        int podzolCount = 0;
+        int coarseDirtCount = 0;
+        int snowCount = 0;
+        int snowBlockCount = 0;
+        int gravelCount = 0;
+        int stoneCount = 0;
+        int calciteCount = 0;
+        int mudCount = 0;
+        int iceCount = 0;
+
+        int radius = 16;
+        for (int dx = -radius; dx <= radius; dx += 4) {
+            for (int dz = -radius; dz <= radius; dz += 4) {
+                int x = center.getX() + dx;
+                int z = center.getZ() + dz;
+                int topY = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, x, z);
+                for (int dy = 0; dy < 3; dy++) {
+                    BlockPos p = new BlockPos(x, topY - 1 - dy, z);
+                    BlockState st = world.getBlockState(p);
+                    Block b = st.getBlock();
+                    if (b == Blocks.GRASS_BLOCK) grassCount++;
+                    else if (b == Blocks.SAND) sandCount++;
+                    else if (b == Blocks.SANDSTONE || b == Blocks.SMOOTH_SANDSTONE) sandstoneCount++;
+                    else if (b == Blocks.RED_SAND) redSandCount++;
+                    else if (b == Blocks.RED_SANDSTONE || b == Blocks.SMOOTH_RED_SANDSTONE) redSandstoneCount++;
+                    else if (b == Blocks.TERRACOTTA || b.getTranslationKey().contains("terracotta")) terracottaCount++;
+                    else if (b == Blocks.PODZOL) podzolCount++;
+                    else if (b == Blocks.COARSE_DIRT) coarseDirtCount++;
+                    else if (b == Blocks.SNOW || b == Blocks.POWDER_SNOW) snowCount++;
+                    else if (b == Blocks.SNOW_BLOCK) snowBlockCount++;
+                    else if (b == Blocks.GRAVEL) gravelCount++;
+                    else if (b == Blocks.STONE || b == Blocks.ANDESITE || b == Blocks.DIORITE || b == Blocks.GRANITE || b == Blocks.DEEPSLATE) stoneCount++;
+                    else if (b == Blocks.CALCITE) calciteCount++;
+                    else if (b == Blocks.MUD || b == Blocks.PACKED_MUD || b == Blocks.MUDDY_MANGROVE_ROOTS) mudCount++;
+                    else if (b == Blocks.ICE || b == Blocks.PACKED_ICE || b == Blocks.BLUE_ICE) iceCount++;
+                }
+            }
+        }
+
+        var biome = world.getBiome(center);
+
+        if (biome.isIn(BiomeTags.IS_BADLANDS) || biome.matchesKey(BiomeKeys.BADLANDS) || biome.matchesKey(BiomeKeys.ERODED_BADLANDS) || biome.matchesKey(BiomeKeys.WOODED_BADLANDS)) {
+            if (terracottaCount > redSandCount + redSandstoneCount) {
+                return AirshipVariant.BADLANDS_TERRACOTTA;
+            }
+            return AirshipVariant.BADLANDS_RED_SAND;
+        }
+
+        if (biome.matchesKey(BiomeKeys.DESERT)) {
+            return AirshipVariant.DESERT;
+        }
+
+        if (biome.isIn(BiomeTags.IS_BEACH) || biome.matchesKey(BiomeKeys.BEACH)) {
+            if (sandstoneCount > 0) {
+                return AirshipVariant.DESERT;
+            }
+            return AirshipVariant.BEACH;
+        }
+
+        if (biome.matchesKey(BiomeKeys.OLD_GROWTH_PINE_TAIGA) || biome.matchesKey(BiomeKeys.OLD_GROWTH_SPRUCE_TAIGA)) {
+            if (coarseDirtCount > podzolCount) {
+                return AirshipVariant.WINDSWEPT_FOREST;
+            }
+            return AirshipVariant.OLD_GROWTH_TAIGA;
+        }
+
+        if (biome.matchesKey(BiomeKeys.WINDSWEPT_FOREST)) {
+            return AirshipVariant.WINDSWEPT_FOREST;
+        }
+
+        if (biome.matchesKey(BiomeKeys.SNOWY_PLAINS) || biome.matchesKey(BiomeKeys.SNOWY_TAIGA)) {
+            return AirshipVariant.SNOWY_PLAINS;
+        }
+
+        if (biome.matchesKey(BiomeKeys.SNOWY_SLOPES) || biome.matchesKey(BiomeKeys.JAGGED_PEAKS) || biome.matchesKey(BiomeKeys.FROZEN_PEAKS)) {
+            return AirshipVariant.SNOWY_SLOPES;
+        }
+
+        if (biome.matchesKey(BiomeKeys.WINDSWEPT_GRAVELLY_HILLS) || biome.matchesKey(BiomeKeys.STONY_SHORE)) {
+            return AirshipVariant.GRAVELLY_HILLS;
+        }
+
+        if (biome.matchesKey(BiomeKeys.STONY_PEAKS)) {
+            if (calciteCount > 0) {
+                return AirshipVariant.CALCITE;
+            }
+            return AirshipVariant.STONY_PEAKS;
+        }
+
+        if (biome.matchesKey(BiomeKeys.WINDSWEPT_HILLS)) {
+            return AirshipVariant.STONY_PEAKS;
+        }
+
+        if (biome.matchesKey(BiomeKeys.SWAMP) || biome.matchesKey(BiomeKeys.MANGROVE_SWAMP)) {
+            return AirshipVariant.SWAMP;
+        }
+
+        if (biome.matchesKey(BiomeKeys.FROZEN_OCEAN) || biome.matchesKey(BiomeKeys.DEEP_FROZEN_OCEAN)) {
+            return AirshipVariant.FROZEN_OCEAN;
+        }
+
+        // Surrounding blocks evaluation
+        if (iceCount >= 4) return AirshipVariant.FROZEN_OCEAN;
+        if (mudCount >= 4) return AirshipVariant.SWAMP;
+        if (calciteCount >= 4) return AirshipVariant.CALCITE;
+        if (snowBlockCount >= 5) return AirshipVariant.SNOWY_SLOPES;
+        if (snowCount >= 5) return AirshipVariant.SNOWY_PLAINS;
+        if (terracottaCount >= 5) return AirshipVariant.BADLANDS_TERRACOTTA;
+        if (redSandCount >= 5 || redSandstoneCount >= 4) return AirshipVariant.BADLANDS_RED_SAND;
+        if (sandCount >= 5) {
+            return sandstoneCount > 0 ? AirshipVariant.DESERT : AirshipVariant.BEACH;
+        }
+        if (podzolCount >= 4) return AirshipVariant.OLD_GROWTH_TAIGA;
+        if (coarseDirtCount >= 4) return AirshipVariant.WINDSWEPT_FOREST;
+        if (gravelCount >= 5) return AirshipVariant.GRAVELLY_HILLS;
+        if (stoneCount >= 10 && grassCount <= 2) return AirshipVariant.STONY_PEAKS;
+
+        return AirshipVariant.PLAINS_FOREST;
+    }
+
+    public static void blendCraterPerimeter(ServerWorld world, BlockPos crashPos, AirshipVariant variant) {
+        int centerX = crashPos.getX();
+        int centerZ = crashPos.getZ();
+        int rimY = crashPos.getY() + 6;
+
+        for (int dx = -7; dx <= 7; dx++) {
+            for (int dz = -7; dz <= 7; dz++) {
+                int distSq = dx * dx + dz * dz;
+                if (distSq >= 24 && distSq <= 40) {
+                    BlockPos rimPos = new BlockPos(centerX + dx, rimY, centerZ + dz);
+                    BlockState current = world.getBlockState(rimPos);
+                    if (!current.isAir() && !isLiquidOrWater(world, rimPos)) {
+                        BlockPos above = rimPos.up();
+                        if (world.getBlockState(above).isAir()) {
+                            world.setBlockState(rimPos, variant.topBlock.getDefaultState());
+                            BlockPos below = rimPos.down();
+                            if (!world.getBlockState(below).isAir()) {
+                                world.setBlockState(below, variant.midBlock.getDefaultState());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     public static BlockPos findOrGenerateAirship(ServerWorld world, BlockPos nearPos) {
         QuestSaveData saveData = QuestSaveData.getServerState(world.getServer());
@@ -154,7 +336,11 @@ public class NbtStructureManager {
         BlockPos crashPos = new BlockPos(bestSurfacePos.getX(), crashY, bestSurfacePos.getZ());
         BlockPos placePos = crashPos.add(-6, 0, -6);
 
-        // Prepare crater foundation
+        // Check blocks and biome around generation area to choose matching variant
+        AirshipVariant variant = selectAirshipVariant(world, bestSurfacePos);
+        Elemental.LOGGER.info("Selected biome-adaptive variant '{}' for Crashed Skyforge Ship at {}", variant.structureName, crashPos);
+
+        // Prepare crater foundation with matching base block
         for (int dx = -5; dx <= 5; dx++) {
             for (int dz = -5; dz <= 5; dz++) {
                 int distSq = dx * dx + dz * dz;
@@ -162,7 +348,7 @@ public class NbtStructureManager {
                     for (int fillY = -3; fillY <= -1; fillY++) {
                         BlockPos underPos = crashPos.add(dx, fillY, dz);
                         if (world.getBlockState(underPos).isAir() || isLiquidOrWater(world, underPos)) {
-                            world.setBlockState(underPos, Blocks.STONE.getDefaultState());
+                            world.setBlockState(underPos, variant.baseBlock.getDefaultState());
                         }
                     }
                     int maxY = Math.max(surfaceY + 6, crashPos.getY() + 8);
@@ -173,54 +359,71 @@ public class NbtStructureManager {
             }
         }
 
-        // Place directly from crashed_skyforge_ship.nbt
-        placeNbtStructure(world, SKYFORGE_SHIP_ID, placePos);
+        // Place selected variant template (falls back to default if variant not found)
+        Identifier variantId = new Identifier(Elemental.MOD_ID, variant.structureName);
+        if (!placeNbtStructure(world, variantId, placePos)) {
+            placeNbtStructure(world, SKYFORGE_SHIP_ID, placePos);
+        }
 
-        // Populate chest with initialized blueprint maps
+        // Seamless crater rim landscape integration
+        blendCraterPerimeter(world, crashPos, variant);
+
+        // Populate chest with initialized blueprint maps & remove empty chests
         populateAirshipChests(world, placePos);
 
         saveData.setSkyforgeAirshipLocation(crashPos);
         saveData.markDirty();
-        Elemental.LOGGER.info("Crashed Skyforge Ship initialized from NBT at cliff: {}", crashPos);
+        Elemental.LOGGER.info("Crashed Skyforge Ship initialized from NBT variant '{}' at cliff: {}", variant.structureName, crashPos);
         return crashPos;
     }
 
     public static void populateAirshipChests(ServerWorld world, BlockPos placePos) {
-        BlockPos mainChestPos = placePos.add(5, 1, 7);
-        if (world.getBlockEntity(mainChestPos) instanceof ChestBlockEntity chest) {
-            chest.clear();
-            chest.setStack(10, BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.PNEUMATIC_PISTON));
-            chest.setStack(12, BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.AEROGEL_CORE));
-            chest.setStack(14, BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.ELEMENT_CORE));
-            chest.setStack(16, BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.ELEMENTAL_JETPACK));
-            chest.markDirty();
-        }
-        for (BlockPos otherPos : new BlockPos[]{placePos.add(7, 1, 6), placePos.add(6, 1, 5)}) {
-            if (world.getBlockEntity(otherPos) instanceof ChestBlockEntity otherChest) {
-                otherChest.clear();
-                otherChest.markDirty();
+        ChestBlockEntity mainChest = null;
+        BlockPos mainChestPos = null;
+
+        // Search the ship's 12x9x11 bounds for all chests
+        for (BlockPos p : BlockPos.iterate(placePos, placePos.add(11, 8, 10))) {
+            if (world.getBlockEntity(p) instanceof ChestBlockEntity chest) {
+                if (mainChest == null) {
+                    mainChest = chest;
+                    mainChestPos = p.toImmutable();
+                } else {
+                    // Remove every additional/empty chest - keep exactly one chest
+                    chest.clear();
+                    world.setBlockState(p, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);
+                }
             }
+        }
+
+        if (mainChest != null && mainChestPos != null) {
+            mainChest.clear();
+            mainChest.setStack(10, BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.PNEUMATIC_PISTON));
+            mainChest.setStack(12, BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.AEROGEL_CORE));
+            mainChest.setStack(14, BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.ELEMENT_CORE));
+            mainChest.setStack(16, BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.ELEMENTAL_JETPACK));
+            mainChest.markDirty();
         }
     }
 
     public static void ensureAirshipChestsPopulated(ServerWorld world, BlockPos crashPos) {
         BlockPos placePos = crashPos.add(-6, 0, -6);
-        BlockPos mainChestPos = placePos.add(5, 1, 7);
         ChestBlockEntity targetChest = null;
-        if (world.getBlockEntity(mainChestPos) instanceof ChestBlockEntity chest) {
-            targetChest = chest;
-        } else {
-            // Search nearby area in case ship was placed with slightly different origin
-            for (BlockPos p : BlockPos.iterate(crashPos.add(-8, -4, -8), crashPos.add(8, 6, 8))) {
-                if (world.getBlockEntity(p) instanceof ChestBlockEntity chest) {
+        BlockPos targetChestPos = null;
+
+        for (BlockPos p : BlockPos.iterate(placePos.add(-2, -2, -2), placePos.add(13, 10, 12))) {
+            if (world.getBlockEntity(p) instanceof ChestBlockEntity chest) {
+                if (targetChest == null) {
                     targetChest = chest;
-                    mainChestPos = p;
-                    break;
+                    targetChestPos = p.toImmutable();
+                } else {
+                    // Remove any extra chests
+                    chest.clear();
+                    world.setBlockState(p, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);
                 }
             }
         }
 
-        if (targetChest != null) {
+        if (targetChest != null && targetChestPos != null) {
             boolean hasAll = true;
             for (BlueprintMaps.Type t : BlueprintMaps.Type.values()) {
                 boolean found = false;
@@ -237,10 +440,10 @@ public class NbtStructureManager {
             }
             if (!hasAll) {
                 targetChest.clear();
-                targetChest.setStack(10, BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.PNEUMATIC_PISTON));
-                targetChest.setStack(12, BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.AEROGEL_CORE));
-                targetChest.setStack(14, BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.ELEMENT_CORE));
-                targetChest.setStack(16, BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.ELEMENTAL_JETPACK));
+                targetChest.setStack(10, BlueprintMaps.createBlueprintMap(world, targetChestPos, BlueprintMaps.Type.PNEUMATIC_PISTON));
+                targetChest.setStack(12, BlueprintMaps.createBlueprintMap(world, targetChestPos, BlueprintMaps.Type.AEROGEL_CORE));
+                targetChest.setStack(14, BlueprintMaps.createBlueprintMap(world, targetChestPos, BlueprintMaps.Type.ELEMENT_CORE));
+                targetChest.setStack(16, BlueprintMaps.createBlueprintMap(world, targetChestPos, BlueprintMaps.Type.ELEMENTAL_JETPACK));
                 targetChest.markDirty();
             }
         }
