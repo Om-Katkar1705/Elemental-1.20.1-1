@@ -42,6 +42,3 @@ replay_*.log
 # root-level temporary Blockbench and scratch files
 /*.bbmodel
 /*.txt
-/*.png
-/*.geo.json
-/*.animation.json
