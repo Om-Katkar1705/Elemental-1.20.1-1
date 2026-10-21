@@ -31,9 +31,9 @@ import java.util.Optional;
 /**
  * Clean NBT-based Structure Manager.
  * Loads and places structures exclusively from .nbt StructureTemplates:
- *  - elemental:aerons_camp
- *  - elemental:crashed_skyforge_ship
- *  - elemental:desert_sanctuary
+ * - elemental:aerons_camp
+ * - elemental:crashed_skyforge_ship
+ * - elemental:desert_sanctuary
  */
 public class NbtStructureManager {
 
@@ -68,6 +68,65 @@ public class NbtStructureManager {
     // 1. Aeron's Camp Initialization
     // ==========================================
 
+    public record CampGroundMaterial(Block surfaceBlock, Block subsurfaceBlock) {
+    }
+
+    public static CampGroundMaterial sampleSurroundingGroundMaterial(ServerWorld world, BlockPos center) {
+        java.util.Map<Block, Integer> surfaceCounts = new java.util.HashMap<>();
+        java.util.Map<Block, Integer> subCounts = new java.util.HashMap<>();
+
+        int radius = 6;
+        for (int dx = -radius; dx <= radius; dx += 2) {
+            for (int dz = -radius; dz <= radius; dz += 2) {
+                if (Math.abs(dx) < 4 && Math.abs(dz) < 4)
+                    continue;
+                int x = center.getX() + dx;
+                int z = center.getZ() + dz;
+                int topY = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, x, z);
+                BlockPos topPos = new BlockPos(x, topY - 1, z);
+                BlockState topState = world.getBlockState(topPos);
+                if (!topState.isAir() && !isLiquidOrWater(world, topPos)) {
+                    surfaceCounts.put(topState.getBlock(), surfaceCounts.getOrDefault(topState.getBlock(), 0) + 1);
+                }
+                BlockPos subPos = topPos.down();
+                BlockState subState = world.getBlockState(subPos);
+                if (!subState.isAir() && !isLiquidOrWater(world, subPos)) {
+                    subCounts.put(subState.getBlock(), subCounts.getOrDefault(subState.getBlock(), 0) + 1);
+                }
+            }
+        }
+
+        Block bestSurface = Blocks.GRASS_BLOCK;
+        int maxSurf = 0;
+        for (var entry : surfaceCounts.entrySet()) {
+            if (entry.getValue() > maxSurf) {
+                maxSurf = entry.getValue();
+                bestSurface = entry.getKey();
+            }
+        }
+
+        Block bestSub = Blocks.DIRT;
+        int maxSub = 0;
+        for (var entry : subCounts.entrySet()) {
+            if (entry.getValue() > maxSub) {
+                maxSub = entry.getValue();
+                bestSub = entry.getKey();
+            }
+        }
+
+        if (bestSurface == Blocks.SAND) {
+            bestSub = Blocks.SANDSTONE;
+        } else if (bestSurface == Blocks.RED_SAND) {
+            bestSub = Blocks.RED_SANDSTONE;
+        } else if (bestSurface == Blocks.STONE || bestSurface == Blocks.COBBLESTONE) {
+            bestSub = Blocks.STONE;
+        } else if (bestSurface == Blocks.SNOW_BLOCK || bestSurface == Blocks.POWDER_SNOW) {
+            bestSub = Blocks.DIRT;
+        }
+
+        return new CampGroundMaterial(bestSurface, bestSub);
+    }
+
     public static void initializeWorld(ServerPlayerEntity player) {
         ServerWorld world = player.getServerWorld();
         QuestSaveData saveData = QuestSaveData.getServerState(player.server);
@@ -82,18 +141,28 @@ public class NbtStructureManager {
 
         // Camp template offset (center at safeCampPos)
         BlockPos placePos = safeCampPos.add(-4, -1, -4);
+        CampGroundMaterial groundMaterial = sampleSurroundingGroundMaterial(world, safeCampPos);
+        int campY = safeCampPos.getY();
 
-        // Prepare clean ground foundation and clear air
-        for (int dx = -3; dx <= 3; dx++) {
-            for (int dz = -3; dz <= 3; dz++) {
-                for (int fillY = -4; fillY <= -2; fillY++) {
-                    BlockPos underPos = safeCampPos.add(dx, fillY, dz);
-                    if (world.getBlockState(underPos).isAir() || isLiquidOrWater(world, underPos)) {
-                        world.setBlockState(underPos, Blocks.DIRT.getDefaultState());
-                    }
-                }
+        // Level ground and lay foundation matching surrounding blocks
+        for (int dx = -4; dx <= 4; dx++) {
+            for (int dz = -4; dz <= 4; dz++) {
+                // Clear air above camp floor (dy from 0 to 6)
                 for (int dy = 0; dy <= 6; dy++) {
-                    world.setBlockState(safeCampPos.add(dx, dy, dz), Blocks.AIR.getDefaultState());
+                    world.setBlockState(new BlockPos(safeCampPos.getX() + dx, campY + dy, safeCampPos.getZ() + dz),
+                            Blocks.AIR.getDefaultState());
+                }
+
+                // Ground level at safeCampPos.getY() - 1:
+                BlockPos floorPos = new BlockPos(safeCampPos.getX() + dx, campY - 1, safeCampPos.getZ() + dz);
+                world.setBlockState(floorPos, groundMaterial.surfaceBlock().getDefaultState());
+
+                // Foundation below ground level (from -4 to -2 relative to campY):
+                for (int fillY = -4; fillY <= -2; fillY++) {
+                    BlockPos underPos = new BlockPos(safeCampPos.getX() + dx, campY + fillY, safeCampPos.getZ() + dz);
+                    if (world.getBlockState(underPos).isAir() || isLiquidOrWater(world, underPos)) {
+                        world.setBlockState(underPos, groundMaterial.subsurfaceBlock().getDefaultState());
+                    }
                 }
             }
         }
@@ -103,33 +172,62 @@ public class NbtStructureManager {
 
         saveData.setAeronsTentLocation(safeCampPos);
         saveData.setTentGenerated(true);
+        saveData.setGuideSpawned(true);
         saveData.markDirty();
 
-        ensureGuideAtCamp(world, safeCampPos, saveData);
+        spawnAeron(world, safeCampPos);
         Elemental.LOGGER.info("Aeron's Camp initialized from NBT at safe dry land: {}", safeCampPos);
     }
 
     public static void ensureGuideAtCamp(ServerWorld world, BlockPos campPos, QuestSaveData saveData) {
-        if (!ElementalConfig.get().enableIntroNpc) return;
+        if (!ElementalConfig.get().enableIntroNpc)
+            return;
+        if (campPos == null)
+            return;
+
+        // If chunk is not loaded, do not check or spawn entities to prevent ghost
+        // duplicates
+        if (!world.isChunkLoaded(campPos.getX() >> 4, campPos.getZ() >> 4)) {
+            return;
+        }
+
         List<ChronicleGuideEntity> existingGuides = world.getEntitiesByClass(
                 ChronicleGuideEntity.class,
-                new net.minecraft.util.math.Box(campPos).expand(32.0),
-                e -> true
-        );
+                new net.minecraft.util.math.Box(campPos).expand(48.0),
+                e -> true);
+
         if (existingGuides.isEmpty()) {
-            spawnAeron(world, campPos);
-            saveData.setGuideSpawned(true);
-            saveData.markDirty();
-        } else if (existingGuides.size() > 1) {
-            // Keep exactly one guide entity, remove any extra duplicate guides
-            for (int i = 1; i < existingGuides.size(); i++) {
-                existingGuides.get(i).discard();
+            if (!saveData.isGuideSpawned()) {
+                spawnAeron(world, campPos);
+                saveData.setGuideSpawned(true);
+                saveData.markDirty();
+            }
+        } else {
+            // Ensure first guide is not stuck inside any block
+            ChronicleGuideEntity guide = existingGuides.get(0);
+            BlockPos currentPos = guide.getBlockPos();
+            if (!world.getBlockState(currentPos).isAir()) {
+                world.setBlockState(campPos, Blocks.AIR.getDefaultState());
+                world.setBlockState(campPos.up(), Blocks.AIR.getDefaultState());
+                guide.refreshPositionAndAngles(campPos.getX() + 0.5, campPos.getY(), campPos.getZ() + 0.5, 0.0f, 0.0f);
+            }
+            // Keep exactly one guide entity, discard any duplicate guides
+            if (existingGuides.size() > 1) {
+                for (int i = 1; i < existingGuides.size(); i++) {
+                    existingGuides.get(i).discard();
+                }
             }
         }
     }
 
     private static void spawnAeron(ServerWorld world, BlockPos safeCampPos) {
-        BlockPos npcPos = safeCampPos.add(1, 0, 1);
+        // Center of camp at template coordinate (4, 1, 4): open dirt path directly
+        // between campfire and tent
+        BlockPos npcPos = safeCampPos;
+        world.setBlockState(npcPos, Blocks.AIR.getDefaultState());
+        world.setBlockState(npcPos.up(), Blocks.AIR.getDefaultState());
+        world.setBlockState(npcPos.up(2), Blocks.AIR.getDefaultState());
+
         ChronicleGuideEntity guide = ModEntities.CHRONICLE_GUIDE.create(world);
         if (guide != null) {
             guide.refreshPositionAndAngles(npcPos.getX() + 0.5, npcPos.getY(), npcPos.getZ() + 0.5, 0.0f, 0.0f);
@@ -147,7 +245,8 @@ public class NbtStructureManager {
         PLAINS_FOREST("crashed_skyforge_ship_plains", Blocks.GRASS_BLOCK, Blocks.DIRT, Blocks.STONE),
         DESERT("crashed_skyforge_ship_desert", Blocks.SAND, Blocks.SANDSTONE, Blocks.STONE),
         BADLANDS_RED_SAND("crashed_skyforge_ship_badlands", Blocks.RED_SAND, Blocks.RED_SANDSTONE, Blocks.STONE),
-        BADLANDS_TERRACOTTA("crashed_skyforge_ship_badlands_terracotta", Blocks.TERRACOTTA, Blocks.TERRACOTTA, Blocks.STONE),
+        BADLANDS_TERRACOTTA("crashed_skyforge_ship_badlands_terracotta", Blocks.TERRACOTTA, Blocks.TERRACOTTA,
+                Blocks.STONE),
         OLD_GROWTH_TAIGA("crashed_skyforge_ship_old_growth_taiga", Blocks.PODZOL, Blocks.DIRT, Blocks.STONE),
         WINDSWEPT_FOREST("crashed_skyforge_ship_windswept_forest", Blocks.COARSE_DIRT, Blocks.DIRT, Blocks.STONE),
         SNOWY_PLAINS("crashed_skyforge_ship_snowy_plains", Blocks.SNOW, Blocks.GRASS_BLOCK, Blocks.STONE),
@@ -199,28 +298,45 @@ public class NbtStructureManager {
                     BlockPos p = new BlockPos(x, topY - 1 - dy, z);
                     BlockState st = world.getBlockState(p);
                     Block b = st.getBlock();
-                    if (b == Blocks.GRASS_BLOCK) grassCount++;
-                    else if (b == Blocks.SAND) sandCount++;
-                    else if (b == Blocks.SANDSTONE || b == Blocks.SMOOTH_SANDSTONE) sandstoneCount++;
-                    else if (b == Blocks.RED_SAND) redSandCount++;
-                    else if (b == Blocks.RED_SANDSTONE || b == Blocks.SMOOTH_RED_SANDSTONE) redSandstoneCount++;
-                    else if (b == Blocks.TERRACOTTA || b.getTranslationKey().contains("terracotta")) terracottaCount++;
-                    else if (b == Blocks.PODZOL) podzolCount++;
-                    else if (b == Blocks.COARSE_DIRT) coarseDirtCount++;
-                    else if (b == Blocks.SNOW || b == Blocks.POWDER_SNOW) snowCount++;
-                    else if (b == Blocks.SNOW_BLOCK) snowBlockCount++;
-                    else if (b == Blocks.GRAVEL) gravelCount++;
-                    else if (b == Blocks.STONE || b == Blocks.ANDESITE || b == Blocks.DIORITE || b == Blocks.GRANITE || b == Blocks.DEEPSLATE) stoneCount++;
-                    else if (b == Blocks.CALCITE) calciteCount++;
-                    else if (b == Blocks.MUD || b == Blocks.PACKED_MUD || b == Blocks.MUDDY_MANGROVE_ROOTS) mudCount++;
-                    else if (b == Blocks.ICE || b == Blocks.PACKED_ICE || b == Blocks.BLUE_ICE) iceCount++;
+                    if (b == Blocks.GRASS_BLOCK)
+                        grassCount++;
+                    else if (b == Blocks.SAND)
+                        sandCount++;
+                    else if (b == Blocks.SANDSTONE || b == Blocks.SMOOTH_SANDSTONE)
+                        sandstoneCount++;
+                    else if (b == Blocks.RED_SAND)
+                        redSandCount++;
+                    else if (b == Blocks.RED_SANDSTONE || b == Blocks.SMOOTH_RED_SANDSTONE)
+                        redSandstoneCount++;
+                    else if (b == Blocks.TERRACOTTA || b.getTranslationKey().contains("terracotta"))
+                        terracottaCount++;
+                    else if (b == Blocks.PODZOL)
+                        podzolCount++;
+                    else if (b == Blocks.COARSE_DIRT)
+                        coarseDirtCount++;
+                    else if (b == Blocks.SNOW || b == Blocks.POWDER_SNOW)
+                        snowCount++;
+                    else if (b == Blocks.SNOW_BLOCK)
+                        snowBlockCount++;
+                    else if (b == Blocks.GRAVEL)
+                        gravelCount++;
+                    else if (b == Blocks.STONE || b == Blocks.ANDESITE || b == Blocks.DIORITE || b == Blocks.GRANITE
+                            || b == Blocks.DEEPSLATE)
+                        stoneCount++;
+                    else if (b == Blocks.CALCITE)
+                        calciteCount++;
+                    else if (b == Blocks.MUD || b == Blocks.PACKED_MUD || b == Blocks.MUDDY_MANGROVE_ROOTS)
+                        mudCount++;
+                    else if (b == Blocks.ICE || b == Blocks.PACKED_ICE || b == Blocks.BLUE_ICE)
+                        iceCount++;
                 }
             }
         }
 
         var biome = world.getBiome(center);
 
-        if (biome.isIn(BiomeTags.IS_BADLANDS) || biome.matchesKey(BiomeKeys.BADLANDS) || biome.matchesKey(BiomeKeys.ERODED_BADLANDS) || biome.matchesKey(BiomeKeys.WOODED_BADLANDS)) {
+        if (biome.isIn(BiomeTags.IS_BADLANDS) || biome.matchesKey(BiomeKeys.BADLANDS)
+                || biome.matchesKey(BiomeKeys.ERODED_BADLANDS) || biome.matchesKey(BiomeKeys.WOODED_BADLANDS)) {
             if (terracottaCount > redSandCount + redSandstoneCount) {
                 return AirshipVariant.BADLANDS_TERRACOTTA;
             }
@@ -253,7 +369,8 @@ public class NbtStructureManager {
             return AirshipVariant.SNOWY_PLAINS;
         }
 
-        if (biome.matchesKey(BiomeKeys.SNOWY_SLOPES) || biome.matchesKey(BiomeKeys.JAGGED_PEAKS) || biome.matchesKey(BiomeKeys.FROZEN_PEAKS)) {
+        if (biome.matchesKey(BiomeKeys.SNOWY_SLOPES) || biome.matchesKey(BiomeKeys.JAGGED_PEAKS)
+                || biome.matchesKey(BiomeKeys.FROZEN_PEAKS)) {
             return AirshipVariant.SNOWY_SLOPES;
         }
 
@@ -281,20 +398,31 @@ public class NbtStructureManager {
         }
 
         // Surrounding blocks evaluation
-        if (iceCount >= 4) return AirshipVariant.FROZEN_OCEAN;
-        if (mudCount >= 4) return AirshipVariant.SWAMP;
-        if (calciteCount >= 4) return AirshipVariant.CALCITE;
-        if (snowBlockCount >= 5) return AirshipVariant.SNOWY_SLOPES;
-        if (snowCount >= 5) return AirshipVariant.SNOWY_PLAINS;
-        if (terracottaCount >= 5) return AirshipVariant.BADLANDS_TERRACOTTA;
-        if (redSandCount >= 5 || redSandstoneCount >= 4) return AirshipVariant.BADLANDS_RED_SAND;
+        if (iceCount >= 4)
+            return AirshipVariant.FROZEN_OCEAN;
+        if (mudCount >= 4)
+            return AirshipVariant.SWAMP;
+        if (calciteCount >= 10 && stoneCount >= 8)
+            return AirshipVariant.CALCITE;
+        if (snowBlockCount >= 5)
+            return AirshipVariant.SNOWY_SLOPES;
+        if (snowCount >= 5)
+            return AirshipVariant.SNOWY_PLAINS;
+        if (terracottaCount >= 5)
+            return AirshipVariant.BADLANDS_TERRACOTTA;
+        if (redSandCount >= 5 || redSandstoneCount >= 4)
+            return AirshipVariant.BADLANDS_RED_SAND;
         if (sandCount >= 5) {
             return sandstoneCount > 0 ? AirshipVariant.DESERT : AirshipVariant.BEACH;
         }
-        if (podzolCount >= 4) return AirshipVariant.OLD_GROWTH_TAIGA;
-        if (coarseDirtCount >= 4) return AirshipVariant.WINDSWEPT_FOREST;
-        if (gravelCount >= 5) return AirshipVariant.GRAVELLY_HILLS;
-        if (stoneCount >= 10 && grassCount <= 2) return AirshipVariant.STONY_PEAKS;
+        if (podzolCount >= 4)
+            return AirshipVariant.OLD_GROWTH_TAIGA;
+        if (coarseDirtCount >= 4)
+            return AirshipVariant.WINDSWEPT_FOREST;
+        if (gravelCount >= 5)
+            return AirshipVariant.GRAVELLY_HILLS;
+        if (stoneCount >= 10 && grassCount <= 2)
+            return AirshipVariant.STONY_PEAKS;
 
         return AirshipVariant.PLAINS_FOREST;
     }
@@ -302,27 +430,129 @@ public class NbtStructureManager {
     public static void blendCraterPerimeter(ServerWorld world, BlockPos crashPos, AirshipVariant variant) {
         int centerX = crashPos.getX();
         int centerZ = crashPos.getZ();
-        int rimY = crashPos.getY() + 6;
+        int rimY = crashPos.getY() + 8;
 
         for (int dx = -7; dx <= 7; dx++) {
             for (int dz = -7; dz <= 7; dz++) {
                 int distSq = dx * dx + dz * dz;
-                if (distSq >= 24 && distSq <= 40) {
+                if (distSq >= 22 && distSq <= 42) {
                     BlockPos rimPos = new BlockPos(centerX + dx, rimY, centerZ + dz);
-                    BlockState current = world.getBlockState(rimPos);
-                    if (!current.isAir() && !isLiquidOrWater(world, rimPos)) {
-                        BlockPos above = rimPos.up();
-                        if (world.getBlockState(above).isAir()) {
-                            world.setBlockState(rimPos, variant.topBlock.getDefaultState());
-                            BlockPos below = rimPos.down();
-                            if (!world.getBlockState(below).isAir()) {
-                                world.setBlockState(below, variant.midBlock.getDefaultState());
-                            }
+                    if (world.getBlockState(rimPos.up()).isAir() && !world.getBlockState(rimPos).isAir()) {
+                        // Natural, varied rim palette - NOT plain single-color blocks!
+                        int hash = Math.abs((dx * 37 + dz * 19) ^ (centerX + centerZ)) % 100;
+                        BlockState topMat;
+                        if (hash < 40) {
+                            topMat = variant.topBlock.getDefaultState();
+                        } else if (hash < 60) {
+                            topMat = Blocks.COBBLESTONE.getDefaultState();
+                        } else if (hash < 75) {
+                            topMat = Blocks.MOSSY_COBBLESTONE.getDefaultState();
+                        } else if (hash < 85) {
+                            topMat = Blocks.CRACKED_STONE_BRICKS.getDefaultState();
+                        } else if (hash < 93) {
+                            topMat = Blocks.COARSE_DIRT.getDefaultState();
+                        } else {
+                            topMat = Blocks.BASALT.getDefaultState(); // scorched impact earth
+                        }
+                        world.setBlockState(rimPos, topMat);
+
+                        BlockPos below = rimPos.down();
+                        if (!world.getBlockState(below).isAir()) {
+                            BlockState subMat = (hash % 2 == 0) ? variant.midBlock.getDefaultState() : Blocks.COBBLESTONE.getDefaultState();
+                            world.setBlockState(below, subMat);
                         }
                     }
                 }
             }
         }
+    }
+
+    public static void packCrashedAirshipPerimeter(ServerWorld world, BlockPos crashPos, AirshipVariant variant) {
+        int surfaceY = crashPos.getY() + 8;
+        int centerX = crashPos.getX();
+        int centerZ = crashPos.getZ();
+
+        // 1. Pack solidly underneath the entire ship template (down 12 blocks below crashPos to solid ground)
+        for (int dx = -8; dx <= 8; dx++) {
+            for (int dz = -8; dz <= 8; dz++) {
+                int distSq = dx * dx + dz * dz;
+                if (distSq <= 64) {
+                    for (int fillY = -12; fillY <= -1; fillY++) {
+                        BlockPos underPos = crashPos.add(dx, fillY, dz);
+                        if (world.getBlockState(underPos).isAir() || isLiquidOrWater(world, underPos)) {
+                            world.setBlockState(underPos, variant.baseBlock.getDefaultState());
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Pack all exterior sides completely so the ship is 100% buried from all sides and only the top crater is visible
+        for (int dx = -10; dx <= 10; dx++) {
+            for (int dz = -10; dz <= 10; dz++) {
+                int distSq = dx * dx + dz * dz;
+                // Outside the inner crater bowl:
+                if (distSq >= 22 && distSq <= 100) {
+                    int targetTopY;
+                    if (distSq <= 36) {
+                        targetTopY = surfaceY; // Rim height
+                    } else if (distSq <= 49) {
+                        targetTopY = surfaceY;
+                    } else if (distSq <= 64) {
+                        targetTopY = surfaceY - 1; // Natural berm slope
+                    } else if (distSq <= 81) {
+                        targetTopY = surfaceY - 2;
+                    } else {
+                        targetTopY = surfaceY - 3;
+                    }
+
+                    for (int y = crashPos.getY() - 4; y <= targetTopY; y++) {
+                        BlockPos p = new BlockPos(centerX + dx, y, centerZ + dz);
+                        if (world.getBlockState(p).isAir() || isLiquidOrWater(world, p)) {
+                            BlockState fillState;
+                            if (y == targetTopY) {
+                                fillState = variant.topBlock.getDefaultState();
+                            } else if (y >= targetTopY - 2) {
+                                fillState = variant.midBlock.getDefaultState();
+                            } else {
+                                fillState = variant.baseBlock.getDefaultState();
+                            }
+                            world.setBlockState(p, fillState);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public static void decorateCrashedAirship(ServerWorld world, BlockPos crashPos, AirshipVariant variant) {
+        // 1. Smoking wreckage: Campfire on a hay block produces a tall 25+ block smoke column!
+        BlockPos fireBase = crashPos.add(-2, 0, -2);
+        world.setBlockState(fireBase, Blocks.HAY_BLOCK.getDefaultState());
+        world.setBlockState(fireBase.up(), Blocks.CAMPFIRE.getDefaultState());
+        world.setBlockState(fireBase.up(2), Blocks.IRON_BARS.getDefaultState());
+
+        // 2. Scorched earth & glowing impact embers on the crater floor
+        world.setBlockState(crashPos.add(1, 0, 1), Blocks.MAGMA_BLOCK.getDefaultState());
+        world.setBlockState(crashPos.add(-3, 0, 0), Blocks.MAGMA_BLOCK.getDefaultState());
+        world.setBlockState(crashPos.add(0, 0, 2), Blocks.MAGMA_BLOCK.getDefaultState());
+
+        world.setBlockState(crashPos.add(2, 0, -1), Blocks.BASALT.getDefaultState());
+        world.setBlockState(crashPos.add(-1, 0, 3), Blocks.SMOOTH_BASALT.getDefaultState());
+        world.setBlockState(crashPos.add(-3, 0, -1), Blocks.BLACKSTONE.getDefaultState());
+
+        // 3. Artificer debris & structural wreckage embedded in the crater walls
+        world.setBlockState(crashPos.add(2, 1, 0), Blocks.EXPOSED_COPPER.getDefaultState());
+        world.setBlockState(crashPos.add(-2, 2, -1), Blocks.WEATHERED_COPPER.getDefaultState());
+        world.setBlockState(crashPos.add(2, 2, 0), Blocks.LIGHTNING_ROD.getDefaultState());
+        world.setBlockState(crashPos.add(1, 1, -3), Blocks.IRON_BARS.getDefaultState());
+        world.setBlockState(crashPos.add(-1, 2, 2), Blocks.CHAIN.getDefaultState());
+
+        // 4. Subtle debris scatter outside the rim (gravel, scorched basalt, copper fragment)
+        world.setBlockState(crashPos.add(7, 8, 2), Blocks.COARSE_DIRT.getDefaultState());
+        world.setBlockState(crashPos.add(-7, 8, -3), Blocks.GRAVEL.getDefaultState());
+        world.setBlockState(crashPos.add(3, 8, 7), Blocks.MOSSY_COBBLESTONE.getDefaultState());
+        world.setBlockState(crashPos.add(-4, 8, -7), Blocks.BASALT.getDefaultState());
     }
 
     public static BlockPos findOrGenerateAirship(ServerWorld world, BlockPos nearPos) {
@@ -336,22 +566,31 @@ public class NbtStructureManager {
             BlockPos testPos = existing.add(-6, 0, -6);
             boolean hasShip = false;
             for (BlockPos p : BlockPos.iterate(testPos, testPos.add(11, 4, 10))) {
-                if (world.getBlockEntity(p) instanceof ChestBlockEntity || world.getBlockState(p).isOf(Blocks.BLAST_FURNACE) || world.getBlockState(p).isOf(Blocks.DARK_OAK_PLANKS)) {
+                if (world.getBlockEntity(p) instanceof ChestBlockEntity
+                        || world.getBlockState(p).isOf(Blocks.BLAST_FURNACE)
+                        || world.getBlockState(p).isOf(Blocks.DARK_OAK_PLANKS)) {
                     hasShip = true;
                     break;
                 }
             }
             if (hasShip) {
+                // Ensure existing ship site is packed from all sides and decorated!
+                AirshipVariant existingVariant = selectAirshipVariant(world, existing.add(0, 8, 0));
+                packCrashedAirshipPerimeter(world, existing, existingVariant);
+                blendCraterPerimeter(world, existing, existingVariant);
+                decorateCrashedAirship(world, existing, existingVariant);
                 return existing;
             }
-            // Ship missing at existing saved location (e.g. prior load failure); respawn at existing location!
             crashPos = existing;
-            bestSurfacePos = existing.add(0, 6, 0);
+            bestSurfacePos = existing.add(0, 8, 0);
             placePos = testPos;
         } else {
-            bestSurfacePos = findSafeCliffSite(world, nearPos);
+            bestSurfacePos = findSafeAirshipSite(world, nearPos);
             int surfaceY = bestSurfacePos.getY();
-            int crashY = surfaceY - 6;
+            // Template Y=8 contains the top layer grass & surface blocks.
+            // By placing template origin at crashY = surfaceY - 8, the ship's top layer
+            // matches the ground level (surfaceY) exactly!
+            int crashY = surfaceY - 8;
             crashPos = new BlockPos(bestSurfacePos.getX(), crashY, bestSurfacePos.getZ());
             placePos = crashPos.add(-6, 0, -6);
         }
@@ -360,22 +599,24 @@ public class NbtStructureManager {
 
         // Check blocks and biome around generation area to choose matching variant
         AirshipVariant variant = selectAirshipVariant(world, bestSurfacePos);
-        Elemental.LOGGER.info("Selected biome-adaptive variant '{}' for Crashed Skyforge Ship at {}", variant.structureName, crashPos);
+        Elemental.LOGGER.info("Selected biome-adaptive variant '{}' for Crashed Skyforge Ship at {}",
+                variant.structureName, crashPos);
 
         // Prepare crater foundation with matching base block
         for (int dx = -5; dx <= 5; dx++) {
             for (int dz = -5; dz <= 5; dz++) {
                 int distSq = dx * dx + dz * dz;
                 if (distSq <= 25) {
-                    for (int fillY = -3; fillY <= -1; fillY++) {
+                    for (int fillY = -4; fillY <= -1; fillY++) {
                         BlockPos underPos = crashPos.add(dx, fillY, dz);
                         if (world.getBlockState(underPos).isAir() || isLiquidOrWater(world, underPos)) {
                             world.setBlockState(underPos, variant.baseBlock.getDefaultState());
                         }
                     }
-                    int maxY = Math.max(surfaceY + 6, crashPos.getY() + 8);
-                    for (int y = crashPos.getY() + 5; y <= maxY; y++) {
-                        world.setBlockState(new BlockPos(crashPos.getX() + dx, y, crashPos.getZ() + dz), Blocks.AIR.getDefaultState());
+                    int maxY = Math.max(surfaceY + 8, crashPos.getY() + 10);
+                    for (int y = surfaceY + 1; y <= maxY; y++) {
+                        world.setBlockState(new BlockPos(crashPos.getX() + dx, y, crashPos.getZ() + dz),
+                                Blocks.AIR.getDefaultState());
                     }
                 }
             }
@@ -387,15 +628,22 @@ public class NbtStructureManager {
             placeNbtStructure(world, SKYFORGE_SHIP_ID, placePos);
         }
 
-        // Seamless crater rim landscape integration
+        // Encase all sides completely so only the top crater is visible
+        packCrashedAirshipPerimeter(world, crashPos, variant);
+
+        // Seamless crater rim landscape integration with rich textures
         blendCraterPerimeter(world, crashPos, variant);
+
+        // Add smoking wreckage, magma embers, and artificer debris
+        decorateCrashedAirship(world, crashPos, variant);
 
         // Populate chest with initialized blueprint maps & remove empty chests
         populateAirshipChests(world, placePos);
 
         saveData.setSkyforgeAirshipLocation(crashPos);
         saveData.markDirty();
-        Elemental.LOGGER.info("Crashed Skyforge Ship initialized from NBT variant '{}' at cliff: {}", variant.structureName, crashPos);
+        Elemental.LOGGER.info("Crashed Skyforge Ship initialized from NBT variant '{}' at highland: {}",
+                variant.structureName, crashPos);
         return crashPos;
     }
 
@@ -419,10 +667,14 @@ public class NbtStructureManager {
 
         if (mainChest != null && mainChestPos != null) {
             mainChest.clear();
-            mainChest.setStack(10, BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.PNEUMATIC_PISTON));
-            mainChest.setStack(12, BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.AEROGEL_CORE));
-            mainChest.setStack(14, BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.ELEMENT_CORE));
-            mainChest.setStack(16, BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.ELEMENTAL_JETPACK));
+            mainChest.setStack(10,
+                    BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.PNEUMATIC_PISTON));
+            mainChest.setStack(12,
+                    BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.AEROGEL_CORE));
+            mainChest.setStack(14,
+                    BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.ELEMENT_CORE));
+            mainChest.setStack(16,
+                    BlueprintMaps.createBlueprintMap(world, mainChestPos, BlueprintMaps.Type.ELEMENTAL_JETPACK));
             mainChest.markDirty();
         }
     }
@@ -447,12 +699,14 @@ public class NbtStructureManager {
 
         if (targetChest == null) {
             // Ship structure missing or unspawned (e.g. prior load failure); spawn it now!
-            AirshipVariant variant = selectAirshipVariant(world, crashPos.add(0, 6, 0));
+            AirshipVariant variant = selectAirshipVariant(world, crashPos.add(0, 8, 0));
             Identifier variantId = new Identifier(Elemental.MOD_ID, variant.structureName);
             if (!placeNbtStructure(world, variantId, placePos)) {
                 placeNbtStructure(world, SKYFORGE_SHIP_ID, placePos);
             }
+            packCrashedAirshipPerimeter(world, crashPos, variant);
             blendCraterPerimeter(world, crashPos, variant);
+            decorateCrashedAirship(world, crashPos, variant);
             populateAirshipChests(world, placePos);
             return;
         }
@@ -474,10 +728,14 @@ public class NbtStructureManager {
             }
             if (!hasAll) {
                 targetChest.clear();
-                targetChest.setStack(10, BlueprintMaps.createBlueprintMap(world, targetChestPos, BlueprintMaps.Type.PNEUMATIC_PISTON));
-                targetChest.setStack(12, BlueprintMaps.createBlueprintMap(world, targetChestPos, BlueprintMaps.Type.AEROGEL_CORE));
-                targetChest.setStack(14, BlueprintMaps.createBlueprintMap(world, targetChestPos, BlueprintMaps.Type.ELEMENT_CORE));
-                targetChest.setStack(16, BlueprintMaps.createBlueprintMap(world, targetChestPos, BlueprintMaps.Type.ELEMENTAL_JETPACK));
+                targetChest.setStack(10,
+                        BlueprintMaps.createBlueprintMap(world, targetChestPos, BlueprintMaps.Type.PNEUMATIC_PISTON));
+                targetChest.setStack(12,
+                        BlueprintMaps.createBlueprintMap(world, targetChestPos, BlueprintMaps.Type.AEROGEL_CORE));
+                targetChest.setStack(14,
+                        BlueprintMaps.createBlueprintMap(world, targetChestPos, BlueprintMaps.Type.ELEMENT_CORE));
+                targetChest.setStack(16,
+                        BlueprintMaps.createBlueprintMap(world, targetChestPos, BlueprintMaps.Type.ELEMENTAL_JETPACK));
                 targetChest.markDirty();
             }
         }
@@ -501,8 +759,7 @@ public class NbtStructureManager {
                     nearPos,
                     6400,
                     32,
-                    64
-            );
+                    64);
             if (pair != null) {
                 desertCenter = pair.getFirst();
             } else {
@@ -511,8 +768,7 @@ public class NbtStructureManager {
                         nearPos,
                         6400,
                         32,
-                        64
-                );
+                        64);
                 if (badlandsPair != null) {
                     desertCenter = badlandsPair.getFirst();
                 }
@@ -561,8 +817,8 @@ public class NbtStructureManager {
     // ==========================================
 
     public static BlockPos findSafeSurface(ServerWorld world, BlockPos origin) {
-        int[] radii = new int[]{90, 110, 130, 70, 150};
-        int numAngles = 16;
+        int[] radii = new int[] { 60, 80, 100, 120, 140, 160, 180, 200 };
+        int numAngles = 24;
         BlockPos bestPos = null;
         int bestScore = Integer.MIN_VALUE;
 
@@ -573,29 +829,82 @@ public class NbtStructureManager {
                 int z = origin.getZ() + (int) Math.round(r * Math.sin(angle));
 
                 BlockPos ground = findTrueGroundSurface(world, x, z);
-                if (ground == null) continue;
-                if (!isSafeDryLandFootprint(world, ground, 5, 2)) continue;
+                if (ground == null)
+                    continue;
 
-                int score = 1000 - Math.abs(r - 100) * 5;
+                // Evaluate flatness strictly across radius 4 (covers the 9x9 camp)
+                int minH = Integer.MAX_VALUE;
+                int maxH = Integer.MIN_VALUE;
+                int totalVariance = 0;
+                boolean safe = true;
+
+                for (int dx = -4; dx <= 4; dx += 2) {
+                    for (int dz = -4; dz <= 4; dz += 2) {
+                        int tx = ground.getX() + dx;
+                        int tz = ground.getZ() + dz;
+                        world.getChunk(tx >> 4, tz >> 4);
+                        int ty = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, tx, tz);
+                        BlockPos p = new BlockPos(tx, ty, tz);
+                        if (isLiquidOrWater(world, p) || isLiquidOrWater(world, p.down()) || isWaterBiome(world, p)) {
+                            safe = false;
+                            break;
+                        }
+                        if (ty < minH)
+                            minH = ty;
+                        if (ty > maxH)
+                            maxH = ty;
+                        totalVariance += Math.abs(ty - ground.getY());
+                    }
+                    if (!safe)
+                        break;
+                }
+
+                if (!safe)
+                    continue;
+
+                int diff = maxH - minH;
+                if (diff > 2)
+                    continue; // Must be flat or almost flat
+
+                var biome = world.getBiome(ground);
+                boolean isPlainsBiome = biome.matchesKey(BiomeKeys.PLAINS)
+                        || biome.matchesKey(BiomeKeys.SUNFLOWER_PLAINS)
+                        || biome.matchesKey(BiomeKeys.MEADOW)
+                        || biome.matchesKey(BiomeKeys.SAVANNA);
+
+                // Scoring: completely flat (diff == 0) in plains biome gets massive priority
+                int score = 2000 - (diff * 600) - (totalVariance * 40) - Math.abs(r - 100) * 3;
+                if (isPlainsBiome)
+                    score += 1200;
+
                 if (score > bestScore) {
                     bestScore = score;
                     bestPos = ground;
+                    // If we found a completely flat plain in a plains biome near ~100 blocks, use
+                    // it immediately
+                    if (diff == 0 && isPlainsBiome && Math.abs(r - 100) <= 30) {
+                        return bestPos;
+                    }
                 }
             }
-            if (bestPos != null) return bestPos;
         }
 
-        if (bestPos != null) return bestPos;
+        if (bestPos != null)
+            return bestPos;
 
         BlockPos fallback = findTrueGroundSurface(world, origin.getX() + 90, origin.getZ() + 90);
         return fallback != null ? fallback : origin.add(90, 0, 90);
     }
 
     public static BlockPos findSafeCliffSite(ServerWorld world, BlockPos campPos) {
+        return findSafeAirshipSite(world, campPos);
+    }
+
+    public static BlockPos findSafeAirshipSite(ServerWorld world, BlockPos campPos) {
         BlockPos bestPos = null;
         int bestScore = Integer.MIN_VALUE;
-        int[] radii = new int[]{160, 200, 240, 280, 320};
-        int numAngles = 16;
+        int[] radii = new int[] { 140, 170, 200, 230, 260 };
+        int numAngles = 20;
 
         for (int r : radii) {
             for (int i = 0; i < numAngles; i++) {
@@ -604,11 +913,42 @@ public class NbtStructureManager {
                 int testZ = campPos.getZ() + (int) Math.round(r * Math.sin(angle));
 
                 BlockPos ground = findTrueGroundSurface(world, testX, testZ);
-                if (ground == null) continue;
-                if (!isSafeDryLandFootprint(world, ground, 5, 4)) continue;
+                if (ground == null)
+                    continue;
 
-                int elevBonus = (ground.getY() - world.getSeaLevel()) * 8;
-                int score = elevBonus - Math.abs(r - 200);
+                // Check flatness strictly across radius 8 (covers full 16x16 area of ship and packing)
+                int minH = Integer.MAX_VALUE;
+                int maxH = Integer.MIN_VALUE;
+                int totalVariance = 0;
+                boolean safe = true;
+
+                for (int dx = -8; dx <= 8; dx += 2) {
+                    for (int dz = -8; dz <= 8; dz += 2) {
+                        int tx = ground.getX() + dx;
+                        int tz = ground.getZ() + dz;
+                        world.getChunk(tx >> 4, tz >> 4);
+                        int ty = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, tx, tz);
+                        BlockPos p = new BlockPos(tx, ty, tz);
+                        if (isLiquidOrWater(world, p) || isLiquidOrWater(world, p.down()) || isWaterBiome(world, p)) {
+                            safe = false;
+                            break;
+                        }
+                        if (ty < minH) minH = ty;
+                        if (ty > maxH) maxH = ty;
+                        totalVariance += Math.abs(ty - ground.getY());
+                    }
+                    if (!safe) break;
+                }
+
+                if (!safe) continue;
+
+                int slopeDiff = maxH - minH;
+                // Avoid steep cliff edges where terrain drops off significantly
+                if (slopeDiff > 4) continue;
+
+                // Prefer elevated plateaus / highlands with minimal slope difference
+                int elev = ground.getY() - world.getSeaLevel();
+                int score = (elev * 3) - (slopeDiff * 300) - (totalVariance * 20) - Math.abs(r - 180) * 2;
                 if (score > bestScore) {
                     bestScore = score;
                     bestPos = ground;
@@ -616,15 +956,16 @@ public class NbtStructureManager {
             }
         }
 
-        if (bestPos != null) return bestPos;
+        if (bestPos != null)
+            return bestPos;
 
-        for (int r = 140; r <= 300; r += 20) {
+        for (int r = 120; r <= 280; r += 20) {
             for (int angleDeg = 0; angleDeg < 360; angleDeg += 30) {
                 double rad = Math.toRadians(angleDeg);
                 int testX = campPos.getX() + (int) (r * Math.cos(rad));
                 int testZ = campPos.getZ() + (int) (r * Math.sin(rad));
                 BlockPos ground = findTrueGroundSurface(world, testX, testZ);
-                if (ground != null && isSafeDryLandFootprint(world, ground, 4, 5)) {
+                if (ground != null && isSafeDryLandFootprint(world, ground, 6, 2)) {
                     return ground;
                 }
             }
@@ -637,7 +978,7 @@ public class NbtStructureManager {
     public static BlockPos findSafeDesertSite(ServerWorld world, BlockPos center) {
         BlockPos bestPos = null;
         int bestScore = Integer.MIN_VALUE;
-        int[] radii = new int[]{0, 32, 64, 96, 128, 160, 200};
+        int[] radii = new int[] { 0, 32, 64, 96, 128, 160, 200 };
         int numAngles = 12;
 
         for (int r : radii) {
@@ -654,8 +995,10 @@ public class NbtStructureManager {
                 int testZ = center.getZ() + (int) Math.round(r * Math.sin(angle));
 
                 BlockPos ground = findTrueGroundSurface(world, testX, testZ);
-                if (ground == null) continue;
-                if (!isSafeDryLandFootprint(world, ground, 8, 3)) continue;
+                if (ground == null)
+                    continue;
+                if (!isSafeDryLandFootprint(world, ground, 8, 3))
+                    continue;
 
                 var biome = world.getBiome(ground);
                 boolean isDesertBiome = biome.matchesKey(BiomeKeys.DESERT) || biome.isIn(BiomeTags.IS_BADLANDS);
@@ -671,7 +1014,8 @@ public class NbtStructureManager {
             }
         }
 
-        if (bestPos != null) return bestPos;
+        if (bestPos != null)
+            return bestPos;
 
         for (int r = 16; r <= 256; r += 32) {
             for (int angleDeg = 0; angleDeg < 360; angleDeg += 45) {
@@ -690,9 +1034,11 @@ public class NbtStructureManager {
     }
 
     public static boolean isLiquidOrWater(ServerWorld world, BlockPos pos) {
-        if (pos == null) return false;
+        if (pos == null)
+            return false;
         BlockState state = world.getBlockState(pos);
-        if (!state.getFluidState().isEmpty() || !world.getFluidState(pos).isEmpty()) return true;
+        if (!state.getFluidState().isEmpty() || !world.getFluidState(pos).isEmpty())
+            return true;
         return state.isOf(Blocks.WATER) || state.isOf(Blocks.LAVA)
                 || state.isOf(Blocks.SEAGRASS) || state.isOf(Blocks.TALL_SEAGRASS)
                 || state.isOf(Blocks.KELP) || state.isOf(Blocks.KELP_PLANT)
@@ -701,7 +1047,8 @@ public class NbtStructureManager {
     }
 
     public static boolean isWaterBiome(ServerWorld world, BlockPos pos) {
-        if (pos == null) return false;
+        if (pos == null)
+            return false;
         try {
             var biome = world.getBiome(pos);
             return biome.isIn(BiomeTags.IS_OCEAN) || biome.isIn(BiomeTags.IS_RIVER);
@@ -711,17 +1058,32 @@ public class NbtStructureManager {
     }
 
     public static boolean isFoliageOrTree(BlockState state) {
-        if (state.isAir()) return true;
-        if (state.isIn(BlockTags.LEAVES)) return true;
-        if (state.isIn(BlockTags.LOGS)) return true;
-        if (state.isIn(BlockTags.FLOWERS)) return true;
-        if (state.isIn(BlockTags.SAPLINGS)) return true;
-        if (state.isIn(BlockTags.WART_BLOCKS)) return true;
-        if (state.isOf(Blocks.MUSHROOM_STEM) || state.isOf(Blocks.RED_MUSHROOM_BLOCK) || state.isOf(Blocks.BROWN_MUSHROOM_BLOCK)) return true;
-        if (state.isOf(Blocks.VINE) || state.isOf(Blocks.GLOW_LICHEN) || state.isOf(Blocks.HANGING_ROOTS) || state.isOf(Blocks.MANGROVE_ROOTS)) return true;
-        if (state.isOf(Blocks.GRASS) || state.isOf(Blocks.TALL_GRASS) || state.isOf(Blocks.FERN) || state.isOf(Blocks.LARGE_FERN) || state.isOf(Blocks.DEAD_BUSH)) return true;
-        if (state.isOf(Blocks.BAMBOO) || state.isOf(Blocks.BAMBOO_SAPLING) || state.isOf(Blocks.SUGAR_CANE) || state.isOf(Blocks.CACTUS)) return true;
-        if (state.isOf(Blocks.SNOW)) return true;
+        if (state.isAir())
+            return true;
+        if (state.isIn(BlockTags.LEAVES))
+            return true;
+        if (state.isIn(BlockTags.LOGS))
+            return true;
+        if (state.isIn(BlockTags.FLOWERS))
+            return true;
+        if (state.isIn(BlockTags.SAPLINGS))
+            return true;
+        if (state.isIn(BlockTags.WART_BLOCKS))
+            return true;
+        if (state.isOf(Blocks.MUSHROOM_STEM) || state.isOf(Blocks.RED_MUSHROOM_BLOCK)
+                || state.isOf(Blocks.BROWN_MUSHROOM_BLOCK))
+            return true;
+        if (state.isOf(Blocks.VINE) || state.isOf(Blocks.GLOW_LICHEN) || state.isOf(Blocks.HANGING_ROOTS)
+                || state.isOf(Blocks.MANGROVE_ROOTS))
+            return true;
+        if (state.isOf(Blocks.GRASS) || state.isOf(Blocks.TALL_GRASS) || state.isOf(Blocks.FERN)
+                || state.isOf(Blocks.LARGE_FERN) || state.isOf(Blocks.DEAD_BUSH))
+            return true;
+        if (state.isOf(Blocks.BAMBOO) || state.isOf(Blocks.BAMBOO_SAPLING) || state.isOf(Blocks.SUGAR_CANE)
+                || state.isOf(Blocks.CACTUS))
+            return true;
+        if (state.isOf(Blocks.SNOW))
+            return true;
         return false;
     }
 
@@ -734,8 +1096,8 @@ public class NbtStructureManager {
 
         int seaLevel = world.getSeaLevel();
         if (isLiquidOrWater(world, new BlockPos(x, topY, z)) ||
-            isLiquidOrWater(world, new BlockPos(x, Math.max(topY - 1, seaLevel), z)) ||
-            isLiquidOrWater(world, new BlockPos(x, seaLevel, z))) {
+                isLiquidOrWater(world, new BlockPos(x, Math.max(topY - 1, seaLevel), z)) ||
+                isLiquidOrWater(world, new BlockPos(x, seaLevel, z))) {
             return null;
         }
 
@@ -761,12 +1123,15 @@ public class NbtStructureManager {
     }
 
     public static boolean isSafeDryLandFootprint(ServerWorld world, BlockPos center, int radius, int maxSlope) {
-        if (center == null) return false;
+        if (center == null)
+            return false;
         int centerY = center.getY();
         int seaLevel = world.getSeaLevel();
 
-        if (centerY < seaLevel) return false;
-        if (isWaterBiome(world, center)) return false;
+        if (centerY < seaLevel)
+            return false;
+        if (isWaterBiome(world, center))
+            return false;
 
         for (int dx = -radius; dx <= radius; dx += 2) {
             for (int dz = -radius; dz <= radius; dz += 2) {
@@ -781,8 +1146,8 @@ public class NbtStructureManager {
 
                 BlockPos samplePos = new BlockPos(testX, testY, testZ);
                 if (isLiquidOrWater(world, samplePos) ||
-                    isLiquidOrWater(world, samplePos.down()) ||
-                    isLiquidOrWater(world, new BlockPos(testX, seaLevel, testZ))) {
+                        isLiquidOrWater(world, samplePos.down()) ||
+                        isLiquidOrWater(world, new BlockPos(testX, seaLevel, testZ))) {
                     return false;
                 }
                 if (isWaterBiome(world, samplePos)) {

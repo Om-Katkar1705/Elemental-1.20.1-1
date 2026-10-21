@@ -89,6 +89,9 @@ public abstract class PlayerEntityMixin extends LivingEntity implements JetpackS
 
     @Inject(method = "updatePose", at = @At("HEAD"), cancellable = true)
     private void elemental$preventFlightCrouch(CallbackInfo ci) {
+        if (this.isSleeping() || this.hasVehicle() || this.isDead()) {
+            return;
+        }
         if (this.elemental$jetpackEnabled && !this.isOnGround() && !this.isTouchingWater() && !this.isSwimming() && !this.isFallFlying()) {
             if (this.elemental$jetpackStack != null && this.elemental$jetpackStack.getItem() instanceof com.elemental.item.ElementalJetpackItem) {
                 this.setPose(net.minecraft.entity.EntityPose.STANDING);
