@@ -89,6 +89,7 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     protected static final RawAnimation PUNCH_ANIM = RawAnimation.begin().thenPlay("animation.seismic_colossus.punch");
     protected static final RawAnimation RAGE_ANIM = RawAnimation.begin().thenPlay("animation.seismic_colossus.rage");
     protected static final RawAnimation DEATH_ANIM = RawAnimation.begin().thenPlayAndHold("animation.seismic_colossus.death");
+    protected static final RawAnimation BREAKOUT_ANIM = RawAnimation.begin().thenPlay("animation.seismic_colossus.breakout");
 
     // ==================== TRACKED DATA ====================
     public static final TrackedData<Integer> PHASE = DataTracker.registerData(SeismicColossusEntity.class, TrackedDataHandlerRegistry.INTEGER);
@@ -1083,7 +1084,10 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                 return state.setAndContinue(DEATH_ANIM);
             }
             int attack = getAttackState();
-            if (attack == STATE_PHASE_TRANSITION || attack == STATE_BREAKOUT) {
+            if (attack == STATE_BREAKOUT) {
+                return state.setAndContinue(BREAKOUT_ANIM);
+            }
+            if (attack == STATE_PHASE_TRANSITION) {
                 return state.setAndContinue(RAGE_ANIM);
             }
             if (attack == STATE_PUNCH || attack == STATE_SLAM || attack == STATE_ROCK_THROW || attack == STATE_BLOCK_THROW) {
