@@ -969,10 +969,10 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             return;
         }
 
-        // Phase 2: Pulverize all blocks in a 7x7 column and blast upward! (Tick 16)
+        // Phase 2: Pulverize all blocks in a 5x5 column and blast upward! (Tick 16)
         if (this.breakoutTimer == 16) {
             BlockPos center = this.getBlockPos();
-            int radius = 3; // 7x7 blast area
+            int radius = 2; // 5x5 blast area (matches the blade hole)
             int minY = Math.max(serverWorld.getBottomY() + 1, center.getY() - 1);
             int maxY = Math.min(serverWorld.getTopY(), center.getY() + 8);
 
