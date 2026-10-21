@@ -90,6 +90,13 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     protected static final RawAnimation RAGE_ANIM = RawAnimation.begin().thenPlay("animation.seismic_colossus.rage");
     protected static final RawAnimation DEATH_ANIM = RawAnimation.begin().thenPlayAndHold("animation.seismic_colossus.death");
     protected static final RawAnimation BREAKOUT_ANIM = RawAnimation.begin().thenPlay("animation.seismic_colossus.breakout");
+    protected static final RawAnimation SLAM_ANIM = RawAnimation.begin().thenPlay("animation.seismic_colossus.slam");
+    protected static final RawAnimation STOMP_ANIM = RawAnimation.begin().thenPlay("animation.seismic_colossus.stomp");
+    protected static final RawAnimation THROW_ANIM = RawAnimation.begin().thenPlay("animation.seismic_colossus.throw");
+    protected static final RawAnimation FISSURE_ANIM = RawAnimation.begin().thenPlay("animation.seismic_colossus.fissure");
+    protected static final RawAnimation WAR_ROAR_ANIM = RawAnimation.begin().thenPlay("animation.seismic_colossus.war_roar");
+    protected static final RawAnimation AVALANCHE_ANIM = RawAnimation.begin().thenPlay("animation.seismic_colossus.avalanche");
+    protected static final RawAnimation CHARGE_ANIM = RawAnimation.begin().thenLoop("animation.seismic_colossus.charge");
 
     // ==================== TRACKED DATA ====================
     public static final TrackedData<Integer> PHASE = DataTracker.registerData(SeismicColossusEntity.class, TrackedDataHandlerRegistry.INTEGER);
@@ -1299,14 +1306,34 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             if (attack == STATE_BREAKOUT) {
                 return state.setAndContinue(BREAKOUT_ANIM);
             }
-            if (attack == STATE_PHASE_TRANSITION || attack == STATE_WAR_ROAR) {
+            if (attack == STATE_PHASE_TRANSITION) {
                 return state.setAndContinue(RAGE_ANIM);
             }
-            if (attack == STATE_PUNCH || attack == STATE_SLAM || attack == STATE_ROCK_THROW || attack == STATE_BLOCK_THROW
-                    || attack == STATE_FISSURE || attack == STATE_AVALANCHE) {
+            if (attack == STATE_WAR_ROAR) {
+                return state.setAndContinue(WAR_ROAR_ANIM);
+            }
+            if (attack == STATE_FISSURE) {
+                return state.setAndContinue(FISSURE_ANIM);
+            }
+            if (attack == STATE_AVALANCHE) {
+                return state.setAndContinue(AVALANCHE_ANIM);
+            }
+            if (attack == STATE_CHARGE) {
+                return state.setAndContinue(CHARGE_ANIM);
+            }
+            if (attack == STATE_SLAM) {
+                return state.setAndContinue(SLAM_ANIM);
+            }
+            if (attack == STATE_STOMP) {
+                return state.setAndContinue(STOMP_ANIM);
+            }
+            if (attack == STATE_ROCK_THROW || attack == STATE_BLOCK_THROW) {
+                return state.setAndContinue(THROW_ANIM);
+            }
+            if (attack == STATE_PUNCH) {
                 return state.setAndContinue(PUNCH_ANIM);
             }
-            if (attack == STATE_CHARGE || state.isMoving()) {
+            if (state.isMoving()) {
                 return state.setAndContinue(WALK_ANIM);
             }
             return state.setAndContinue(IDLE_ANIM);
