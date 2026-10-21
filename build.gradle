@@ -105,7 +105,9 @@ publishing {
 tasks.register('copyToModsFolder', Copy) {
 	dependsOn remapJar
 	from remapJar.archiveFile
-	into "C:/Users/omkat/AppData/Roaming/.minecraft/versions/Elemental/mods"
+	def versionsMods = file("C:/Users/omkat/AppData/Roaming/.minecraft/versions/Elemental/mods")
+	def defaultMods = file("${System.getProperty('user.home')}/AppData/Roaming/.minecraft/mods")
+	into versionsMods.parentFile?.exists() ? versionsMods : defaultMods
 }
 
 build.finalizedBy(copyToModsFolder)
