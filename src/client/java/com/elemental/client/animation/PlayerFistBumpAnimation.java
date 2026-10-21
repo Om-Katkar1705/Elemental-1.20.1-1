@@ -148,8 +148,6 @@ public class PlayerFistBumpAnimation {
     }
 
     public static void applyFirstPersonArm(MatrixStack matrices, float currentTick) {
-        Frame f = getInterpolatedFrame(currentTick);
-
         // Progress factor based on right arm pitch reaching out
         // Normalized peak thrust is at tick 20 (t = 1.0s)
         float thrustProgress = (float) Math.sin(MathHelper.clamp(currentTick / (float) TOTAL_TICKS, 0.0f, 1.0f) * Math.PI);

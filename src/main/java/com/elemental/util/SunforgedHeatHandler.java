@@ -3,14 +3,10 @@ package com.elemental.util;
 import com.elemental.item.SunforgedScimitarItem;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.item.ItemStack;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.registry.tag.BiomeTags;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.world.LightType;
 import net.minecraft.world.World;
-import net.minecraft.world.biome.Biome;
-import net.minecraft.world.biome.BiomeKeys;
 
 public class SunforgedHeatHandler {
     // Process heat ticking once per second (20 ticks) for performance and subtle accumulation
@@ -49,8 +45,6 @@ public class SunforgedHeatHandler {
 
     private static void checkAndApplyHeat(ServerPlayerEntity player, ItemStack stack, World world) {
         if (stack != null && !stack.isEmpty() && stack.getItem() instanceof SunforgedScimitarItem) {
-            RegistryEntry<Biome> biomeEntry = world.getBiome(player.getBlockPos());
-            float temperature = biomeEntry.value().getTemperature();
 
             boolean isDirectSunlight = world.isDay()
                     && !world.isRaining()

@@ -7,18 +7,10 @@ import net.minecraft.client.util.math.MatrixStack;
 
 public class JetpackModel extends Model {
     private final ModelPart root;
-    private final ModelPart body;
-    private final ModelPart leftThruster;
-    private final ModelPart rightThruster;
-    private final ModelPart core;
 
     public JetpackModel(ModelPart root) {
         super(RenderLayer::getEntityCutoutNoCull);
         this.root = root;
-        this.body = root.getChild("body");
-        this.leftThruster = this.body.getChild("left_thruster");
-        this.rightThruster = this.body.getChild("right_thruster");
-        this.core = this.body.getChild("core");
     }
 
     public static TexturedModelData getTexturedModelData() {

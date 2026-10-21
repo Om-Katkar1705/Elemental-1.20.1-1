@@ -56,6 +56,7 @@ public class WeaponerBlock extends BlockWithEntity {
         return new WeaponerBlockEntity(pos, state);
     }
 
+    @Deprecated
     @Override
     public ActionResult onUse(BlockState state, World world, BlockPos pos, PlayerEntity player, Hand hand, BlockHitResult hit) {
         if (!world.isClient) {
@@ -67,6 +68,7 @@ public class WeaponerBlock extends BlockWithEntity {
         return ActionResult.SUCCESS;
     }
 
+    @Deprecated
     @Override
     public void onStateReplaced(BlockState state, World world, BlockPos pos, BlockState newState, boolean moved) {
         if (!state.isOf(newState.getBlock())) {

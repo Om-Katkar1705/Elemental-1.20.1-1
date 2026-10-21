@@ -692,8 +692,7 @@ public class NbtStructureManager {
     public static boolean isLiquidOrWater(ServerWorld world, BlockPos pos) {
         if (pos == null) return false;
         BlockState state = world.getBlockState(pos);
-        if (state.isLiquid()) return true;
-        if (!world.getFluidState(pos).isEmpty()) return true;
+        if (!state.getFluidState().isEmpty() || !world.getFluidState(pos).isEmpty()) return true;
         return state.isOf(Blocks.WATER) || state.isOf(Blocks.LAVA)
                 || state.isOf(Blocks.SEAGRASS) || state.isOf(Blocks.TALL_SEAGRASS)
                 || state.isOf(Blocks.KELP) || state.isOf(Blocks.KELP_PLANT)

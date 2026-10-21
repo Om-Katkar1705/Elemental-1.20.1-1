@@ -2,7 +2,6 @@ package com.elemental.item;
 
 import com.elemental.Elemental;
 import com.elemental.entity.ModEntityTags;
-import net.minecraft.entity.EntityType;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.registry.tag.TagKey;
 import net.minecraft.util.Identifier;
@@ -11,7 +10,6 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.item.TooltipContext;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityGroup;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
@@ -20,7 +18,6 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.PickaxeItem;
 import net.minecraft.item.ToolMaterial;
 import net.minecraft.particle.ParticleTypes;
-import net.minecraft.registry.tag.BiomeTags;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
@@ -29,15 +26,11 @@ import net.minecraft.util.Formatting;
 import net.minecraft.util.Hand;
 import net.minecraft.util.TypedActionResult;
 import net.minecraft.util.UseAction;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
-import net.minecraft.world.biome.BiomeKeys;
 import org.jetbrains.annotations.Nullable;
-import net.fabricmc.fabric.api.tag.convention.v1.ConventionalBiomeTags;
 import software.bernie.geckolib.animatable.GeoItem;
 import software.bernie.geckolib.animatable.SingletonGeoAnimatable;
 import software.bernie.geckolib.constant.DataTickets;
@@ -45,7 +38,6 @@ import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.core.animation.AnimationController;
 import software.bernie.geckolib.core.animation.RawAnimation;
-import software.bernie.geckolib.core.object.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
 import java.util.List;
 import java.util.function.Consumer;
@@ -264,7 +256,7 @@ public class FrostwakePickItem extends PickaxeItem implements GeoItem {
         BlockPos centerPos = user.getBlockPos();
         int blockRadius = (int) Math.ceil(radius);
         for (BlockPos pos : BlockPos.iterateOutwards(centerPos, blockRadius, blockRadius, blockRadius)) {
-            if (pos.isWithinDistance(centerPos, radius) && world.isChunkLoaded(pos)) {
+            if (pos.isWithinDistance(centerPos, radius) && world.isChunkLoaded(pos.getX() >> 4, pos.getZ() >> 4)) {
                 BlockState state = world.getBlockState(pos);
                 if (state.isOf(Blocks.WATER) && state.getFluidState().isStill()) {
                     world.setBlockState(pos, Blocks.ICE.getDefaultState());

@@ -2,7 +2,6 @@ package com.elemental.quest;
 
 import com.elemental.Elemental;
 import com.elemental.item.BlueprintMaps;
-import com.elemental.item.ModItems;
 import com.elemental.network.QuestNetworking;
 import com.elemental.sound.ModSounds;
 import com.elemental.world.NbtStructureManager;
@@ -210,7 +209,7 @@ public class QuestManager {
         return false;
     }
 
-    private static int countItem(ServerPlayerEntity player, net.minecraft.item.Item item) {
+    public static int countItem(ServerPlayerEntity player, net.minecraft.item.Item item) {
         int count = 0;
         for (int i = 0; i < player.getInventory().size(); i++) {
             ItemStack stack = player.getInventory().getStack(i);
@@ -221,7 +220,7 @@ public class QuestManager {
         return count;
     }
 
-    private static boolean hasItemOrWorn(ServerPlayerEntity player, net.minecraft.item.Item item) {
+    public static boolean hasItemOrWorn(ServerPlayerEntity player, net.minecraft.item.Item item) {
         if (player.getEquippedStack(EquipmentSlot.CHEST).isOf(item)) return true;
         if (com.elemental.util.JetpackSlotHolder.getJetpackStack(player).isOf(item)) return true;
         for (int i = 0; i < player.getInventory().size(); i++) {

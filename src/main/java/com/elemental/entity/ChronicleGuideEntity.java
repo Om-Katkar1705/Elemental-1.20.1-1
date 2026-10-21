@@ -483,18 +483,6 @@ public class ChronicleGuideEntity extends PathAwareEntity {
         }
     }
 
-    private static void playNpcSound(ServerPlayerEntity player) {
-        player.getWorld().playSound(
-                null,
-                player.getX(),
-                player.getY(),
-                player.getZ(),
-                ModSounds.NPC_DIALOGUE,
-                SoundCategory.PLAYERS,
-                0.8f,
-                1.0f
-        );
-    }
 
     private static void playNpcSoundAll(net.minecraft.server.MinecraftServer server) {
         if (server == null) return;

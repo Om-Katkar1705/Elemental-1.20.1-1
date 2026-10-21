@@ -1,13 +1,11 @@
 package com.elemental.item;
 
-import com.elemental.Elemental;
 import com.elemental.entity.ModEntityTags;
 import com.elemental.util.RootboundScheduler;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.item.TooltipContext;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
@@ -31,7 +29,6 @@ import net.minecraft.util.UseAction;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.GameRules;
 import net.minecraft.world.World;
 import net.minecraft.world.biome.Biome;
 import org.jetbrains.annotations.Nullable;
@@ -419,8 +416,8 @@ public class RootboundAxeItem extends AxeItem implements GeoItem {
     /**
      * Checks if entity is a boss (uses custom boss tag).
      */
-    private boolean isBoss(LivingEntity entity) {
-        return entity.getType().isIn(ModEntityTags.BOSSES);
+    public static boolean isBoss(LivingEntity entity) {
+        return entity != null && entity.getType().isIn(ModEntityTags.BOSSES);
     }
 
     @Override

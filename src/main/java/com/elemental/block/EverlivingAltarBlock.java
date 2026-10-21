@@ -2,7 +2,6 @@ package com.elemental.block;
 
 import com.elemental.block.entity.EverlivingAltarBlockEntity;
 import com.elemental.block.entity.ModBlockEntities;
-import net.minecraft.block.Block;
 import net.minecraft.block.BlockRenderType;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.BlockWithEntity;
@@ -48,6 +47,7 @@ public class EverlivingAltarBlock extends BlockWithEntity {
         return checkType(type, ModBlockEntities.EVERLIVING_ALTAR_BLOCK_ENTITY, EverlivingAltarBlockEntity::tick);
     }
 
+    @Deprecated
     @Override
     public ActionResult onUse(BlockState state, World world, BlockPos pos, PlayerEntity player, Hand hand, BlockHitResult hit) {
         if (!world.isClient()) {

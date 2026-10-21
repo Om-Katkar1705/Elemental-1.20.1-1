@@ -8,8 +8,8 @@ import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.block.BlockRenderManager;
 import net.minecraft.client.render.entity.EntityRenderer;
 import net.minecraft.client.render.entity.EntityRendererFactory;
-import net.minecraft.client.texture.SpriteAtlasTexture;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.screen.PlayerScreenHandler;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.RotationAxis;
 
@@ -25,7 +25,7 @@ public class SeismicThrownBlockRenderer extends EntityRenderer<SeismicThrownBloc
 
     @Override
     public void render(SeismicThrownBlockEntity entity, float yaw, float tickDelta,
-                       MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light) {
+            MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light) {
         BlockState state = entity.getBlockState();
         if (state.getRenderType() == BlockRenderType.MODEL) {
             matrices.push();
@@ -37,7 +37,8 @@ public class SeismicThrownBlockRenderer extends EntityRenderer<SeismicThrownBloc
             matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(age * 8.0f));
             matrices.translate(-0.5, -0.5, -0.5);
 
-            this.blockRenderManager.renderBlockAsEntity(state, matrices, vertexConsumers, light, OverlayTexture.DEFAULT_UV);
+            this.blockRenderManager.renderBlockAsEntity(state, matrices, vertexConsumers, light,
+                    OverlayTexture.DEFAULT_UV);
             matrices.pop();
             super.render(entity, yaw, tickDelta, matrices, vertexConsumers, light);
         }
@@ -45,6 +46,6 @@ public class SeismicThrownBlockRenderer extends EntityRenderer<SeismicThrownBloc
 
     @Override
     public Identifier getTexture(SeismicThrownBlockEntity entity) {
-        return SpriteAtlasTexture.BLOCK_ATLAS_TEXTURE;
+        return PlayerScreenHandler.BLOCK_ATLAS_TEXTURE;
     }
 }

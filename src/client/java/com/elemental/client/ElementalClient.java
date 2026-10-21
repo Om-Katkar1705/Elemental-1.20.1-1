@@ -49,7 +49,6 @@ public class ElementalClient implements ClientModInitializer {
 	private static KeyBinding dashKey;
 	private static KeyBinding toggleJetpackKey;
 	private static int groundWarmupTicks = 0;
-	private static int thrustSoundTicks = 0;
 	private static boolean wasJumpPressedLastTick = false;
 	private static boolean isTakeoffSpooling = false;
 	private static com.elemental.client.sound.JetpackFlightSoundInstance currentFlightSound = null;
@@ -526,7 +525,6 @@ public class ElementalClient implements ClientModInitializer {
 					wasJumpPressedLastTick = false;
 					isTakeoffSpooling = false;
 					groundWarmupTicks = 0;
-					thrustSoundTicks = 0;
 
 					// Sneak key held while falling -> gliding descent
 					if (client.options.sneakKey.isPressed() && client.player.getVelocity().y < -0.15) {
@@ -544,7 +542,6 @@ public class ElementalClient implements ClientModInitializer {
 				wasJumpPressedLastTick = false;
 				isTakeoffSpooling = false;
 				groundWarmupTicks = 0;
-				thrustSoundTicks = 0;
 			}
 		});
 	}

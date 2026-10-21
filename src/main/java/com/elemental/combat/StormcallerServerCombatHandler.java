@@ -6,7 +6,6 @@ import com.elemental.util.StormcallerLightningScheduler;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket;
@@ -18,12 +17,8 @@ import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Hand;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.RaycastContext;
-import software.bernie.geckolib.animatable.GeoItem;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -252,7 +247,6 @@ public class StormcallerServerCombatHandler {
         AIMING_PLAYERS.remove(player.getUuid());
 
         ServerWorld world = player.getServerWorld();
-        StormcallerHammerItem hammer = (StormcallerHammerItem) stack.getItem();
 
         // Validate or resolve target
         LivingEntity target = null;
@@ -350,7 +344,6 @@ public class StormcallerServerCombatHandler {
         }
 
         ServerWorld world = player.getServerWorld();
-        StormcallerHammerItem hammer = (StormcallerHammerItem) stack.getItem();
 
         if (StormcallerHammerItem.isCoolingDown(world, stack)) {
             int remainingSec = StormcallerHammerItem.getRemainingCooldownSeconds(world, stack);

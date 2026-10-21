@@ -175,7 +175,7 @@ public class RootboundScheduler {
                 continue;
             }
 
-            if (!world.isChunkLoaded(zone.centerPos)) {
+            if (!world.isChunkLoaded(zone.centerPos.getX() >> 4, zone.centerPos.getZ() >> 4)) {
                 continue;
             }
 

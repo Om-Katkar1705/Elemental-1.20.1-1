@@ -80,15 +80,13 @@ public class AshenRiftScheduler {
 
     private static class RiftCollapseSession {
         final RegistryKey<World> worldKey;
-        final UUID playerUuid;
         final List<UUID> targetUuids;
         final List<HoleSpec> holes = new ArrayList<>();
         final Map<BlockPos, BlockState> sessionOriginalBlocks = new HashMap<>();
         int ticks = 0;
 
-        RiftCollapseSession(RegistryKey<World> worldKey, UUID playerUuid, List<UUID> targetUuids) {
+        RiftCollapseSession(RegistryKey<World> worldKey, List<UUID> targetUuids) {
             this.worldKey = worldKey;
-            this.playerUuid = playerUuid;
             this.targetUuids = targetUuids;
         }
     }
@@ -102,7 +100,6 @@ public class AshenRiftScheduler {
         final float initialYaw;
         final float initialPitch;
         int ticks = 0;
-        boolean teleported = false;
         boolean landed = false;
         int postLandTicks = 0;
 
@@ -142,7 +139,7 @@ public class AshenRiftScheduler {
             if (world == null) continue;
             for (HoleSpec hole : session.holes) {
                 for (BlockPos lavaPos : hole.lavaPositions) {
-                    if (world.isChunkLoaded(lavaPos) && world.getBlockState(lavaPos).isOf(Blocks.LAVA)) {
+                    if (world.isChunkLoaded(lavaPos.getX() >> 4, lavaPos.getZ() >> 4) && world.getBlockState(lavaPos).isOf(Blocks.LAVA)) {
                         world.setBlockState(lavaPos, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);
                     }
                 }
@@ -150,7 +147,7 @@ public class AshenRiftScheduler {
             for (Map.Entry<BlockPos, BlockState> entry : session.sessionOriginalBlocks.entrySet()) {
                 BlockPos pos = entry.getKey();
                 BlockState origState = entry.getValue();
-                if (world.isChunkLoaded(pos)) {
+                if (world.isChunkLoaded(pos.getX() >> 4, pos.getZ() >> 4)) {
                     BlockState restoreState = origState;
                     if (restoreState == null || restoreState.isAir()) {
                         restoreState = findSurroundingGroundState(world, pos);
@@ -174,7 +171,7 @@ public class AshenRiftScheduler {
         }
         if (targetUuids.isEmpty()) return;
 
-        ACTIVE_SESSIONS.add(new RiftCollapseSession(world.getRegistryKey(), player != null ? player.getUuid() : null, targetUuids));
+        ACTIVE_SESSIONS.add(new RiftCollapseSession(world.getRegistryKey(), targetUuids));
     }
 
     public static void scheduleTeleport(ServerWorld world, ServerPlayerEntity player, Vec3d initialPos, Vec3d destPos) {
@@ -273,7 +270,7 @@ public class AshenRiftScheduler {
                                 if (GLOBAL_ORIGINAL_BLOCKS.containsKey(pos)) {
                                     continue;
                                 }
-                                if (!world.isChunkLoaded(pos)) {
+                                if (!world.isChunkLoaded(pos.getX() >> 4, pos.getZ() >> 4)) {
                                     continue;
                                 }
 
@@ -350,7 +347,7 @@ public class AshenRiftScheduler {
                 // Remove placed lava first
                 for (HoleSpec hole : session.holes) {
                     for (BlockPos lavaPos : hole.lavaPositions) {
-                        if (world.isChunkLoaded(lavaPos) && world.getBlockState(lavaPos).isOf(Blocks.LAVA)) {
+                        if (world.isChunkLoaded(lavaPos.getX() >> 4, lavaPos.getZ() >> 4) && world.getBlockState(lavaPos).isOf(Blocks.LAVA)) {
                             world.setBlockState(lavaPos, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);
                         }
                     }
@@ -366,7 +363,7 @@ public class AshenRiftScheduler {
                     if (restoreState == null || restoreState.isAir()) {
                         restoreState = findSurroundingGroundState(world, pos);
                     }
-                    if (world.isChunkLoaded(pos)) {
+                    if (world.isChunkLoaded(pos.getX() >> 4, pos.getZ() >> 4)) {
                         world.setBlockState(pos, restoreState, Block.NOTIFY_ALL);
                     }
                     GLOBAL_ORIGINAL_BLOCKS.remove(pos);
@@ -518,7 +515,6 @@ public class AshenRiftScheduler {
                 player.setInvisible(false);
                 player.removeStatusEffect(StatusEffects.INVISIBILITY);
                 player.fallDistance = 0.0f;
-                task.teleported = true;
                 grantFallImmunity(player.getUuid(), world.getTime() + 100);
 
                 // Exit portal sounds

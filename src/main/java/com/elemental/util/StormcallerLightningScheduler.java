@@ -67,7 +67,7 @@ public class StormcallerLightningScheduler {
 
             net.minecraft.entity.Entity entity = world.getEntity(barrage.targetUuid);
             // Edge case: target is missing, dead, removed, or chunk is unloaded during barrage
-            if (!(entity instanceof LivingEntity target) || !target.isAlive() || target.isRemoved() || !world.isChunkLoaded(entity.getBlockPos())) {
+            if (!(entity instanceof LivingEntity target) || !target.isAlive() || target.isRemoved() || !world.isChunkLoaded(entity.getBlockX() >> 4, entity.getBlockZ() >> 4)) {
                 iterator.remove();
                 continue;
             }

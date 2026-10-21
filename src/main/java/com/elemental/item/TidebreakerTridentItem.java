@@ -444,7 +444,7 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
         }
         int r = WATER_SEARCH_RADIUS;
         for (BlockPos pos : BlockPos.iterateOutwards(playerPos, r, r, r)) {
-            if (pos.isWithinDistance(playerPos, r) && world.isChunkLoaded(pos)) {
+            if (pos.isWithinDistance(playerPos, r) && world.isChunkLoaded(pos.getX() >> 4, pos.getZ() >> 4)) {
                 if (world.getFluidState(pos).isIn(FluidTags.WATER)) {
                     return true;
                 }

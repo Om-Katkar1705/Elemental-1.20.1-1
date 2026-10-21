@@ -519,11 +519,11 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
     }
 
     public static BlockPos findSafeDestination(ServerWorld world, BlockPos aimedPos) {
-        if (aimedPos == null || !world.isChunkLoaded(aimedPos)) return null;
+        if (aimedPos == null || !world.isChunkLoaded(aimedPos.getX() >> 4, aimedPos.getZ() >> 4)) return null;
 
         // Desired position: 5 blocks above aimed position
         BlockPos desiredPos = aimedPos.up(5);
-        if (world.isChunkLoaded(desiredPos)) {
+        if (world.isChunkLoaded(desiredPos.getX() >> 4, desiredPos.getZ() >> 4)) {
             if (isPassable(world, desiredPos) && isPassable(world, desiredPos.up()) && !isHazard(world, desiredPos)
                     && !AshenRiftScheduler.isBlockInActiveRift(desiredPos) && !AshenRiftScheduler.isBlockInActiveRift(desiredPos.down())) {
                 return desiredPos;
@@ -533,7 +533,7 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
         // If obstructed (e.g. cavern ceiling), find highest clear clearance between +1 and +5
         for (int h = 5; h >= 1; h--) {
             BlockPos checkPos = aimedPos.up(h);
-            if (world.isChunkLoaded(checkPos)) {
+            if (world.isChunkLoaded(checkPos.getX() >> 4, checkPos.getZ() >> 4)) {
                 if (isPassable(world, checkPos) && isPassable(world, checkPos.up()) && !isHazard(world, checkPos)
                         && !AshenRiftScheduler.isBlockInActiveRift(checkPos) && !AshenRiftScheduler.isBlockInActiveRift(checkPos.down())) {
                     return checkPos;

@@ -1,6 +1,5 @@
 package com.elemental.entity;
 
-import com.elemental.Elemental;
 import com.elemental.config.ElementalConfig;
 import com.elemental.item.AshenRiftBladeItem;
 import com.elemental.item.FrostwakePickItem;
@@ -14,8 +13,6 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityDimensions;
-import net.minecraft.entity.EntityPose;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.LivingEntity;
@@ -118,7 +115,6 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     private int footstepTicker = 0;
     private int tridentStuckTicks = 0;
     private BlockState heldRipBlockState = null;
-    private BlockPos targetRipPos = null;
 
     // Terrain restoration tracker
     private final Map<BlockPos, BlockState> pulledBlocks = new HashMap<>();

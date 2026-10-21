@@ -1,7 +1,6 @@
 package com.elemental.screen;
 
 import com.elemental.block.ModBlocks;
-import com.elemental.item.ModItems;
 import com.elemental.recipe.WeaponerRecipes;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
@@ -32,7 +31,6 @@ public class WeaponerScreenHandler extends ScreenHandler {
 
     private final Inventory inventory;
     private final ScreenHandlerContext context;
-    private final PlayerEntity player;
 
     // Client-side constructor
     public WeaponerScreenHandler(int syncId, PlayerInventory playerInventory) {
@@ -45,7 +43,6 @@ public class WeaponerScreenHandler extends ScreenHandler {
         checkSize(inventory, 3);
         this.inventory = inventory;
         this.context = context;
-        this.player = playerInventory.player;
         inventory.onOpen(playerInventory.player);
 
         // Slot 0: Base Stencil / Element Core (Input)

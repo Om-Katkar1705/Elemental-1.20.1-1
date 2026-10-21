@@ -20,7 +20,6 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
@@ -172,6 +171,7 @@ public class StormcallerHammerAnimationHandler {
      * Plays a PlayerAnimator animation on the given player.
      * Uses FIRST_PERSON_MODEL mode so heavy hammer animations are visible in first person.
      */
+    @SuppressWarnings("unchecked")
     public static void playPlayerAnimation(AbstractClientPlayerEntity player, String animName) {
         if (player == null || animName == null) return;
 
@@ -228,6 +228,7 @@ public class StormcallerHammerAnimationHandler {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public static void stopPlayerAnimation(AbstractClientPlayerEntity player) {
         if (player == null) return;
         ModifierLayer<IAnimation> layer = null;
