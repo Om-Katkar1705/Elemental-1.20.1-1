@@ -891,15 +891,23 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
 
     private boolean isTrappedInHole(ServerWorld world) {
         BlockPos feet = this.getBlockPos();
-        int solidWalls = 0;
+        // Check surrounding horizontal directions at distances 1, 2, and 3
+        int blockedDirections = 0;
         for (Direction dir : Direction.Type.HORIZONTAL) {
-            BlockPos wall1 = feet.offset(dir);
-            BlockPos wall2 = feet.up().offset(dir);
-            if (isSolidObstructing(world, wall1) || isSolidObstructing(world, wall2)) {
-                solidWalls++;
+            boolean blockedInDir = false;
+            for (int dist = 1; dist <= 3; dist++) {
+                BlockPos wall1 = feet.offset(dir, dist).up(1);
+                BlockPos wall2 = feet.offset(dir, dist).up(2);
+                if (isSolidObstructing(world, wall1) || isSolidObstructing(world, wall2)) {
+                    blockedInDir = true;
+                    break;
+                }
+            }
+            if (blockedInDir) {
+                blockedDirections++;
             }
         }
-        return solidWalls >= 3;
+        return blockedDirections >= 3;
     }
 
     private void checkIfTrappedAndTriggerBreakout() {
@@ -913,20 +921,24 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
         boolean inDeepHole = isTrappedInHole(serverWorld);
 
         if (suffocating) {
-            this.trappedTicks += 3;
+            this.trappedTicks += 4;
         } else if (inDeepHole) {
             this.trappedTicks++;
         } else if (this.trappedTicks > 0) {
             this.trappedTicks--;
         }
 
-        if (this.trappedTicks >= 10) {
+        // When suffocating inside collapsed hole: 8 ticks (0.4s) triggers blast breakout!
+        // When in a deep open pit/hole: 70 ticks (3.5s) triggers blast breakout!
+        int threshold = suffocating ? 8 : 70;
+        if (this.trappedTicks >= threshold) {
             this.trappedTicks = 0;
             triggerBreakout();
         }
     }
 
     public void triggerBreakout() {
+        if (getAttackState() == STATE_BREAKOUT) return;
         setAttackState(STATE_BREAKOUT);
         this.breakoutTimer = 0;
         this.isBreakoutAirborne = false;
@@ -944,8 +956,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
 
         this.breakoutTimer++;
 
-        // Phase 1: Tremor windup (Ticks 1 - 10)
-        if (this.breakoutTimer < 10) {
+        // Phase 1: Tremor windup & gather kinetic power (Ticks 1 - 15)
+        if (this.breakoutTimer < 16) {
             this.getNavigation().stop();
             serverWorld.spawnParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE, this.getX(), this.getY() + 0.2, this.getZ(), 8, 1.5, 0.2, 1.5, 0.05);
             serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
@@ -957,12 +969,12 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             return;
         }
 
-        // Phase 2: Pulverize all blocks in and above the hole, then Launch into the air! (Tick 10)
-        if (this.breakoutTimer == 10) {
+        // Phase 2: Pulverize all blocks in a 7x7 column and blast upward! (Tick 16)
+        if (this.breakoutTimer == 16) {
             BlockPos center = this.getBlockPos();
-            int radius = 2; // 5x5 area
+            int radius = 3; // 7x7 blast area
             int minY = Math.max(serverWorld.getBottomY() + 1, center.getY() - 1);
-            int maxY = Math.min(serverWorld.getTopY(), center.getY() + 6);
+            int maxY = Math.min(serverWorld.getTopY(), center.getY() + 8);
 
             for (int y = minY; y <= maxY; y++) {
                 for (int dx = -radius; dx <= radius; dx++) {
@@ -973,20 +985,24 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                             serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, state),
                                     targetPos.getX() + 0.5, targetPos.getY() + 0.5, targetPos.getZ() + 0.5, 6, 0.3, 0.3, 0.3, 0.15);
                             serverWorld.breakBlock(targetPos, false);
+                            if (!serverWorld.getBlockState(targetPos).isAir()) {
+                                serverWorld.setBlockState(targetPos, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);
+                            }
                         }
                     }
                 }
             }
 
-            // Explosive burst sounds and screen shake
+            // Explosive blast sounds, emitter particles, and heavy screen shake
             serverWorld.playSound(null, this.getX(), this.getY(), this.getZ(),
                     SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.HOSTILE, 3.5f, 0.7f);
             serverWorld.playSound(null, this.getX(), this.getY(), this.getZ(),
                     SoundEvents.BLOCK_ANVIL_DESTROY, SoundCategory.HOSTILE, 3.0f, 0.5f);
+            serverWorld.spawnParticles(ParticleTypes.EXPLOSION_EMITTER, this.getX(), this.getY() + 1.0, this.getZ(), 2, 0.5, 0.5, 0.5, 0.0);
             SeismicColossusNetworking.sendScreenShakeNearby(serverWorld, this.getPos(), 36.0, 5.0f, 30);
 
             // Explosive leap upwards out of the hole!
-            this.setVelocity(0, 1.35, 0);
+            this.setVelocity(0, 1.45, 0);
             this.velocityModified = true;
             this.isBreakoutAirborne = true;
 
@@ -997,7 +1013,7 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
 
         // Phase 3: Airborne to Seismic Impact Landing
         if (this.isBreakoutAirborne) {
-            if (this.breakoutTimer > 16 && this.isOnGround()) {
+            if (this.breakoutTimer > 25 && this.isOnGround()) {
                 this.isBreakoutAirborne = false;
                 this.setAttackState(STATE_IDLE);
                 this.breakoutTimer = 0;

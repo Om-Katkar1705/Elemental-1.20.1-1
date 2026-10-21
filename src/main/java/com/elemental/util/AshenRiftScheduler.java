@@ -366,16 +366,23 @@ public class AshenRiftScheduler {
                         restoreState = findSurroundingGroundState(world, pos);
                     }
                     if (world.isChunkLoaded(pos.getX() >> 4, pos.getZ() >> 4)) {
-                        // Prevent burying / suffocating boss entities like Seismic Colossus
-                        net.minecraft.util.math.Box blockBox = new net.minecraft.util.math.Box(pos);
-                        List<com.elemental.entity.SeismicColossusEntity> bosses = world.getEntitiesByClass(com.elemental.entity.SeismicColossusEntity.class, blockBox, LivingEntity::isAlive);
-                        if (!bosses.isEmpty()) {
-                            GLOBAL_ORIGINAL_BLOCKS.remove(pos);
-                            continue;
-                        }
                         world.setBlockState(pos, restoreState, Block.NOTIFY_ALL);
                     }
                     GLOBAL_ORIGINAL_BLOCKS.remove(pos);
+                }
+
+                // If a Seismic Colossus is trapped/buried inside the closing hole, signal it to blast out!
+                for (HoleSpec hole : session.holes) {
+                    net.minecraft.util.math.Box holeBox = new net.minecraft.util.math.Box(
+                            hole.centerPos.getX() - hole.radius - 1, hole.surfaceY - hole.depth - 2, hole.centerPos.getZ() - hole.radius - 1,
+                            hole.centerPos.getX() + hole.radius + 2, hole.surfaceY + 4, hole.centerPos.getZ() + hole.radius + 2
+                    );
+                    List<com.elemental.entity.SeismicColossusEntity> bosses = world.getEntitiesByClass(
+                            com.elemental.entity.SeismicColossusEntity.class, holeBox, LivingEntity::isAlive
+                    );
+                    for (com.elemental.entity.SeismicColossusEntity boss : bosses) {
+                        boss.triggerBreakout();
+                    }
                 }
 
                 // Restoration audio and visual feedback
