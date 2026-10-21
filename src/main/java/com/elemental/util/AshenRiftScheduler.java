@@ -366,6 +366,13 @@ public class AshenRiftScheduler {
                         restoreState = findSurroundingGroundState(world, pos);
                     }
                     if (world.isChunkLoaded(pos.getX() >> 4, pos.getZ() >> 4)) {
+                        // Prevent burying / suffocating boss entities like Seismic Colossus
+                        net.minecraft.util.math.Box blockBox = new net.minecraft.util.math.Box(pos);
+                        List<com.elemental.entity.SeismicColossusEntity> bosses = world.getEntitiesByClass(com.elemental.entity.SeismicColossusEntity.class, blockBox, LivingEntity::isAlive);
+                        if (!bosses.isEmpty()) {
+                            GLOBAL_ORIGINAL_BLOCKS.remove(pos);
+                            continue;
+                        }
                         world.setBlockState(pos, restoreState, Block.NOTIFY_ALL);
                     }
                     GLOBAL_ORIGINAL_BLOCKS.remove(pos);

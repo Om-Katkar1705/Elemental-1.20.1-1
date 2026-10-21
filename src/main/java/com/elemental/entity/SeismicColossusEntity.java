@@ -56,6 +56,7 @@ import net.minecraft.util.Formatting;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
@@ -104,6 +105,7 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     public static final int STATE_ROCK_THROW = 4;
     public static final int STATE_BLOCK_THROW = 5;
     public static final int STATE_PHASE_TRANSITION = 6;
+    public static final int STATE_BREAKOUT = 7;
 
     // ==================== BOSS BAR ====================
     private final ServerBossBar bossBar;
@@ -115,6 +117,11 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     private int footstepTicker = 0;
     private int tridentStuckTicks = 0;
     private BlockState heldRipBlockState = null;
+
+    // Earthshatter Breakout tracking (when trapped in pit, hole, or buried in solid blocks)
+    private int breakoutTimer = 0;
+    private boolean isBreakoutAirborne = false;
+    private int trappedTicks = 0;
 
     // Terrain restoration tracker
     private final Map<BlockPos, BlockState> pulledBlocks = new HashMap<>();
@@ -356,8 +363,17 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             }
         }
 
-        // 5. Attack action ticker (for punches/slams/stomps - never cancel phase transition)
-        if (getAttackState() != STATE_PHASE_TRANSITION && this.actionStateTicks > 0) {
+        // 5. Server-side Earthshatter Breakout (Pulverizes blocks and leaps out of rift holes / pits)
+        if (!this.getWorld().isClient()) {
+            if (getAttackState() == STATE_BREAKOUT) {
+                tickBreakoutSequence();
+            } else if (getAttackState() != STATE_PHASE_TRANSITION) {
+                checkIfTrappedAndTriggerBreakout();
+            }
+        }
+
+        // 6. Attack action ticker (for punches/slams/stomps - never cancel phase transition or breakout)
+        if (getAttackState() != STATE_PHASE_TRANSITION && getAttackState() != STATE_BREAKOUT && this.actionStateTicks > 0) {
             this.actionStateTicks--;
             if (this.actionStateTicks <= 0) {
                 setAttackState(STATE_IDLE);
@@ -391,6 +407,14 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     // ==================== DAMAGE & WEAPON-STICKING ====================
     @Override
     public boolean damage(DamageSource source, float amount) {
+        // Suffocation in wall -> Instant Earthshatter Breakout!
+        if (source.isOf(DamageTypes.IN_WALL)) {
+            if (getAttackState() != STATE_BREAKOUT && !this.getWorld().isClient()) {
+                triggerBreakout();
+            }
+            return false;
+        }
+
         // Safety failsafe: if not in active phase transition, force clear invulnerability
         if (getAttackState() != STATE_PHASE_TRANSITION && isInvulnerablePhase()) {
             setInvulnerablePhase(false);
@@ -858,6 +882,161 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
         this.pulledBlocks.clear();
     }
 
+    // ==================== EARTHSHATTER BREAKOUT (OUT OF RIFT HOLES / PITS) ====================
+    private boolean isSolidObstructing(World world, BlockPos pos) {
+        BlockState state = world.getBlockState(pos);
+        return !state.isAir() && state.isSolidBlock(world, pos);
+    }
+
+    private boolean isTrappedInHole(ServerWorld world) {
+        BlockPos feet = this.getBlockPos();
+        int solidWalls = 0;
+        for (Direction dir : Direction.Type.HORIZONTAL) {
+            BlockPos wall1 = feet.offset(dir);
+            BlockPos wall2 = feet.up().offset(dir);
+            if (isSolidObstructing(world, wall1) || isSolidObstructing(world, wall2)) {
+                solidWalls++;
+            }
+        }
+        return solidWalls >= 3;
+    }
+
+    private void checkIfTrappedAndTriggerBreakout() {
+        if (!(this.getWorld() instanceof ServerWorld serverWorld)) return;
+
+        BlockPos feet = this.getBlockPos();
+        BlockPos body = feet.up();
+        BlockPos head = feet.up(2);
+
+        boolean suffocating = isSolidObstructing(serverWorld, body) || isSolidObstructing(serverWorld, head);
+        boolean inDeepHole = isTrappedInHole(serverWorld);
+
+        if (suffocating) {
+            this.trappedTicks += 3;
+        } else if (inDeepHole) {
+            this.trappedTicks++;
+        } else if (this.trappedTicks > 0) {
+            this.trappedTicks--;
+        }
+
+        if (this.trappedTicks >= 10) {
+            this.trappedTicks = 0;
+            triggerBreakout();
+        }
+    }
+
+    public void triggerBreakout() {
+        setAttackState(STATE_BREAKOUT);
+        this.breakoutTimer = 0;
+        this.isBreakoutAirborne = false;
+        this.getNavigation().stop();
+
+        if (this.getWorld() instanceof ServerWorld serverWorld) {
+            serverWorld.playSound(null, this.getX(), this.getY(), this.getZ(),
+                    ModSounds.SEISMIC_COLOSSUS_ROAR, SoundCategory.HOSTILE, 3.0f, 0.6f);
+            SeismicColossusNetworking.sendScreenShakeNearby(serverWorld, this.getPos(), 30.0, 4.0f, 25);
+        }
+    }
+
+    private void tickBreakoutSequence() {
+        if (!(this.getWorld() instanceof ServerWorld serverWorld)) return;
+
+        this.breakoutTimer++;
+
+        // Phase 1: Tremor windup (Ticks 1 - 10)
+        if (this.breakoutTimer < 10) {
+            this.getNavigation().stop();
+            serverWorld.spawnParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE, this.getX(), this.getY() + 0.2, this.getZ(), 8, 1.5, 0.2, 1.5, 0.05);
+            serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
+                    this.getX(), this.getY() + 0.2, this.getZ(), 15, 1.5, 0.2, 1.5, 0.1);
+            if (this.breakoutTimer % 4 == 0) {
+                serverWorld.playSound(null, this.getX(), this.getY(), this.getZ(),
+                        SoundEvents.BLOCK_RESPAWN_ANCHOR_CHARGE, SoundCategory.HOSTILE, 1.5f, 0.6f);
+            }
+            return;
+        }
+
+        // Phase 2: Pulverize all blocks in and above the hole, then Launch into the air! (Tick 10)
+        if (this.breakoutTimer == 10) {
+            BlockPos center = this.getBlockPos();
+            int radius = 2; // 5x5 area
+            int minY = Math.max(serverWorld.getBottomY() + 1, center.getY() - 1);
+            int maxY = Math.min(serverWorld.getTopY(), center.getY() + 6);
+
+            for (int y = minY; y <= maxY; y++) {
+                for (int dx = -radius; dx <= radius; dx++) {
+                    for (int dz = -radius; dz <= radius; dz++) {
+                        BlockPos targetPos = new BlockPos(center.getX() + dx, y, center.getZ() + dz);
+                        BlockState state = serverWorld.getBlockState(targetPos);
+                        if (!state.isAir() && !state.isOf(Blocks.BEDROCK) && !state.isOf(Blocks.BARRIER) && state.getHardness(serverWorld, targetPos) >= 0) {
+                            serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, state),
+                                    targetPos.getX() + 0.5, targetPos.getY() + 0.5, targetPos.getZ() + 0.5, 6, 0.3, 0.3, 0.3, 0.15);
+                            serverWorld.breakBlock(targetPos, false);
+                        }
+                    }
+                }
+            }
+
+            // Explosive burst sounds and screen shake
+            serverWorld.playSound(null, this.getX(), this.getY(), this.getZ(),
+                    SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.HOSTILE, 3.5f, 0.7f);
+            serverWorld.playSound(null, this.getX(), this.getY(), this.getZ(),
+                    SoundEvents.BLOCK_ANVIL_DESTROY, SoundCategory.HOSTILE, 3.0f, 0.5f);
+            SeismicColossusNetworking.sendScreenShakeNearby(serverWorld, this.getPos(), 36.0, 5.0f, 30);
+
+            // Explosive leap upwards out of the hole!
+            this.setVelocity(0, 1.35, 0);
+            this.velocityModified = true;
+            this.isBreakoutAirborne = true;
+
+            serverWorld.getServer().getPlayerManager().broadcast(
+                    Text.literal("§6§l[Seismic Colossus] §cThe stone titan shatters the earth and erupts from the depths!"), false);
+            return;
+        }
+
+        // Phase 3: Airborne to Seismic Impact Landing
+        if (this.isBreakoutAirborne) {
+            if (this.breakoutTimer > 16 && this.isOnGround()) {
+                this.isBreakoutAirborne = false;
+                this.setAttackState(STATE_IDLE);
+                this.breakoutTimer = 0;
+                this.attackCooldownTicks = 35;
+
+                // Seismic impact shockwave
+                serverWorld.playSound(null, this.getX(), this.getY(), this.getZ(),
+                        ModSounds.SEISMIC_COLOSSUS_SLAM, SoundCategory.HOSTILE, 3.0f, 0.5f);
+                serverWorld.playSound(null, this.getX(), this.getY(), this.getZ(),
+                        SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.HOSTILE, 2.5f, 0.8f);
+
+                SeismicColossusNetworking.sendScreenShakeNearby(serverWorld, this.getPos(), 32.0, 5.0f, 25);
+
+                for (int i = 0; i < 40; i++) {
+                    double rad = Math.toRadians(i * 9);
+                    double px = this.getX() + Math.cos(rad) * 4.5;
+                    double pz = this.getZ() + Math.sin(rad) * 4.5;
+                    serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
+                            px, this.getY() + 0.1, pz, 6, 0.3, 0.1, 0.3, 0.08);
+                    serverWorld.spawnParticles(ParticleTypes.EXPLOSION, px, this.getY() + 0.2, pz, 1, 0, 0, 0, 0);
+                }
+
+                Box box = this.getBoundingBox().expand(7.0, 2.5, 7.0);
+                List<PlayerEntity> players = serverWorld.getEntitiesByClass(PlayerEntity.class, box, LivingEntity::isAlive);
+                for (PlayerEntity player : players) {
+                    DamageSource source = this.getDamageSources().mobAttack(this);
+                    player.damage(source, 14.0f);
+                    player.addVelocity(0, 0.75, 0);
+                    player.velocityModified = true;
+                }
+            }
+        }
+
+        if (this.breakoutTimer >= 70) {
+            this.setAttackState(STATE_IDLE);
+            this.isBreakoutAirborne = false;
+            this.breakoutTimer = 0;
+        }
+    }
+
     @Override
     public void onDeath(DamageSource damageSource) {
         super.onDeath(damageSource);
@@ -904,7 +1083,7 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                 return state.setAndContinue(DEATH_ANIM);
             }
             int attack = getAttackState();
-            if (attack == STATE_PHASE_TRANSITION) {
+            if (attack == STATE_PHASE_TRANSITION || attack == STATE_BREAKOUT) {
                 return state.setAndContinue(RAGE_ANIM);
             }
             if (attack == STATE_PUNCH || attack == STATE_SLAM || attack == STATE_ROCK_THROW || attack == STATE_BLOCK_THROW) {
@@ -978,7 +1157,9 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
         @Override
         public boolean canStart() {
             LivingEntity target = this.boss.getTarget();
-            return target != null && target.isAlive() && this.boss.getAttackState() != STATE_PHASE_TRANSITION;
+            return target != null && target.isAlive()
+                    && this.boss.getAttackState() != STATE_PHASE_TRANSITION
+                    && this.boss.getAttackState() != STATE_BREAKOUT;
         }
 
         @Override
