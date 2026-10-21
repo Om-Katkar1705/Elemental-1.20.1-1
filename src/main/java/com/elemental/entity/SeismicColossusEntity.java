@@ -119,6 +119,10 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     // Terrain restoration tracker
     private final Map<BlockPos, BlockState> pulledBlocks = new HashMap<>();
 
+    // Continuous melee attack tracking (streak resets if player pauses > 50 ticks)
+    private final Map<java.util.UUID, Integer> consecutiveMeleeHits = new HashMap<>();
+    private final Map<java.util.UUID, Long> lastMeleeHitTime = new HashMap<>();
+
     // Stuck Weapons representation
     public static class StuckWeapon {
         public ItemStack stack = ItemStack.EMPTY;
@@ -149,6 +153,13 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             sw.offsetX = tag.getDouble("X");
             sw.offsetY = tag.getDouble("Y");
             sw.offsetZ = tag.getDouble("Z");
+            // Fix any legacy floating coordinates: always anchor cleanly to the front stone torso
+            if (sw.offsetZ < -0.35 || sw.offsetY < 2.0 || sw.offsetY > 3.5 || !"Body".equals(sw.boneName)) {
+                sw.boneName = "Body";
+                sw.offsetX = 0.0;
+                sw.offsetY = 2.6;
+                sw.offsetZ = -0.20;
+            }
             return sw;
         }
     }
@@ -286,6 +297,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
         }
     }
 
+    private float lastBossBarPercent = -1.0f;
+
     // ==================== TICKING & WALKING EFFECTS ====================
     @Override
     public void tick() {
@@ -293,7 +306,11 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
 
         // 1. Boss bar updates
         if (!this.getWorld().isClient()) {
-            this.bossBar.setPercent(MathHelper.clamp(this.getHealth() / this.getMaxHealth(), 0.0f, 1.0f));
+            float percent = MathHelper.clamp(this.getHealth() / this.getMaxHealth(), 0.0f, 1.0f);
+            if (Math.abs(percent - this.lastBossBarPercent) > 0.005f) {
+                this.bossBar.setPercent(percent);
+                this.lastBossBarPercent = percent;
+            }
         }
 
         // 2. Heavy Footsteps, Dust, & Screen Shake
@@ -411,9 +428,29 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                     handleHammerStrike(player);
                 }
             }
-            // Stickable weapon check during Phase 2 & 3
+            // Stickable weapon check during Phase 2 & 3: Only when melee attacks are CONTINUOUS!
             else if (getPhase() >= 2 && isStickableWeapon(held)) {
-                handleWeaponSticking(player, held);
+                long currentTick = this.getWorld().getTime();
+                Long lastTick = this.lastMeleeHitTime.get(player.getUuid());
+                int streak = 1;
+                if (lastTick != null && (currentTick - lastTick) <= 50) {
+                    streak = this.consecutiveMeleeHits.getOrDefault(player.getUuid(), 0) + 1;
+                }
+                this.consecutiveMeleeHits.put(player.getUuid(), streak);
+                this.lastMeleeHitTime.put(player.getUuid(), currentTick);
+
+                if (streak == 2) {
+                    if (this.getWorld() instanceof ServerWorld sw) {
+                        sw.playSound(null, this.getX(), this.getY() + 2.0, this.getZ(),
+                                SoundEvents.BLOCK_GRINDSTONE_USE, SoundCategory.HOSTILE, 1.4f, 1.2f);
+                        sw.spawnParticles(ParticleTypes.CRIT, this.getX(), this.getY() + 2.0, this.getZ(), 10, 0.2, 0.2, 0.2, 0.1);
+                    }
+                    player.sendMessage(Text.literal("§6⚠ The stone hide is gripping your weapon! Step back or it will get stuck!"), true);
+                } else if (streak >= 3) {
+                    this.consecutiveMeleeHits.remove(player.getUuid());
+                    this.lastMeleeHitTime.remove(player.getUuid());
+                    handleWeaponSticking(player, held);
+                }
             }
         }
 
@@ -453,12 +490,17 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
         StuckWeapon sw = new StuckWeapon();
         sw.stack = weapon.copy();
         sw.hitsRemaining = 3;
-        Random rng = new Random();
-        String[] bones = {"Body", "LeftArm", "RightArm", "LowerLeftArm", "LowerRightArm"};
-        sw.boneName = bones[rng.nextInt(bones.length)];
-        sw.offsetX = (rng.nextDouble() - 0.5) * 0.8;
-        sw.offsetY = 1.2 + rng.nextDouble() * 1.5;
-        sw.offsetZ = -0.5 - rng.nextDouble() * 0.4;
+        sw.boneName = "Body";
+
+        // Stagger positions across the chest plate
+        int count = this.stuckWeapons.size();
+        double[] xOffsets = {-0.4, 0.4, -0.15, 0.15, -0.55, 0.55, 0.0};
+        double[] yOffsets = {2.7, 2.5, 3.0, 2.3, 2.8, 2.6, 2.4};
+        int idx = count % xOffsets.length;
+
+        sw.offsetX = xOffsets[idx] + (Math.random() - 0.5) * 0.1;
+        sw.offsetY = yOffsets[idx] + (Math.random() - 0.5) * 0.1;
+        sw.offsetZ = -0.20; // Embedded in the front stone chest plate!
 
         this.stuckWeapons.add(sw);
         this.syncStuckWeapons();
@@ -471,9 +513,11 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                     SoundEvents.BLOCK_ANVIL_PLACE, SoundCategory.HOSTILE, 1.8f, 0.7f);
             serverWorld.spawnParticles(ParticleTypes.CRIT, this.getX(), this.getY() + 2.0, this.getZ(),
                     25, 0.4, 0.4, 0.4, 0.15);
+            serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
+                    this.getX(), this.getY() + 2.0, this.getZ(), 20, 0.3, 0.3, 0.3, 0.1);
         }
 
-        player.sendMessage(Text.literal("Your weapon got stuck into the Colossus's stone hide! Use a Stormcaller Hammer to free it!").formatted(Formatting.GOLD, Formatting.BOLD), true);
+        player.sendMessage(Text.literal("Your weapon got stuck into the Colossus's stone chest! Hit it with a Stormcaller Hammer to free it!").formatted(Formatting.GOLD, Formatting.BOLD), true);
     }
 
     private void handleHammerStrike(PlayerEntity player) {
@@ -539,6 +583,32 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
 
             // Heavy screen shake
             SeismicColossusNetworking.sendScreenShakeNearby(serverWorld, this.getPos(), 36.0, 4.5f, 30);
+
+            if (nextPhase == 2) {
+                // Purple crystal hand breaks off!
+                serverWorld.playSound(null, this.getX(), this.getY() + 2.0, this.getZ(),
+                        SoundEvents.BLOCK_AMETHYST_CLUSTER_BREAK, SoundCategory.HOSTILE, 3.5f, 0.7f);
+                serverWorld.playSound(null, this.getX(), this.getY() + 2.0, this.getZ(),
+                        SoundEvents.ENTITY_IRON_GOLEM_DAMAGE, SoundCategory.HOSTILE, 2.5f, 0.5f);
+                serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.AMETHYST_BLOCK.getDefaultState()),
+                        this.getX() + 1.5, this.getY() + 2.0, this.getZ(), 100, 1.0, 1.2, 1.0, 0.25);
+                serverWorld.spawnParticles(ParticleTypes.PORTAL,
+                        this.getX() + 1.5, this.getY() + 2.0, this.getZ(), 40, 0.8, 1.0, 0.8, 0.1);
+                serverWorld.getServer().getPlayerManager().broadcast(
+                        Text.literal("§5§l[Seismic Colossus] §cThe purple crystal hand shatters and breaks off! Phase 2: Living Quarry has begun!"), false);
+            } else if (nextPhase == 3) {
+                // Entire purple arm breaks off completely!
+                serverWorld.playSound(null, this.getX(), this.getY() + 2.5, this.getZ(),
+                        SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.HOSTILE, 3.0f, 0.6f);
+                serverWorld.playSound(null, this.getX(), this.getY() + 2.5, this.getZ(),
+                        SoundEvents.BLOCK_ANVIL_DESTROY, SoundCategory.HOSTILE, 2.8f, 0.6f);
+                serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.CRYING_OBSIDIAN.getDefaultState()),
+                        this.getX() + 1.5, this.getY() + 2.5, this.getZ(), 120, 1.2, 1.5, 1.2, 0.3);
+                serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.AMETHYST_CLUSTER.getDefaultState()),
+                        this.getX() + 1.5, this.getY() + 2.5, this.getZ(), 80, 1.0, 1.2, 1.0, 0.2);
+                serverWorld.getServer().getPlayerManager().broadcast(
+                        Text.literal("§4§l[Seismic Colossus] §cThe entire purple arm breaks completely off! The titan enters an unstoppable Seismic Rage!"), false);
+            }
         }
     }
 

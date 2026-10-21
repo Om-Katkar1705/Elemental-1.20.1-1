@@ -113,17 +113,24 @@ public class QuestManager {
             }
         }
 
-        // Count combined blueprints across all online players
-        int blueprintsCount = BlueprintMaps.countUniqueBlueprintsCombined(player.server.getPlayerManager().getPlayerList());
-        boolean hasAllBlueprints = blueprintsCount >= BlueprintMaps.Type.values().length;
+        // Only count blueprints when actively in relevant quest phases
+        boolean needsBlueprintCheck = (state == QuestState.SALVAGE_MODULES || state == QuestState.LOCATE_SKYFORGE || state == QuestState.CRAFT_JETPACK)
+                || (state.getId() < QuestState.RETURN_TO_AERON.getId() && !data.hasClaimedJetpack() && data.getBlueprintsFound() < 4);
 
-        // Track blueprints count collectively
-        if (state.getId() < QuestState.RETURN_TO_AERON.getId() && !data.hasClaimedJetpack()) {
-            if (blueprintsCount > data.getBlueprintsFound()) {
-                data.setBlueprintsFound(blueprintsCount);
-                updated = true;
+        int blueprintsCount = 0;
+        boolean hasAllBlueprints = false;
+
+        if (needsBlueprintCheck) {
+            blueprintsCount = BlueprintMaps.countUniqueBlueprintsCombined(player.server.getPlayerManager().getPlayerList());
+            hasAllBlueprints = blueprintsCount >= BlueprintMaps.Type.values().length;
+
+            if (state.getId() < QuestState.RETURN_TO_AERON.getId() && !data.hasClaimedJetpack()) {
+                if (blueprintsCount > data.getBlueprintsFound()) {
+                    data.setBlueprintsFound(blueprintsCount);
+                    updated = true;
+                }
             }
-        } else if (data.getBlueprintsFound() < 4) {
+        } else if (data.getBlueprintsFound() < 4 && (state.getId() >= QuestState.RETURN_TO_AERON.getId() || data.hasClaimedJetpack())) {
             data.setBlueprintsFound(4);
             updated = true;
         }
@@ -143,12 +150,8 @@ public class QuestManager {
             }
         }
 
-        // 3. In SALVAGE_MODULES: ensure chests are populated, and advance to RETURN_TO_AERON ONLY when all 4 recipe maps are collected
+        // 3. In SALVAGE_MODULES: advance to RETURN_TO_AERON once all 4 recipe maps are collected
         if (state == QuestState.SALVAGE_MODULES) {
-            BlockPos target = data.getTargetWaypoint();
-            if (target != null && player.squaredDistanceTo(target.getX(), target.getY(), target.getZ()) <= 48 * 48) {
-                NbtStructureManager.ensureAirshipChestsPopulated(player.getServerWorld(), target);
-            }
             if (hasAllBlueprints) {
                 data.setState(QuestState.RETURN_TO_AERON);
                 updateWaypointForState(player, data);

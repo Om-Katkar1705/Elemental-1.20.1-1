@@ -33,11 +33,13 @@ public class SeismicColossusStuckWeaponsLayer extends GeoRenderLayer<SeismicColo
         for (SeismicColossusEntity.StuckWeapon sw : weapons) {
             if (sw.stack.isEmpty()) continue;
             bakedModel.getBone(sw.boneName).ifPresent(bone -> {
+                if (bone.isHidden()) return;
                 poseStack.push();
                 RenderUtils.prepMatrixForBone(poseStack, bone);
                 poseStack.translate(sw.offsetX, sw.offsetY, sw.offsetZ);
+                poseStack.multiply(RotationAxis.POSITIVE_X.rotationDegrees(70f));
+                poseStack.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(25f));
                 poseStack.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(45f));
-                poseStack.multiply(RotationAxis.POSITIVE_X.rotationDegrees(90f));
                 poseStack.scale(0.85f, 0.85f, 0.85f);
                 MinecraftClient.getInstance().getItemRenderer().renderItem(
                         sw.stack,
@@ -55,12 +57,13 @@ public class SeismicColossusStuckWeaponsLayer extends GeoRenderLayer<SeismicColo
 
         if (animatable.isTridentStuck()) {
             bakedModel.getBone("Body").ifPresent(bone -> {
+                if (bone.isHidden()) return;
                 poseStack.push();
                 RenderUtils.prepMatrixForBone(poseStack, bone);
-                poseStack.translate(0.0, 1.5, -0.6);
+                poseStack.translate(0.0, 2.7, -0.22);
                 poseStack.multiply(RotationAxis.POSITIVE_X.rotationDegrees(75f));
                 poseStack.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(15f));
-                poseStack.scale(1.2f, 1.2f, 1.2f);
+                poseStack.scale(1.1f, 1.1f, 1.1f);
                 MinecraftClient.getInstance().getItemRenderer().renderItem(
                         new ItemStack(ModItems.TIDEBREAKER_TRIDENT),
                         ModelTransformationMode.FIXED,

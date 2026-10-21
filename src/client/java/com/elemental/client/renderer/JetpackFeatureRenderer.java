@@ -22,6 +22,7 @@ import net.minecraft.util.math.RotationAxis;
 public class JetpackFeatureRenderer extends FeatureRenderer<AbstractClientPlayerEntity, PlayerEntityModel<AbstractClientPlayerEntity>> {
     public static final Identifier TEXTURE = Elemental.id("textures/entity/elemental_jetpack.png");
     public static final EntityModelLayer JETPACK_LAYER = new EntityModelLayer(Elemental.id("elemental_jetpack"), "main");
+    private static final RenderLayer RENDER_LAYER = RenderLayer.getEntityCutoutNoCull(TEXTURE);
 
     private final JetpackModel model;
 
@@ -92,7 +93,7 @@ public class JetpackFeatureRenderer extends FeatureRenderer<AbstractClientPlayer
         matrices.translate(0.0f, -6.0f / 16.0f, -3.3f / 16.0f);
 
         // 4. Render 3D jetpack model
-        VertexConsumer vertexConsumer = vertexConsumers.getBuffer(RenderLayer.getEntityCutoutNoCull(TEXTURE));
+        VertexConsumer vertexConsumer = vertexConsumers.getBuffer(RENDER_LAYER);
         this.model.render(matrices, vertexConsumer, light, OverlayTexture.DEFAULT_UV, 1.0f, 1.0f, 1.0f, 1.0f);
 
         matrices.pop();

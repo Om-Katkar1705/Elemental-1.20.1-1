@@ -52,16 +52,19 @@ public class SunforgedHeatHandler {
                     && world.getLightLevel(LightType.SKY, player.getBlockPos()) >= 12;
 
             int currentHeat = SunforgedScimitarItem.getHeatLevel(stack);
+            int newHeat = currentHeat;
 
             if (isDirectSunlight) {
-                currentHeat = Math.min(SunforgedScimitarItem.MAX_HEAT, currentHeat + SunforgedScimitarItem.HEAT_GAIN_RATE);
+                newHeat = Math.min(SunforgedScimitarItem.MAX_HEAT, currentHeat + SunforgedScimitarItem.HEAT_GAIN_RATE);
             } else {
-                currentHeat = Math.max(0, currentHeat - SunforgedScimitarItem.HEAT_DECAY_RATE);
+                newHeat = Math.max(0, currentHeat - SunforgedScimitarItem.HEAT_DECAY_RATE);
             }
 
-            SunforgedScimitarItem.setHeatLevel(stack, currentHeat);
+            if (newHeat != currentHeat) {
+                SunforgedScimitarItem.setHeatLevel(stack, newHeat);
+            }
 
-            if (currentHeat >= SunforgedScimitarItem.HEAT_DAMAGE_THRESHOLD && SunforgedScimitarItem.SELF_DAMAGE_ENABLED) {
+            if (newHeat >= SunforgedScimitarItem.HEAT_DAMAGE_THRESHOLD && SunforgedScimitarItem.SELF_DAMAGE_ENABLED) {
                 player.damage(player.getDamageSources().hotFloor(), SunforgedScimitarItem.HEAT_SELF_DAMAGE);
             }
         }

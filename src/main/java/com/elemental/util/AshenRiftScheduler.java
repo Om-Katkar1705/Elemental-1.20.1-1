@@ -255,25 +255,27 @@ public class AshenRiftScheduler {
 
                     HoleSpec hole = new HoleSpec(targetId, centerHolePos, radius, depth, surfaceY);
 
-                    // Excavate hole
+                    // Excavate hole with mutable pos to minimize temporary allocations
+                    BlockPos.Mutable mut = new BlockPos.Mutable();
                     for (int y = surfaceY; y >= surfaceY - depth + 1 && y > world.getBottomY(); y--) {
                         for (int dx = -radius; dx <= radius; dx++) {
                             for (int dz = -radius; dz <= radius; dz++) {
-                                BlockPos pos = new BlockPos(groundPos.getX() + dx, y, groundPos.getZ() + dz);
-                                BlockState state = world.getBlockState(pos);
+                                mut.set(groundPos.getX() + dx, y, groundPos.getZ() + dz);
+                                BlockState state = world.getBlockState(mut);
 
-                                if (isProtectedBlock(world, pos, state)) {
+                                if (isProtectedBlock(world, mut, state)) {
                                     continue;
                                 }
 
                                 // Prevent two players or sessions from creating overlapping/conflicting rift holes in the same blocks
-                                if (GLOBAL_ORIGINAL_BLOCKS.containsKey(pos)) {
+                                if (GLOBAL_ORIGINAL_BLOCKS.containsKey(mut)) {
                                     continue;
                                 }
-                                if (!world.isChunkLoaded(pos.getX() >> 4, pos.getZ() >> 4)) {
+                                if (!world.isChunkLoaded(mut.getX() >> 4, mut.getZ() >> 4)) {
                                     continue;
                                 }
 
+                                BlockPos pos = mut.toImmutable();
                                 GLOBAL_ORIGINAL_BLOCKS.put(pos, state);
                                 session.sessionOriginalBlocks.putIfAbsent(pos, state);
                                 hole.holePositions.add(pos);
@@ -385,14 +387,16 @@ public class AshenRiftScheduler {
     }
 
     private static BlockState findSurroundingGroundState(ServerWorld world, BlockPos pos) {
+        BlockPos.Mutable mut = new BlockPos.Mutable();
         for (Direction dir : Direction.Type.HORIZONTAL) {
-            BlockPos neighbor = pos.offset(dir);
-            BlockState neighborState = world.getBlockState(neighbor);
+            mut.set(pos, dir);
+            BlockState neighborState = world.getBlockState(mut);
             if (!neighborState.isAir() && !neighborState.isOf(Blocks.LAVA) && !neighborState.isOf(Blocks.WATER)) {
                 return neighborState;
             }
         }
-        BlockState belowState = world.getBlockState(pos.down());
+        mut.set(pos, Direction.DOWN);
+        BlockState belowState = world.getBlockState(mut);
         if (!belowState.isAir() && !belowState.isOf(Blocks.LAVA) && !belowState.isOf(Blocks.WATER)) {
             return belowState;
         }

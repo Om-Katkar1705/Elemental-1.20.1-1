@@ -14,6 +14,31 @@ import net.minecraft.util.math.BlockPos;
 
 public class QuestGuidanceHud implements HudRenderCallback {
 
+    private static final Text TITLE_CHRONICLES = Text.literal("The Elemental Chronicles").formatted(Formatting.GOLD, Formatting.BOLD);
+    private static final Text TITLE_SKYFORGE = Text.literal("✦ Wings of the Skyforge ✦").formatted(Formatting.GOLD, Formatting.BOLD);
+
+    private static final Text TASK_CRAFT_STONE = Text.literal("§e► Craft any Stone Tool to begin");
+    private static final Text TASK_FIND_AERON = Text.literal("§e► Locate Aeron's Camp");
+    private static final Text TASK_LOCATE_SKYFORGE = Text.literal("§e► Locate buried Skyforge Spaceship");
+    private static final Text[] TASK_SALVAGE = new Text[] {
+            Text.literal("§e► Collect Recipe Maps: §d0/4"),
+            Text.literal("§e► Collect Recipe Maps: §d1/4"),
+            Text.literal("§e► Collect Recipe Maps: §d2/4"),
+            Text.literal("§e► Collect Recipe Maps: §d3/4"),
+            Text.literal("§e► Collect Recipe Maps: §d4/4")
+    };
+    private static final Text TASK_DELIVER = Text.literal("§e► Deliver 4 Recipe Maps to Aeron at Camp");
+    private static final Text TASK_DESERT = Text.literal("§e► Journey to Desert (Sunforged Scimitar)");
+    private static final Text TASK_COMPLETE = Text.literal("§a✔ Wings of the Skyforge Completed");
+
+    private static final Text HINT_MINE = Text.literal("§7Mine cobblestone & craft stone tools").formatted(Formatting.GRAY);
+    private static final Text HINT_WAYPOINT = Text.literal("§8Waypoint unlocks upon tool craft").formatted(Formatting.DARK_GRAY);
+    private static final Text HINT_ALL_CLEAR = Text.translatable("quest.elemental.all_clear").formatted(Formatting.GREEN);
+    private static final Text HINT_GUIDANCE_READY = Text.translatable("quest.elemental.guidance_ready").formatted(Formatting.GRAY);
+    private static final Text HINT_TOGGLE = Text.literal("§8[G] Toggle HUD");
+
+    private static final Text VERT_LEVEL = Text.literal("§a◆ LEVEL ELEVATION");
+
     @Override
     public void onHudRender(DrawContext drawContext, float tickDelta) {
         if (!ElementalConfig.get().enableJetpackGuidance) return;
@@ -37,12 +62,12 @@ public class QuestGuidanceHud implements HudRenderCallback {
         drawContext.drawBorder(x - 4, y - 4, width + 8, height + 8, 0xFF4A90E2);
 
         // Header: Quest Title
-        String titleKey = state == QuestState.CRAFT_STONE_TOOLS ? "The Elemental Chronicles" : "✦ Wings of the Skyforge ✦";
-        drawContext.drawText(tr, Text.literal(titleKey).formatted(Formatting.GOLD, Formatting.BOLD), x, y, 0xFFFFFF, false);
+        Text title = state == QuestState.CRAFT_STONE_TOOLS ? TITLE_CHRONICLES : TITLE_SKYFORGE;
+        drawContext.drawText(tr, title, x, y, 0xFFFFFF, false);
 
         // Line 2: Current Task
-        String taskString = getTaskDescription(state);
-        drawContext.drawText(tr, Text.literal(taskString), x, y + 12, 0xE0E0E0, false);
+        Text taskText = getTaskDescriptionText(state);
+        drawContext.drawText(tr, taskText, x, y + 12, 0xE0E0E0, false);
 
         // Line 3: Waypoint Distance & Compass Arrow
         BlockPos target = ClientQuestData.getTargetWaypoint();
@@ -57,36 +82,39 @@ public class QuestGuidanceHud implements HudRenderCallback {
 
             // Line 4: Vertical Guidance
             int deltaY = (int) (target.getY() - player.getY());
-            String vertText;
+            Text vertText;
             if (deltaY > 6) {
-                vertText = "§6▲ ASCEND (+" + deltaY + "m)";
+                vertText = Text.literal("§6▲ ASCEND (+" + deltaY + "m)");
             } else if (deltaY < -6) {
-                vertText = "§9▼ DESCEND (" + deltaY + "m)";
+                vertText = Text.literal("§9▼ DESCEND (" + deltaY + "m)");
             } else {
-                vertText = "§a◆ LEVEL ELEVATION";
+                vertText = VERT_LEVEL;
             }
-            drawContext.drawText(tr, Text.literal(vertText), x, y + 36, 0xFFFFFF, false);
+            drawContext.drawText(tr, vertText, x, y + 36, 0xFFFFFF, false);
         } else if (state == QuestState.CRAFT_STONE_TOOLS) {
-            drawContext.drawText(tr, Text.literal("§7Mine cobblestone & craft stone tools").formatted(Formatting.GRAY), x, y + 24, 0xFFFFFF, false);
-            drawContext.drawText(tr, Text.literal("§8Waypoint unlocks upon tool craft").formatted(Formatting.DARK_GRAY), x, y + 36, 0xFFFFFF, false);
+            drawContext.drawText(tr, HINT_MINE, x, y + 24, 0xFFFFFF, false);
+            drawContext.drawText(tr, HINT_WAYPOINT, x, y + 36, 0xFFFFFF, false);
         } else if (state == QuestState.QUEST_COMPLETE) {
-            drawContext.drawText(tr, Text.translatable("quest.elemental.all_clear").formatted(Formatting.GREEN), x, y + 24, 0xFFFFFF, false);
-            drawContext.drawText(tr, Text.translatable("quest.elemental.guidance_ready").formatted(Formatting.GRAY), x, y + 36, 0xFFFFFF, false);
+            drawContext.drawText(tr, HINT_ALL_CLEAR, x, y + 24, 0xFFFFFF, false);
+            drawContext.drawText(tr, HINT_GUIDANCE_READY, x, y + 36, 0xFFFFFF, false);
         }
 
         // Toggle hint
-        drawContext.drawText(tr, Text.literal("§8[G] Toggle HUD"), x + width - 68, y, 0x888888, false);
+        drawContext.drawText(tr, HINT_TOGGLE, x + width - 68, y, 0x888888, false);
     }
 
-    private String getTaskDescription(QuestState state) {
+    private Text getTaskDescriptionText(QuestState state) {
         return switch (state) {
-            case CRAFT_STONE_TOOLS -> "§e► Craft any Stone Tool to begin";
-            case FIND_AERON -> "§e► Locate Aeron's Camp";
-            case LOCATE_SKYFORGE -> "§e► Locate buried Skyforge Spaceship";
-            case SALVAGE_MODULES -> "§e► Collect Recipe Maps: §d" + ClientQuestData.getBlueprintsFound() + "/4";
-            case CRAFT_JETPACK, RETURN_TO_AERON -> "§e► Deliver 4 Recipe Maps to Aeron at Camp";
-            case DESERT_EXPEDITION -> "§e► Journey to Desert (Sunforged Scimitar)";
-            case QUEST_COMPLETE -> "§a✔ Wings of the Skyforge Completed";
+            case CRAFT_STONE_TOOLS -> TASK_CRAFT_STONE;
+            case FIND_AERON -> TASK_FIND_AERON;
+            case LOCATE_SKYFORGE -> TASK_LOCATE_SKYFORGE;
+            case SALVAGE_MODULES -> {
+                int found = Math.min(4, Math.max(0, ClientQuestData.getBlueprintsFound()));
+                yield TASK_SALVAGE[found];
+            }
+            case CRAFT_JETPACK, RETURN_TO_AERON -> TASK_DELIVER;
+            case DESERT_EXPEDITION -> TASK_DESERT;
+            case QUEST_COMPLETE -> TASK_COMPLETE;
         };
     }
 

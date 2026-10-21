@@ -179,17 +179,25 @@ public class NbtStructureManager {
         Elemental.LOGGER.info("Aeron's Camp initialized from NBT at safe dry land: {}", safeCampPos);
     }
 
+    private static long lastGuideCampCheckTick = 0;
+
     public static void ensureGuideAtCamp(ServerWorld world, BlockPos campPos, QuestSaveData saveData) {
         if (!ElementalConfig.get().enableIntroNpc)
             return;
         if (campPos == null)
             return;
 
-        // If chunk is not loaded, do not check or spawn entities to prevent ghost
-        // duplicates
+        // If chunk is not loaded, do not check or spawn entities to prevent ghost duplicates
         if (!world.isChunkLoaded(campPos.getX() >> 4, campPos.getZ() >> 4)) {
             return;
         }
+
+        // Throttle checks when guide is already spawned to avoid repeated heavy entity searches
+        long currentTick = world.getTime();
+        if (saveData.isGuideSpawned() && currentTick - lastGuideCampCheckTick < 60) {
+            return;
+        }
+        lastGuideCampCheckTick = currentTick;
 
         List<ChronicleGuideEntity> existingGuides = world.getEntitiesByClass(
                 ChronicleGuideEntity.class,
@@ -651,9 +659,9 @@ public class NbtStructureManager {
         ChestBlockEntity mainChest = null;
         BlockPos mainChestPos = null;
 
-        // Search the ship's 12x9x11 bounds for all chests
+        // Search the ship's 12x9x11 bounds for all chests - check block state first before requesting BlockEntity
         for (BlockPos p : BlockPos.iterate(placePos, placePos.add(11, 8, 10))) {
-            if (world.getBlockEntity(p) instanceof ChestBlockEntity chest) {
+            if (world.getBlockState(p).isOf(Blocks.CHEST) && world.getBlockEntity(p) instanceof ChestBlockEntity chest) {
                 if (mainChest == null) {
                     mainChest = chest;
                     mainChestPos = p.toImmutable();
@@ -681,11 +689,15 @@ public class NbtStructureManager {
 
     public static void ensureAirshipChestsPopulated(ServerWorld world, BlockPos crashPos) {
         BlockPos placePos = crashPos.add(-6, 0, -6);
+        if (!world.isChunkLoaded(placePos.getX() >> 4, placePos.getZ() >> 4)) {
+            return;
+        }
+
         ChestBlockEntity targetChest = null;
         BlockPos targetChestPos = null;
 
         for (BlockPos p : BlockPos.iterate(placePos.add(-2, -2, -2), placePos.add(13, 10, 12))) {
-            if (world.getBlockEntity(p) instanceof ChestBlockEntity chest) {
+            if (world.getBlockState(p).isOf(Blocks.CHEST) && world.getBlockEntity(p) instanceof ChestBlockEntity chest) {
                 if (targetChest == null) {
                     targetChest = chest;
                     targetChestPos = p.toImmutable();
