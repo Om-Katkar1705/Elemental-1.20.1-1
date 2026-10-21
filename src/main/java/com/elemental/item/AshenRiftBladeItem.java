@@ -396,7 +396,7 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
         }
 
         user.setCurrentHand(hand);
-        world.playSound(null, user.getX(), user.getY(), user.getZ(), SoundEvents.BLOCK_RESPAWN_ANCHOR_CHARGE, SoundCategory.PLAYERS, 0.7f, 1.1f);
+        world.playSound(null, user.getX(), user.getY(), user.getZ(), SoundEvents.BLOCK_RESPAWN_ANCHOR_CHARGE, SoundCategory.PLAYERS, 0.35f, 1.1f);
         if (!world.isClient() && user instanceof ServerPlayerEntity serverPlayer) {
             triggerAnim(serverPlayer, GeoItem.getOrAssignId(stack, (ServerWorld) world), "controller", "charge");
         }
@@ -425,7 +425,7 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
         if (chargeTicks % 12 == 0) {
             float pitch = Math.min(2.0f, 0.7f + (chargeTicks / 30.0f) * 0.6f);
             world.playSound(null, user.getX(), user.getY(), user.getZ(),
-                    SoundEvents.BLOCK_RESPAWN_ANCHOR_CHARGE, SoundCategory.PLAYERS, 0.4f, pitch);
+                    SoundEvents.BLOCK_RESPAWN_ANCHOR_CHARGE, SoundCategory.PLAYERS, 0.25f, pitch);
         }
 
         if (chargeTicks == 20 && user instanceof PlayerEntity player && world.isClient()) {
@@ -492,9 +492,9 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
         serverWorld.spawnParticles(ParticleTypes.ASH, initialPos.x, initialPos.y + 0.1, initialPos.z, 40, 0.4, 0.05, 0.4, 0.02);
 
         serverWorld.playSound(null, initialPos.x, initialPos.y, initialPos.z,
-                SoundEvents.BLOCK_PORTAL_TRIGGER, SoundCategory.PLAYERS, 1.0f, 1.2f);
+                SoundEvents.ITEM_CHORUS_FRUIT_TELEPORT, SoundCategory.PLAYERS, 0.35f, 1.1f);
         serverWorld.playSound(null, initialPos.x, initialPos.y, initialPos.z,
-                SoundEvents.ENTITY_ENDERMAN_TELEPORT, SoundCategory.PLAYERS, 0.8f, 0.6f);
+                SoundEvents.BLOCK_AMETHYST_BLOCK_CHIME, SoundCategory.PLAYERS, 0.25f, 1.3f);
 
         // Schedule falling into initial portal and emergence at destination 5 blocks above
         AshenRiftScheduler.scheduleTeleport(serverWorld, player, initialPos, destPos);

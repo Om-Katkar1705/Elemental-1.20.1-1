@@ -476,7 +476,7 @@ public class AshenRiftScheduler {
 
                 if (task.ticks == 8) {
                     world.playSound(null, task.initialPos.x, task.initialPos.y, task.initialPos.z,
-                            SoundEvents.BLOCK_PORTAL_AMBIENT, SoundCategory.PLAYERS, 0.8f, 1.4f);
+                            SoundEvents.BLOCK_AMETHYST_BLOCK_CHIME, SoundCategory.PLAYERS, 0.2f, 1.6f);
                 }
             }
             // ==============================================================
@@ -486,12 +486,10 @@ public class AshenRiftScheduler {
                 player.fallDistance = 0.0f;
                 grantFallImmunity(player.getUuid(), world.getTime() + 100);
 
-                // Entry portal snaps shut / collapses on tick 15
+                // Entry portal snaps shut / collapses on tick 15: soft whoosh
                 if (task.ticks == 15) {
                     world.playSound(null, task.initialPos.x, task.initialPos.y, task.initialPos.z,
-                            SoundEvents.BLOCK_PORTAL_TRAVEL, SoundCategory.PLAYERS, 1.0f, 1.6f);
-                    world.playSound(null, task.initialPos.x, task.initialPos.y, task.initialPos.z,
-                            SoundEvents.ENTITY_ENDERMAN_TELEPORT, SoundCategory.PLAYERS, 1.0f, 0.5f);
+                            SoundEvents.ENTITY_ILLUSIONER_MIRROR_MOVE, SoundCategory.PLAYERS, 0.3f, 1.3f);
                     world.spawnParticles(ParticleTypes.REVERSE_PORTAL, task.initialPos.x, task.initialPos.y + 0.2, task.initialPos.z,
                             35, 0.35, 0.15, 0.35, 0.1);
                     world.spawnParticles(ParticleTypes.ASH, task.initialPos.x, task.initialPos.y + 0.2, task.initialPos.z,
@@ -519,9 +517,7 @@ public class AshenRiftScheduler {
 
                 if (task.ticks == 16) {
                     world.playSound(null, task.destPos.x, task.destPos.y, task.destPos.z,
-                            SoundEvents.BLOCK_RESPAWN_ANCHOR_CHARGE, SoundCategory.PLAYERS, 1.0f, 1.1f);
-                    world.playSound(null, task.destPos.x, task.destPos.y, task.destPos.z,
-                            SoundEvents.BLOCK_PORTAL_TRIGGER, SoundCategory.PLAYERS, 0.9f, 1.2f);
+                            SoundEvents.BLOCK_AMETHYST_BLOCK_RESONATE, SoundCategory.PLAYERS, 0.25f, 1.5f);
                 }
             }
             // ==============================================================
@@ -535,13 +531,11 @@ public class AshenRiftScheduler {
                 player.fallDistance = 0.0f;
                 grantFallImmunity(player.getUuid(), world.getTime() + 100);
 
-                // Exit portal sounds
+                // Exit portal sounds: soft, pleasant, minimalistic dimensional emergence
                 world.playSound(null, task.destPos.x, task.destPos.y, task.destPos.z,
-                        SoundEvents.ENTITY_ENDERMAN_TELEPORT, SoundCategory.PLAYERS, 1.2f, 1.3f);
+                        SoundEvents.ITEM_CHORUS_FRUIT_TELEPORT, SoundCategory.PLAYERS, 0.4f, 1.2f);
                 world.playSound(null, task.destPos.x, task.destPos.y, task.destPos.z,
-                        SoundEvents.BLOCK_BEACON_ACTIVATE, SoundCategory.PLAYERS, 1.0f, 1.8f);
-                world.playSound(null, task.destPos.x, task.destPos.y, task.destPos.z,
-                        SoundEvents.BLOCK_PORTAL_TRAVEL, SoundCategory.PLAYERS, 0.9f, 0.9f);
+                        SoundEvents.BLOCK_AMETHYST_BLOCK_CHIME, SoundCategory.PLAYERS, 0.3f, 1.4f);
 
                 // Exit portal burst
                 world.spawnParticles(ParticleTypes.PORTAL, task.destPos.x, task.destPos.y + 1.6, task.destPos.z,
@@ -599,11 +593,9 @@ public class AshenRiftScheduler {
                                     1, 0.02, 0.04, 0.02, 0.02);
                         }
 
-                        // Safe landing audio feedback
+                        // Safe landing audio feedback: soft cushioned step
                         world.playSound(null, player.getX(), player.getY(), player.getZ(),
-                                SoundEvents.BLOCK_RESPAWN_ANCHOR_SET_SPAWN, SoundCategory.PLAYERS, 0.7f, 1.8f);
-                        world.playSound(null, player.getX(), player.getY(), player.getZ(),
-                                SoundEvents.BLOCK_STONE_STEP, SoundCategory.PLAYERS, 1.0f, 0.8f);
+                                SoundEvents.BLOCK_AMETHYST_BLOCK_STEP, SoundCategory.PLAYERS, 0.4f, 1.2f);
 
                         // Trigger weapon recovery animation
                         ItemStack mainStack = player.getMainHandStack();

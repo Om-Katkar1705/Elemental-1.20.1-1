@@ -307,7 +307,15 @@ public class StormcallerServerCombatHandler {
                 }
 
                 boolean onCooldown = StormcallerHammerItem.isCoolingDown(world, stack);
-                float damagePerStrike = (strikeCount == 1) ? 9.0f : (38.0f / strikeCount);
+                float damagePerStrike;
+                if (strikeCount == 1) {
+                    damagePerStrike = 14.0f;
+                } else {
+                    // Total damage scales with charge: 22.0f at low charge up to 36.0f at full charge
+                    // Deals enough damage to kill a zombie (20 HP) or equivalent in one charge attack
+                    float totalDamage = 22.0f + (14.0f * charge);
+                    damagePerStrike = totalDamage / strikeCount;
+                }
                 if (onCooldown) {
                     damagePerStrike *= 0.55f;
                 }

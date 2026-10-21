@@ -12,6 +12,7 @@ import software.bernie.geckolib.constant.DataTickets;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.SwordItem;
 import net.minecraft.item.ToolMaterial;
+import net.minecraft.particle.ParticleTypes;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
@@ -56,8 +57,8 @@ public class SunforgedScimitarItem extends SwordItem implements GeoItem {
     // Base cooldown in ticks for the Solar Arc projectile ability (240 ticks = 12 seconds)
     public static final int BASE_COOLDOWN_TICKS = 240;
 
-    // Maximum charge time in ticks (20 ticks = 1 second, 40 = 2 seconds)
-    public static final int MAX_CHARGE_TICKS = 500;
+    // Charge time in ticks to reach 100% full charge (40 ticks = 2.0 seconds)
+    public static final int FULL_CHARGE_TICKS = 40;
     // Minimum charge time before projectile can fire
     public static final int MIN_CHARGE_TICKS = 5;
 
@@ -229,6 +230,35 @@ public class SunforgedScimitarItem extends SwordItem implements GeoItem {
     }
 
     @Override
+    public void usageTick(World world, LivingEntity user, ItemStack stack, int remainingUseTicks) {
+        super.usageTick(world, user, stack, remainingUseTicks);
+        int chargeTicks = getMaxUseTime(stack) - remainingUseTicks;
+
+        // Visual sun and flame particles while gathering solar energy
+        if (chargeTicks % 4 == 0) {
+            world.addParticle(ParticleTypes.FLAME,
+                    user.getX() + (world.random.nextDouble() - 0.5) * 1.0,
+                    user.getY() + 0.6 + (world.random.nextDouble() - 0.5) * 0.6,
+                    user.getZ() + (world.random.nextDouble() - 0.5) * 1.0,
+                    0, 0.04, 0);
+        }
+
+        if (chargeTicks % 10 == 0 && chargeTicks < FULL_CHARGE_TICKS) {
+            float pitch = 0.8f + (chargeTicks / (float) FULL_CHARGE_TICKS) * 0.8f;
+            world.playSound(null, user.getX(), user.getY(), user.getZ(),
+                    SoundEvents.BLOCK_RESPAWN_ANCHOR_CHARGE, SoundCategory.PLAYERS, 0.35f, pitch);
+        }
+
+        if (chargeTicks == FULL_CHARGE_TICKS && user instanceof PlayerEntity player) {
+            world.playSound(null, user.getX(), user.getY(), user.getZ(),
+                    SoundEvents.BLOCK_BEACON_ACTIVATE, SoundCategory.PLAYERS, 0.6f, 1.8f);
+            if (world.isClient()) {
+                player.sendMessage(Text.literal("§6☀ FULL SOLAR CHARGE READY!").formatted(Formatting.GOLD, Formatting.BOLD), true);
+            }
+        }
+    }
+
+    @Override
     public void onStoppedUsing(ItemStack stack, World world, LivingEntity user, int remainingUseTicks) {
         if (!(user instanceof PlayerEntity player) || !player.isAlive() || player.isSpectator()) return;
 
@@ -255,18 +285,22 @@ public class SunforgedScimitarItem extends SwordItem implements GeoItem {
             return;
         }
 
-        float chargeRatio = Math.min(1.0f, (float) chargeTicks / MAX_CHARGE_TICKS);
+        float chargeRatio = Math.min(1.0f, (float) chargeTicks / FULL_CHARGE_TICKS);
 
         // Spawn solar arc projectile with speed scaled by charge and Solar Core upgrade level
         SolarArcEntity projectile = new SolarArcEntity(world, player, stack);
         net.minecraft.util.math.Vec3d look = player.getRotationVec(1.0F);
         projectile.setPosition(player.getX() + look.x * 0.5, player.getEyeY() - 0.1 + look.y * 0.5, player.getZ() + look.z * 0.5);
-        float speed = (SolarArcEntity.BASE_SPEED + (SolarArcEntity.CORE_SPEED_BONUS * getSolarCoreLevel(stack))) * (0.5f + chargeRatio * 0.5f);
+        float speed = (SolarArcEntity.BASE_SPEED + (SolarArcEntity.CORE_SPEED_BONUS * getSolarCoreLevel(stack))) * (0.6f + chargeRatio * 0.4f);
         projectile.setVelocity(player, player.getPitch(), player.getYaw(), 0.0F, speed, 0.0F);
         world.spawnEntity(projectile);
 
-        // Scale damage by charge
-        projectile.setProjectileDamage(projectile.getProjectileDamage() * (0.5f + chargeRatio * 0.5f));
+        // Scale damage by charge:
+        // At full charge (chargeRatio == 1.0f): deals 26.0f raw damage.
+        // Against full diamond armor (20 armor, 8 toughness), this deals exactly 12.0 HP (6.0 hearts).
+        // Against an unarmored target, it deals 26.0 HP (13.0 hearts).
+        float calculatedDamage = 8.0f + (18.0f * chargeRatio) + (2.0f * getSolarCoreLevel(stack));
+        projectile.setProjectileDamage(calculatedDamage);
 
         // Sound effect - pitch varies with charge
         world.playSound(null, player.getX(), player.getY(), player.getZ(),
@@ -292,7 +326,7 @@ public class SunforgedScimitarItem extends SwordItem implements GeoItem {
 
     @Override
     public int getMaxUseTime(ItemStack stack) {
-        return MAX_CHARGE_TICKS;
+        return 72000;
     }
 
     @Override
@@ -342,5 +376,7 @@ public class SunforgedScimitarItem extends SwordItem implements GeoItem {
         if (coreLevel > 0) {
             tooltip.add(Text.literal("Solar Core Level: " + coreLevel).formatted(Formatting.GOLD));
         }
+        tooltip.add(Text.literal("► Hold [Right Click]: Solar Arc Flame Strike").formatted(Formatting.GOLD));
+        tooltip.add(Text.literal("  - Full charge: 13♥ unarmored | 6♥ vs Diamond Armor").formatted(Formatting.GRAY));
     }
 }

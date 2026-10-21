@@ -91,7 +91,13 @@ public class StormcallerLightningScheduler {
             DamageSource damageSource = (attacker != null && attacker.isAlive())
                     ? world.getDamageSources().playerAttack(attacker)
                     : world.getDamageSources().lightningBolt();
+
+            net.minecraft.util.math.Vec3d prevVel = target.getVelocity();
+            target.timeUntilRegen = 0;
             target.damage(damageSource, barrage.damagePerStrike);
+            // Pin the target with lightning rather than flinging them away out of the barrage
+            target.setVelocity(prevVel.x * 0.2, Math.max(prevVel.y * 0.5, -0.1), prevVel.z * 0.2);
+            target.velocityModified = true;
 
             world.spawnParticles(ParticleTypes.ELECTRIC_SPARK, target.getX(), target.getY() + 1.0, target.getZ(),
                     10, 0.3, 0.4, 0.3, 0.1);

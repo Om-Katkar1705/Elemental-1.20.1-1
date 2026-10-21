@@ -3,6 +3,7 @@ package com.elemental.entity;
 import com.elemental.item.SunforgedScimitarItem;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.projectile.PersistentProjectileEntity;
 import net.minecraft.item.ItemStack;
@@ -27,8 +28,8 @@ public class SolarArcEntity extends PersistentProjectileEntity implements GeoEnt
     public static final int BASE_LIFETIME = 40;
     // Additional lifetime in ticks per Solar Core upgrade level
     public static final int CORE_LIFETIME_BONUS = 20;
-    // Base magic damage dealt by the projectile on hit
-    public static final float BASE_DAMAGE = 5.0f;
+    // Base damage dealt by the projectile on hit at full charge (deals 6 hearts through full diamond armor, 13 hearts unarmored)
+    public static final float BASE_DAMAGE = 26.0f;
     // Damage multiplier applied when projectile or caster is in rain or water (50% reduction)
     public static final float RAIN_DAMAGE_MULTIPLIER = 0.5f;
     // Base duration in seconds the target is set on fire
@@ -133,7 +134,12 @@ public class SolarArcEntity extends PersistentProjectileEntity implements GeoEnt
                 if (entity instanceof EverlivingKnightEntity knight && this.getOwner() instanceof PlayerEntity player) {
                     knight.applySolarArcReaction(player);
                 } else {
-                    entity.damage(this.getDamageSources().magic(), dmg);
+                    DamageSource source = (this.getOwner() instanceof PlayerEntity player)
+                            ? this.getDamageSources().playerAttack(player)
+                            : (this.getOwner() instanceof LivingEntity living)
+                            ? this.getDamageSources().mobAttack(living)
+                            : this.getDamageSources().generic();
+                    entity.damage(source, dmg);
                     entity.setOnFireFor(fireSecs);
                 }
             }
