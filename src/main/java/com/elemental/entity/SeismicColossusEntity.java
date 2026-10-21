@@ -107,6 +107,10 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     public static final int STATE_BLOCK_THROW = 5;
     public static final int STATE_PHASE_TRANSITION = 6;
     public static final int STATE_BREAKOUT = 7;
+    public static final int STATE_FISSURE = 8;
+    public static final int STATE_WAR_ROAR = 9;
+    public static final int STATE_AVALANCHE = 10;
+    public static final int STATE_CHARGE = 11;
 
     // ==================== BOSS BAR ====================
     private final ServerBossBar bossBar;
@@ -118,6 +122,10 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     private int footstepTicker = 0;
     private int tridentStuckTicks = 0;
     private BlockState heldRipBlockState = null;
+
+    // Bull Rush Charge tracking
+    private Vec3d chargeVelocity = Vec3d.ZERO;
+    private int chargeTicks = 0;
 
     // Earthshatter Breakout tracking (when trapped in pit, hole, or buried in solid blocks)
     private int breakoutTimer = 0;
@@ -373,8 +381,13 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             }
         }
 
-        // 6. Attack action ticker (for punches/slams/stomps - never cancel phase transition or breakout)
-        if (getAttackState() != STATE_PHASE_TRANSITION && getAttackState() != STATE_BREAKOUT && this.actionStateTicks > 0) {
+        // 6. Bull Rush Charge Tick
+        if (!this.getWorld().isClient() && getAttackState() == STATE_CHARGE) {
+            tickChargeSequence();
+        }
+
+        // 7. Attack action ticker (never cancel phase transition, breakout, or charge)
+        if (getAttackState() != STATE_PHASE_TRANSITION && getAttackState() != STATE_BREAKOUT && getAttackState() != STATE_CHARGE && this.actionStateTicks > 0) {
             this.actionStateTicks--;
             if (this.actionStateTicks <= 0) {
                 setAttackState(STATE_IDLE);
@@ -838,6 +851,189 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                 ModSounds.SEISMIC_COLOSSUS_THROW, SoundCategory.HOSTILE, 2.0f, 0.6f);
     }
 
+    public void executeFissure(LivingEntity target) {
+        setAttackState(STATE_FISSURE);
+        this.actionStateTicks = 30;
+
+        if (this.getWorld() instanceof ServerWorld serverWorld) {
+            serverWorld.playSound(null, this.getX(), this.getY(), this.getZ(),
+                    ModSounds.SEISMIC_COLOSSUS_SLAM, SoundCategory.HOSTILE, 3.0f, 0.5f);
+            SeismicColossusNetworking.sendScreenShakeNearby(serverWorld, this.getPos(), 30.0, 3.5f, 20);
+
+            Vec3d start = this.getPos().add(0, 0.2, 0);
+            Vec3d diff = target.getPos().subtract(start);
+            Vec3d dir = new Vec3d(diff.x, 0, diff.z);
+            if (dir.lengthSquared() < 0.001) {
+                dir = new Vec3d(0, 0, 1);
+            } else {
+                dir = dir.normalize();
+            }
+            double distance = Math.min(22.0, this.distanceTo(target) + 2.0);
+
+            for (double d = 1.5; d <= distance; d += 1.5) {
+                Vec3d point = start.add(dir.multiply(d));
+                BlockPos floor = new BlockPos((int) Math.floor(point.x), (int) Math.floor(point.y), (int) Math.floor(point.z));
+                while (floor.getY() > serverWorld.getBottomY() && serverWorld.getBlockState(floor).isAir()) {
+                    floor = floor.down();
+                }
+                while (floor.getY() < serverWorld.getTopY() && !serverWorld.getBlockState(floor.up()).isAir()) {
+                    floor = floor.up();
+                }
+                double fy = floor.getY() + 1.0;
+
+                serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
+                        point.x, fy, point.z, 20, 0.3, 0.5, 0.3, 0.15);
+                serverWorld.spawnParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE,
+                        point.x, fy, point.z, 3, 0.2, 0.3, 0.2, 0.02);
+                serverWorld.spawnParticles(ParticleTypes.EXPLOSION,
+                        point.x, fy, point.z, 1, 0, 0, 0, 0);
+
+                Box hitBox = new Box(point.x - 1.2, fy - 0.5, point.z - 1.2, point.x + 1.2, fy + 2.0, point.z + 1.2);
+                List<PlayerEntity> hitPlayers = serverWorld.getEntitiesByClass(PlayerEntity.class, hitBox, LivingEntity::isAlive);
+                for (PlayerEntity player : hitPlayers) {
+                    DamageSource source = this.getDamageSources().mobAttack(this);
+                    player.damage(source, 14.0f);
+                    player.addVelocity(0.0, 0.65, 0.0);
+                    player.velocityModified = true;
+                    player.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, 60, 1));
+                }
+            }
+        }
+    }
+
+    public void executeWarRoar() {
+        setAttackState(STATE_WAR_ROAR);
+        this.actionStateTicks = 35; // 1.75 seconds channel
+
+        if (this.getWorld() instanceof ServerWorld serverWorld) {
+            serverWorld.playSound(null, this.getX(), this.getY() + 2.0, this.getZ(),
+                    ModSounds.SEISMIC_COLOSSUS_ROAR, SoundCategory.HOSTILE, 3.5f, 0.6f);
+            serverWorld.playSound(null, this.getX(), this.getY(), this.getZ(),
+                    SoundEvents.ENTITY_WARDEN_SONIC_BOOM, SoundCategory.HOSTILE, 1.5f, 0.7f);
+
+            SeismicColossusNetworking.sendScreenShakeNearby(serverWorld, this.getPos(), 32.0, 5.0f, 30);
+
+            // Expanding sonic dust ring
+            for (int i = 0; i < 48; i++) {
+                double rad = Math.toRadians(i * 7.5);
+                double px = this.getX() + Math.cos(rad) * 6.0;
+                double pz = this.getZ() + Math.sin(rad) * 6.0;
+                serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
+                        px, this.getY() + 0.2, pz, 5, 0.2, 0.2, 0.2, 0.1);
+                serverWorld.spawnParticles(ParticleTypes.SONIC_BOOM,
+                        this.getX() + Math.cos(rad) * 1.5, this.getY() + 2.0, this.getZ() + Math.sin(rad) * 1.5, 1, 0, 0, 0, 0);
+            }
+
+            Box box = this.getBoundingBox().expand(10.0, 3.0, 10.0);
+            List<PlayerEntity> players = serverWorld.getEntitiesByClass(PlayerEntity.class, box, LivingEntity::isAlive);
+            for (PlayerEntity player : players) {
+                DamageSource source = this.getDamageSources().mobAttack(this);
+                player.damage(source, 8.0f);
+                Vec3d push = player.getPos().subtract(this.getPos()).normalize().multiply(1.6);
+                player.addVelocity(push.x, 0.35, push.z);
+                player.velocityModified = true;
+                player.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, 100, 2));
+                player.addStatusEffect(new StatusEffectInstance(StatusEffects.WEAKNESS, 100, 1));
+            }
+        }
+    }
+
+    public void executeAvalanche(LivingEntity target) {
+        setAttackState(STATE_AVALANCHE);
+        this.actionStateTicks = 30;
+
+        if (this.getWorld() instanceof ServerWorld serverWorld) {
+            serverWorld.playSound(null, this.getX(), this.getY(), this.getZ(),
+                    ModSounds.SEISMIC_COLOSSUS_SLAM, SoundCategory.HOSTILE, 2.5f, 0.5f);
+            SeismicColossusNetworking.sendScreenShakeNearby(serverWorld, this.getPos(), 26.0, 3.0f, 20);
+
+            Vec3d targetPos = target.getPos();
+            Random rng = new Random();
+            int boulderCount = getPhase() >= 3 ? 6 : 4;
+
+            for (int i = 0; i < boulderCount; i++) {
+                double offsetX = (rng.nextDouble() - 0.5) * 6.0;
+                double offsetZ = (rng.nextDouble() - 0.5) * 6.0;
+                double spawnX = targetPos.x + offsetX;
+                double spawnY = targetPos.y + 12.0 + rng.nextDouble() * 3.0;
+                double spawnZ = targetPos.z + offsetZ;
+
+                // Dust marker on ground
+                serverWorld.spawnParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE,
+                        spawnX, targetPos.y + 0.1, spawnZ, 5, 0.3, 0.05, 0.3, 0.01);
+                serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.COBBLESTONE.getDefaultState()),
+                        spawnX, targetPos.y + 0.1, spawnZ, 12, 0.3, 0.05, 0.3, 0.05);
+
+                BlockState boulderState = rng.nextBoolean() ? Blocks.COBBLESTONE.getDefaultState() : Blocks.STONE.getDefaultState();
+                SeismicThrownBlockEntity boulder = new SeismicThrownBlockEntity(this.getWorld(), this, boulderState, 11.0f);
+                boulder.setPos(spawnX, spawnY, spawnZ);
+                boulder.setVelocity(0, -1.0 - rng.nextDouble() * 0.4, 0);
+                serverWorld.spawnEntity(boulder);
+            }
+        }
+    }
+
+    public void startCharge(LivingEntity target) {
+        setAttackState(STATE_CHARGE);
+        this.chargeTicks = 25; // 1.25s sprint
+        this.actionStateTicks = 35;
+        this.getNavigation().stop();
+
+        Vec3d diff = target.getPos().subtract(this.getPos());
+        Vec3d dir = new Vec3d(diff.x, 0, diff.z);
+        if (dir.lengthSquared() < 0.001) {
+            dir = new Vec3d(0, 0, 1);
+        } else {
+            dir = dir.normalize();
+        }
+        this.chargeVelocity = dir.multiply(0.65); // high forward velocity
+
+        if (this.getWorld() instanceof ServerWorld sw) {
+            sw.playSound(null, this.getX(), this.getY(), this.getZ(),
+                    ModSounds.SEISMIC_COLOSSUS_ROAR, SoundCategory.HOSTILE, 2.5f, 0.8f);
+            SeismicColossusNetworking.sendScreenShakeNearby(sw, this.getPos(), 24.0, 3.0f, 15);
+        }
+    }
+
+    private void tickChargeSequence() {
+        if (!(this.getWorld() instanceof ServerWorld sw)) return;
+        this.chargeTicks--;
+
+        if (this.chargeTicks <= 0) {
+            setAttackState(STATE_IDLE);
+            this.executeGroundSlam(); // finish with slam!
+            return;
+        }
+
+        // Apply charge velocity
+        this.setVelocity(this.chargeVelocity.x, this.getVelocity().y, this.chargeVelocity.z);
+        this.velocityModified = true;
+
+        // Dust trail
+        sw.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
+                this.getX(), this.getY() + 0.1, this.getZ(), 10, 1.0, 0.1, 1.0, 0.1);
+        if (this.chargeTicks % 5 == 0) {
+            sw.playSound(null, this.getX(), this.getY(), this.getZ(),
+                    ModSounds.SEISMIC_COLOSSUS_STEP, SoundCategory.HOSTILE, 1.8f, 0.4f);
+        }
+
+        // Check collision with players
+        Box hitBox = this.getBoundingBox().expand(0.8, 0.2, 0.8);
+        List<PlayerEntity> players = sw.getEntitiesByClass(PlayerEntity.class, hitBox, LivingEntity::isAlive);
+        if (!players.isEmpty()) {
+            for (PlayerEntity player : players) {
+                DamageSource source = this.getDamageSources().mobAttack(this);
+                player.damage(source, 16.0f);
+                Vec3d knock = this.chargeVelocity.normalize().multiply(1.5).add(0, 0.5, 0);
+                player.addVelocity(knock.x, knock.y, knock.z);
+                player.velocityModified = true;
+            }
+            // End charge on impact with slam!
+            this.chargeTicks = 0;
+            this.executeGroundSlam();
+        }
+    }
+
     private BlockPos findNearbyRipBlock() {
         BlockPos center = this.getBlockPos();
         World world = this.getWorld();
@@ -1103,13 +1299,14 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             if (attack == STATE_BREAKOUT) {
                 return state.setAndContinue(BREAKOUT_ANIM);
             }
-            if (attack == STATE_PHASE_TRANSITION) {
+            if (attack == STATE_PHASE_TRANSITION || attack == STATE_WAR_ROAR) {
                 return state.setAndContinue(RAGE_ANIM);
             }
-            if (attack == STATE_PUNCH || attack == STATE_SLAM || attack == STATE_ROCK_THROW || attack == STATE_BLOCK_THROW) {
+            if (attack == STATE_PUNCH || attack == STATE_SLAM || attack == STATE_ROCK_THROW || attack == STATE_BLOCK_THROW
+                    || attack == STATE_FISSURE || attack == STATE_AVALANCHE) {
                 return state.setAndContinue(PUNCH_ANIM);
             }
-            if (state.isMoving()) {
+            if (attack == STATE_CHARGE || state.isMoving()) {
                 return state.setAndContinue(WALK_ANIM);
             }
             return state.setAndContinue(IDLE_ANIM);
@@ -1168,6 +1365,10 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
         private int rockThrowCooldown = 140;
         private int blockThrowCooldown = 60;
         private int blockThrowWarmup = -1;
+        private int fissureCooldown = 80;
+        private int warRoarCooldown = 120;
+        private int avalancheCooldown = 140;
+        private int chargeCooldown = 100;
 
         public ColossusCombatGoal(SeismicColossusEntity boss) {
             this.boss = boss;
@@ -1179,7 +1380,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             LivingEntity target = this.boss.getTarget();
             return target != null && target.isAlive()
                     && this.boss.getAttackState() != STATE_PHASE_TRANSITION
-                    && this.boss.getAttackState() != STATE_BREAKOUT;
+                    && this.boss.getAttackState() != STATE_BREAKOUT
+                    && this.boss.getAttackState() != STATE_CHARGE;
         }
 
         @Override
@@ -1190,6 +1392,12 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             this.boss.getLookControl().lookAt(target, 30.0f, 30.0f);
             double distSq = this.boss.squaredDistanceTo(target);
             int phase = this.boss.getPhase();
+
+            // Tick internal ability cooldowns
+            if (this.fissureCooldown > 0) this.fissureCooldown--;
+            if (this.warRoarCooldown > 0) this.warRoarCooldown--;
+            if (this.avalancheCooldown > 0) this.avalancheCooldown--;
+            if (this.chargeCooldown > 0) this.chargeCooldown--;
 
             // 1. Check active block throw windup
             if (this.blockThrowWarmup > 0) {
@@ -1216,10 +1424,18 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             if (phase == 3) {
                 cooldownBase = (int) (cooldownBase * 0.90); // 10% faster attack rate
             }
+            Random rng = new Random();
 
-            // Close-range Melee Attacks (Within 4.5 blocks)
+            // 1. Close-range Melee Attacks (Within 4.5 blocks)
             if (distSq <= 20.25) {
-                Random rng = new Random();
+                // Occasional War Roar pushback if ready
+                if (this.warRoarCooldown <= 0 && rng.nextInt(4) == 0) {
+                    this.boss.executeWarRoar();
+                    this.warRoarCooldown = phase == 3 ? 140 : 180;
+                    this.boss.attackCooldownTicks = cooldownBase;
+                    return;
+                }
+
                 int roll = rng.nextInt(3);
                 if (roll == 0) {
                     this.boss.executeStonePunch(target);
@@ -1232,30 +1448,65 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                 return;
             }
 
-            // Phase 2 & 3: Block Throwing
-            if (phase >= 2) {
-                if (this.blockThrowCooldown > 0) {
-                    this.blockThrowCooldown--;
-                } else if (distSq <= ElementalConfig.get().seismicColossusBlockThrowRange * ElementalConfig.get().seismicColossusBlockThrowRange) {
-                    this.boss.prepareBlockThrow(target);
-                    this.blockThrowWarmup = 15; // windup ticks
-                    int cd = phase == 3 ? 65 : 75; // 10% more frequency in Phase 3
-                    this.blockThrowCooldown = cd;
+            // 2. Medium Range Attacks (4.5 to 14 blocks)
+            if (distSq > 20.25 && distSq <= 196.0) {
+                // Bull Rush Charge
+                if (this.chargeCooldown <= 0 && rng.nextInt(3) == 0) {
+                    this.boss.startCharge(target);
+                    this.chargeCooldown = phase == 3 ? 110 : 150;
+                    this.boss.attackCooldownTicks = cooldownBase;
+                    return;
+                }
+
+                // Fissure Eruption
+                if (this.fissureCooldown <= 0) {
+                    this.boss.executeFissure(target);
+                    this.fissureCooldown = phase == 3 ? 85 : 120;
                     this.boss.attackCooldownTicks = cooldownBase;
                     return;
                 }
             }
 
-            // Phase 1: Occasional weak rock projectile
-            if (phase == 1) {
-                if (this.rockThrowCooldown > 0) {
-                    this.rockThrowCooldown--;
-                } else if (distSq > 16.0 && distSq <= 400.0) {
-                    this.boss.executeRockThrow(target);
-                    this.rockThrowCooldown = 260; // long cooldown (13 seconds)
-                    this.boss.attackCooldownTicks = cooldownBase;
+            // 3. Long Range Attacks (Beyond 14 blocks)
+            if (distSq > 196.0) {
+                // Phase 2 & 3: Boulder Avalanche or Block Throw
+                if (phase >= 2) {
+                    if (this.avalancheCooldown <= 0 && rng.nextBoolean()) {
+                        this.boss.executeAvalanche(target);
+                        this.avalancheCooldown = phase == 3 ? 140 : 180;
+                        this.boss.attackCooldownTicks = cooldownBase;
+                        return;
+                    }
+                    if (this.blockThrowCooldown <= 0 && distSq <= ElementalConfig.get().seismicColossusBlockThrowRange * ElementalConfig.get().seismicColossusBlockThrowRange) {
+                        this.boss.prepareBlockThrow(target);
+                        this.blockThrowWarmup = 15;
+                        int cd = phase == 3 ? 65 : 75;
+                        this.blockThrowCooldown = cd;
+                        this.boss.attackCooldownTicks = cooldownBase;
+                        return;
+                    }
+                }
+
+                // Phase 1 long range: Fissure Eruption or Rock Throw
+                if (phase == 1) {
+                    if (this.fissureCooldown <= 0 && distSq <= 400.0) {
+                        this.boss.executeFissure(target);
+                        this.fissureCooldown = 130;
+                        this.boss.attackCooldownTicks = cooldownBase;
+                        return;
+                    }
+                    if (this.rockThrowCooldown <= 0 && distSq <= 400.0) {
+                        this.boss.executeRockThrow(target);
+                        this.rockThrowCooldown = 200;
+                        this.boss.attackCooldownTicks = cooldownBase;
+                        return;
+                    }
                 }
             }
+
+            // Decrement remaining timers when not used
+            if (this.blockThrowCooldown > 0) this.blockThrowCooldown--;
+            if (this.rockThrowCooldown > 0) this.rockThrowCooldown--;
         }
     }
 
