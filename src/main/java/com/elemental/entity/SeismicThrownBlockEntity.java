@@ -27,9 +27,13 @@ import net.minecraft.world.World;
 
 public class SeismicThrownBlockEntity extends ProjectileEntity {
 
-    private static final TrackedData<Integer> BLOCK_STATE_ID = DataTracker.registerData(SeismicThrownBlockEntity.class, TrackedDataHandlerRegistry.INTEGER);
+    // ==================== CONFIGURATION VARIABLES ====================
+    public static float DEFAULT_IMPACT_DAMAGE = 14.0f;
 
-    private float impactDamage = 12.0f;
+    private static final TrackedData<Integer> BLOCK_STATE_ID = DataTracker.registerData(SeismicThrownBlockEntity.class,
+            TrackedDataHandlerRegistry.INTEGER);
+
+    private float impactDamage = DEFAULT_IMPACT_DAMAGE;
     private int lifeTicks = 0;
 
     public SeismicThrownBlockEntity(EntityType<? extends SeismicThrownBlockEntity> entityType, World world) {
@@ -56,7 +60,8 @@ public class SeismicThrownBlockEntity extends ProjectileEntity {
     }
 
     public void setBlockState(BlockState state) {
-        this.dataTracker.set(BLOCK_STATE_ID, Block.getRawIdFromState(state != null ? state : Blocks.COBBLESTONE.getDefaultState()));
+        this.dataTracker.set(BLOCK_STATE_ID,
+                Block.getRawIdFromState(state != null ? state : Blocks.COBBLESTONE.getDefaultState()));
     }
 
     @Override
@@ -101,7 +106,8 @@ public class SeismicThrownBlockEntity extends ProjectileEntity {
         Entity target = entityHitResult.getEntity();
         Entity owner = this.getOwner();
 
-        if (target == owner) return;
+        if (target == owner)
+            return;
 
         DamageSource source = this.getDamageSources().thrown(this, owner != null ? owner : this);
         target.damage(source, this.impactDamage);

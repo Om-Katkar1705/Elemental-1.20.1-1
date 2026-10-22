@@ -42,6 +42,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class ChronicleGuideEntity extends PathAwareEntity {
+
+    // ==================== CONFIGURATION VARIABLES ====================
+    public static double MAX_HEALTH = 100.0;
+    public static double MOVEMENT_SPEED = 0.22;
+    public static double FOLLOW_RANGE = 16.0;
+    public static double KNOCKBACK_RESISTANCE = 1.0;
+
     private BlockPos homePos;
 
     public ChronicleGuideEntity(EntityType<? extends PathAwareEntity> entityType, World world) {
@@ -53,10 +60,10 @@ public class ChronicleGuideEntity extends PathAwareEntity {
 
     public static DefaultAttributeContainer.Builder createGuideAttributes() {
         return PathAwareEntity.createMobAttributes()
-                .add(EntityAttributes.GENERIC_MAX_HEALTH, 100.0)
-                .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.22)
-                .add(EntityAttributes.GENERIC_FOLLOW_RANGE, 16.0)
-                .add(EntityAttributes.GENERIC_KNOCKBACK_RESISTANCE, 1.0);
+                .add(EntityAttributes.GENERIC_MAX_HEALTH, MAX_HEALTH)
+                .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, MOVEMENT_SPEED)
+                .add(EntityAttributes.GENERIC_FOLLOW_RANGE, FOLLOW_RANGE)
+                .add(EntityAttributes.GENERIC_KNOCKBACK_RESISTANCE, KNOCKBACK_RESISTANCE);
     }
 
     @Override

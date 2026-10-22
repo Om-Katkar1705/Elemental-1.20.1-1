@@ -19,7 +19,10 @@ import net.minecraft.world.World;
 
 public class SeismicRockEntity extends PersistentProjectileEntity implements FlyingItemEntity {
 
-    private float rockDamage = 4.0f;
+    // ==================== CONFIGURATION VARIABLES ====================
+    public static float DEFAULT_ROCK_DAMAGE = 8.0f;
+
+    private float rockDamage = DEFAULT_ROCK_DAMAGE;
 
     public SeismicRockEntity(EntityType<? extends SeismicRockEntity> type, World world) {
         super(type, world);
@@ -62,8 +65,7 @@ public class SeismicRockEntity extends PersistentProjectileEntity implements Fly
             serverWorld.spawnParticles(
                     new ItemStackParticleEffect(ParticleTypes.ITEM, new ItemStack(Items.COBBLESTONE)),
                     this.getX(), this.getY(), this.getZ(),
-                    15, 0.2, 0.2, 0.2, 0.05
-            );
+                    15, 0.2, 0.2, 0.2, 0.05);
             serverWorld.playSound(null, this.getX(), this.getY(), this.getZ(),
                     SoundEvents.BLOCK_STONE_BREAK, SoundCategory.HOSTILE, 1.0f, 1.2f);
         }

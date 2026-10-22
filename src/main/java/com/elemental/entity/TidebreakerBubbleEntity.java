@@ -22,6 +22,10 @@ import java.util.UUID;
 
 public class TidebreakerBubbleEntity extends Entity {
 
+    // ==================== CONFIGURATION VARIABLES ====================
+    public static double UPWARD_SPEED = 0.28;
+    public static float NETHER_DURATION_MULTIPLIER = 0.5f;
+
     private static final TrackedData<Integer> TARGET_ID = DataTracker.registerData(TidebreakerBubbleEntity.class, TrackedDataHandlerRegistry.INTEGER);
 
     private int targetId = -1;
@@ -47,9 +51,9 @@ public class TidebreakerBubbleEntity extends Entity {
         double multiplier = TidebreakerTridentItem.getBiomeBubbleMultiplier(target);
         duration = (int) (duration * multiplier);
 
-        // Ultrawarm dimensions (such as the Nether): 50% duration reduction
+        // Ultrawarm dimensions (such as the Nether): duration reduction
         if (world.getDimension().ultrawarm()) {
-            duration = duration / 2;
+            duration = (int) (duration * NETHER_DURATION_MULTIPLIER);
         }
         this.maxDurationTicks = duration;
     }
@@ -97,7 +101,7 @@ public class TidebreakerBubbleEntity extends Entity {
         }
 
         // Controlled upward motion (lifts smoothly ~30-40 blocks across duration)
-        double upwardSpeed = 0.28;
+        double upwardSpeed = UPWARD_SPEED;
         target.setVelocity(target.getVelocity().x * 0.2, upwardSpeed, target.getVelocity().z * 0.2);
         target.velocityModified = true;
         target.fallDistance = 0.0f;

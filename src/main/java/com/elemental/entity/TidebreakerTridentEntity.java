@@ -31,6 +31,10 @@ import software.bernie.geckolib.util.GeckoLibUtil;
 
 public class TidebreakerTridentEntity extends PersistentProjectileEntity implements GeoEntity {
 
+    // ==================== CONFIGURATION VARIABLES ====================
+    public static float DEFAULT_BASE_DAMAGE = TidebreakerTridentItem.PROJECTILE_BASE_DAMAGE;
+    public static double RETURN_SPEED_MULTIPLIER = 0.05;
+
     private static final RawAnimation TRAVEL_ANIM = RawAnimation.begin().thenLoop("animation.tidebreaker_trident.idle");
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
 
@@ -117,7 +121,7 @@ public class TidebreakerTridentEntity extends PersistentProjectileEntity impleme
                     this.lastRenderY = this.getY();
                 }
 
-                double speed = 0.05 * (double) loyalty;
+                double speed = RETURN_SPEED_MULTIPLIER * (double) loyalty;
                 this.setVelocity(this.getVelocity().multiply(0.95).add(ownerEyes.normalize().multiply(speed)));
 
                 if (this.returnTimer == 0) {
@@ -169,7 +173,7 @@ public class TidebreakerTridentEntity extends PersistentProjectileEntity impleme
     @Override
     protected void onEntityHit(EntityHitResult entityHitResult) {
         Entity target = entityHitResult.getEntity();
-        float damage = TidebreakerTridentItem.PROJECTILE_BASE_DAMAGE;
+        float damage = DEFAULT_BASE_DAMAGE;
 
         // Apply biome bonus damage
         damage += TidebreakerTridentItem.getBiomeMeleeBonus(this);

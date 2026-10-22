@@ -29,6 +29,17 @@ import software.bernie.geckolib.util.GeckoLibUtil;
 
 public class ColossusMiniEntity extends HostileEntity implements GeoEntity {
 
+    // ==================== CONFIGURATION VARIABLES ====================
+    public static double MAX_HEALTH = 10.0;
+    public static double ATTACK_DAMAGE = 2.0;
+    public static double MOVEMENT_SPEED = 0.30;
+    public static double ARMOR = 4.0;
+    public static double KNOCKBACK_RESISTANCE = 1.0;
+    public static double FOLLOW_RANGE = 32.0;
+    public static int EXPERIENCE_POINTS = 3;
+    public static double ATTACK_CHASE_SPEED = 1.25;
+    public static double WANDER_SPEED = 0.8;
+
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
 
     protected static final RawAnimation IDLE_ANIM = RawAnimation.begin().thenLoop("animation.colossus_mini.idle");
@@ -37,24 +48,24 @@ public class ColossusMiniEntity extends HostileEntity implements GeoEntity {
 
     public ColossusMiniEntity(EntityType<? extends HostileEntity> entityType, World world) {
         super(entityType, world);
-        this.experiencePoints = 3;
+        this.experiencePoints = EXPERIENCE_POINTS;
     }
 
     public static DefaultAttributeContainer.Builder createMiniAttributes() {
         return HostileEntity.createHostileAttributes()
-                .add(EntityAttributes.GENERIC_MAX_HEALTH, 10.0) // 5 hearts
-                .add(EntityAttributes.GENERIC_ATTACK_DAMAGE, 2.0) // 1 heart
-                .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.30) // Pressuring speed
-                .add(EntityAttributes.GENERIC_ARMOR, 4.0)
-                .add(EntityAttributes.GENERIC_KNOCKBACK_RESISTANCE, 0.4)
-                .add(EntityAttributes.GENERIC_FOLLOW_RANGE, 32.0);
+                .add(EntityAttributes.GENERIC_MAX_HEALTH, MAX_HEALTH)
+                .add(EntityAttributes.GENERIC_ATTACK_DAMAGE, ATTACK_DAMAGE)
+                .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, MOVEMENT_SPEED)
+                .add(EntityAttributes.GENERIC_ARMOR, ARMOR)
+                .add(EntityAttributes.GENERIC_KNOCKBACK_RESISTANCE, KNOCKBACK_RESISTANCE)
+                .add(EntityAttributes.GENERIC_FOLLOW_RANGE, FOLLOW_RANGE);
     }
 
     @Override
     protected void initGoals() {
         this.goalSelector.add(1, new SwimGoal(this));
-        this.goalSelector.add(2, new MeleeAttackGoal(this, 1.25, false));
-        this.goalSelector.add(3, new WanderAroundFarGoal(this, 0.8));
+        this.goalSelector.add(2, new MeleeAttackGoal(this, ATTACK_CHASE_SPEED, false));
+        this.goalSelector.add(3, new WanderAroundFarGoal(this, WANDER_SPEED));
         this.goalSelector.add(4, new LookAtEntityGoal(this, PlayerEntity.class, 8.0f));
         this.goalSelector.add(5, new LookAroundGoal(this));
 
@@ -76,7 +87,8 @@ public class ColossusMiniEntity extends HostileEntity implements GeoEntity {
     public void onDeath(DamageSource damageSource) {
         super.onDeath(damageSource);
         if (this.getWorld() instanceof ServerWorld serverWorld) {
-            serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
+            serverWorld.spawnParticles(
+                    new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
                     this.getX(), this.getY() + 0.5, this.getZ(),
                     20, 0.3, 0.3, 0.3, 0.1);
         }

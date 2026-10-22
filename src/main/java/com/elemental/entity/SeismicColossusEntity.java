@@ -75,11 +75,28 @@ import java.util.Map;
 import java.util.Random;
 
 /**
- * Seismic Colossus — A towering, ancient stone titan boss made from giant stones.
- * Features 3 dramatic combat phases, terrain ripping/block-throwing, screen shake,
+ * Seismic Colossus — A towering, ancient stone titan boss made from giant
+ * stones.
+ * Features 3 dramatic combat phases, terrain ripping/block-throwing, screen
+ * shake,
  * and a deep weapon-sticking mechanic freed with the Stormcaller Hammer.
  */
 public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
+
+    // ==================== CONFIGURATION VARIABLES ====================
+    public static double ARMOR = 14.0;
+    public static double ARMOR_TOUGHNESS = 6.0;
+    public static double KNOCKBACK_RESISTANCE = 1.0;
+    public static double FOLLOW_RANGE = 48.0;
+    public static int EXPERIENCE_POINTS = 100;
+
+    // Special Attack Damages
+    public static float SLAM_DAMAGE = 10.0f;
+    public static float STOMP_DAMAGE = 7.0f;
+    public static float FISSURE_DAMAGE = 12.0f;
+    public static float WAR_ROAR_DAMAGE = 7.0f;
+    public static float CHARGE_DAMAGE = 14.0f;
+    public static float BREAKOUT_DAMAGE = 12.0f;
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
 
@@ -88,22 +105,33 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     protected static final RawAnimation WALK_ANIM = RawAnimation.begin().thenLoop("animation.seismic_colossus.walk");
     protected static final RawAnimation PUNCH_ANIM = RawAnimation.begin().thenPlay("animation.seismic_colossus.punch");
     protected static final RawAnimation RAGE_ANIM = RawAnimation.begin().thenPlay("animation.seismic_colossus.rage");
-    protected static final RawAnimation DEATH_ANIM = RawAnimation.begin().thenPlayAndHold("animation.seismic_colossus.death");
-    protected static final RawAnimation BREAKOUT_ANIM = RawAnimation.begin().thenPlay("animation.seismic_colossus.breakout");
+    protected static final RawAnimation DEATH_ANIM = RawAnimation.begin()
+            .thenPlayAndHold("animation.seismic_colossus.death");
+    protected static final RawAnimation BREAKOUT_ANIM = RawAnimation.begin()
+            .thenPlay("animation.seismic_colossus.breakout");
     protected static final RawAnimation SLAM_ANIM = RawAnimation.begin().thenPlay("animation.seismic_colossus.slam");
     protected static final RawAnimation STOMP_ANIM = RawAnimation.begin().thenPlay("animation.seismic_colossus.stomp");
     protected static final RawAnimation THROW_ANIM = RawAnimation.begin().thenPlay("animation.seismic_colossus.throw");
-    protected static final RawAnimation FISSURE_ANIM = RawAnimation.begin().thenPlay("animation.seismic_colossus.fissure");
-    protected static final RawAnimation WAR_ROAR_ANIM = RawAnimation.begin().thenPlay("animation.seismic_colossus.war_roar");
-    protected static final RawAnimation AVALANCHE_ANIM = RawAnimation.begin().thenPlay("animation.seismic_colossus.avalanche");
-    protected static final RawAnimation CHARGE_ANIM = RawAnimation.begin().thenLoop("animation.seismic_colossus.charge");
+    protected static final RawAnimation FISSURE_ANIM = RawAnimation.begin()
+            .thenPlay("animation.seismic_colossus.fissure");
+    protected static final RawAnimation WAR_ROAR_ANIM = RawAnimation.begin()
+            .thenPlay("animation.seismic_colossus.war_roar");
+    protected static final RawAnimation AVALANCHE_ANIM = RawAnimation.begin()
+            .thenPlay("animation.seismic_colossus.avalanche");
+    protected static final RawAnimation CHARGE_ANIM = RawAnimation.begin()
+            .thenLoop("animation.seismic_colossus.charge");
 
     // ==================== TRACKED DATA ====================
-    public static final TrackedData<Integer> PHASE = DataTracker.registerData(SeismicColossusEntity.class, TrackedDataHandlerRegistry.INTEGER);
-    public static final TrackedData<Integer> ATTACK_STATE = DataTracker.registerData(SeismicColossusEntity.class, TrackedDataHandlerRegistry.INTEGER);
-    public static final TrackedData<Boolean> INVULNERABLE_STATE = DataTracker.registerData(SeismicColossusEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
-    public static final TrackedData<NbtCompound> STUCK_WEAPONS_DATA = DataTracker.registerData(SeismicColossusEntity.class, TrackedDataHandlerRegistry.NBT_COMPOUND);
-    public static final TrackedData<Boolean> TRIDENT_STUCK = DataTracker.registerData(SeismicColossusEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
+    public static final TrackedData<Integer> PHASE = DataTracker.registerData(SeismicColossusEntity.class,
+            TrackedDataHandlerRegistry.INTEGER);
+    public static final TrackedData<Integer> ATTACK_STATE = DataTracker.registerData(SeismicColossusEntity.class,
+            TrackedDataHandlerRegistry.INTEGER);
+    public static final TrackedData<Boolean> INVULNERABLE_STATE = DataTracker.registerData(SeismicColossusEntity.class,
+            TrackedDataHandlerRegistry.BOOLEAN);
+    public static final TrackedData<NbtCompound> STUCK_WEAPONS_DATA = DataTracker
+            .registerData(SeismicColossusEntity.class, TrackedDataHandlerRegistry.NBT_COMPOUND);
+    public static final TrackedData<Boolean> TRIDENT_STUCK = DataTracker.registerData(SeismicColossusEntity.class,
+            TrackedDataHandlerRegistry.BOOLEAN);
 
     // Attack State constants
     public static final int STATE_IDLE = 0;
@@ -134,7 +162,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     private Vec3d chargeVelocity = Vec3d.ZERO;
     private int chargeTicks = 0;
 
-    // Earthshatter Breakout tracking (when trapped in pit, hole, or buried in solid blocks)
+    // Earthshatter Breakout tracking (when trapped in pit, hole, or buried in solid
+    // blocks)
     private int breakoutTimer = 0;
     private boolean isBreakoutAirborne = false;
     private int trappedTicks = 0;
@@ -176,7 +205,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             sw.offsetX = tag.getDouble("X");
             sw.offsetY = tag.getDouble("Y");
             sw.offsetZ = tag.getDouble("Z");
-            // Fix any legacy floating coordinates: always anchor cleanly to the front stone torso
+            // Fix any legacy floating coordinates: always anchor cleanly to the front stone
+            // torso
             if (sw.offsetZ < -0.35 || sw.offsetY < 2.0 || sw.offsetY > 3.5 || !"Body".equals(sw.boneName)) {
                 sw.boneName = "Body";
                 sw.offsetX = 0.0;
@@ -191,13 +221,12 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
 
     public SeismicColossusEntity(EntityType<? extends HostileEntity> entityType, World world) {
         super(entityType, world);
-        this.experiencePoints = 100;
+        this.experiencePoints = EXPERIENCE_POINTS;
 
         this.bossBar = new ServerBossBar(
                 this.getDisplayName(),
                 BossBar.Color.GREEN,
-                BossBar.Style.NOTCHED_10
-        );
+                BossBar.Style.NOTCHED_10);
         this.bossBar.setDarkenSky(true);
         this.bossBar.setDragonMusic(false);
     }
@@ -208,10 +237,10 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                 .add(EntityAttributes.GENERIC_MAX_HEALTH, config.seismicColossusPhase1Health)
                 .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, config.seismicColossusSpeed)
                 .add(EntityAttributes.GENERIC_ATTACK_DAMAGE, config.seismicColossusBaseDamage)
-                .add(EntityAttributes.GENERIC_ARMOR, 14.0)
-                .add(EntityAttributes.GENERIC_ARMOR_TOUGHNESS, 6.0)
-                .add(EntityAttributes.GENERIC_KNOCKBACK_RESISTANCE, 1.0)
-                .add(EntityAttributes.GENERIC_FOLLOW_RANGE, 48.0);
+                .add(EntityAttributes.GENERIC_ARMOR, ARMOR)
+                .add(EntityAttributes.GENERIC_ARMOR_TOUGHNESS, ARMOR_TOUGHNESS)
+                .add(EntityAttributes.GENERIC_KNOCKBACK_RESISTANCE, KNOCKBACK_RESISTANCE)
+                .add(EntityAttributes.GENERIC_FOLLOW_RANGE, FOLLOW_RANGE);
     }
 
     @Override
@@ -307,7 +336,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
 
     private void updateBossBarTitle() {
         int phase = getPhase();
-        Formatting colorFormat = phase == 1 ? Formatting.DARK_GREEN : (phase == 2 ? Formatting.GOLD : Formatting.DARK_RED);
+        Formatting colorFormat = phase == 1 ? Formatting.DARK_GREEN
+                : (phase == 2 ? Formatting.GOLD : Formatting.DARK_RED);
         String phaseName = phase == 1 ? "Stone Guardian" : (phase == 2 ? "Living Quarry" : "Seismic Rage");
 
         this.bossBar.setName(Text.literal("Seismic Colossus — " + phaseName).formatted(colorFormat, Formatting.BOLD));
@@ -357,7 +387,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             }
         }
 
-        // 4. Server-side Phase Transition & Snappy Regeneration (Prevents permanent invulnerability bug)
+        // 4. Server-side Phase Transition & Snappy Regeneration (Prevents permanent
+        // invulnerability bug)
         if (!this.getWorld().isClient()) {
             if (getAttackState() == STATE_PHASE_TRANSITION) {
                 this.getNavigation().stop();
@@ -367,19 +398,22 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                 this.setHealth(Math.max(1.0f, maxHp * progress));
 
                 if (this.phaseTransitionTimer % 4 == 0 && this.getWorld() instanceof ServerWorld sw) {
-                    sw.spawnParticles(ParticleTypes.WAX_OFF, this.getX(), this.getY() + 1.8, this.getZ(), 8, 0.8, 1.0, 0.8, 0.05);
+                    sw.spawnParticles(ParticleTypes.WAX_OFF, this.getX(), this.getY() + 1.8, this.getZ(), 8, 0.8, 1.0,
+                            0.8, 0.05);
                 }
 
                 if (this.phaseTransitionTimer >= 30) {
                     this.completePhaseTransition();
                 }
             } else if (isInvulnerablePhase()) {
-                // Safety failsafe: If not actively transitioning, invulnerability MUST be turned off
+                // Safety failsafe: If not actively transitioning, invulnerability MUST be
+                // turned off
                 setInvulnerablePhase(false);
             }
         }
 
-        // 5. Server-side Earthshatter Breakout (Pulverizes blocks and leaps out of rift holes / pits)
+        // 5. Server-side Earthshatter Breakout (Pulverizes blocks and leaps out of rift
+        // holes / pits)
         if (!this.getWorld().isClient()) {
             if (getAttackState() == STATE_BREAKOUT) {
                 tickBreakoutSequence();
@@ -394,7 +428,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
         }
 
         // 7. Attack action ticker (never cancel phase transition, breakout, or charge)
-        if (getAttackState() != STATE_PHASE_TRANSITION && getAttackState() != STATE_BREAKOUT && getAttackState() != STATE_CHARGE && this.actionStateTicks > 0) {
+        if (getAttackState() != STATE_PHASE_TRANSITION && getAttackState() != STATE_BREAKOUT
+                && getAttackState() != STATE_CHARGE && this.actionStateTicks > 0) {
             this.actionStateTicks--;
             if (this.actionStateTicks <= 0) {
                 setAttackState(STATE_IDLE);
@@ -413,7 +448,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                     ModSounds.SEISMIC_COLOSSUS_STEP, SoundCategory.HOSTILE, 1.6f, 0.6f);
 
             // Ground dust particles
-            serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
+            serverWorld.spawnParticles(
+                    new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
                     this.getX(), this.getY() + 0.1, this.getZ(),
                     25, 1.2, 0.1, 1.2, 0.1);
             serverWorld.spawnParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE,
@@ -436,7 +472,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             return false;
         }
 
-        // Safety failsafe: if not in active phase transition, force clear invulnerability
+        // Safety failsafe: if not in active phase transition, force clear
+        // invulnerability
         if (getAttackState() != STATE_PHASE_TRANSITION && isInvulnerablePhase()) {
             setInvulnerablePhase(false);
         }
@@ -458,7 +495,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                 if (this.getWorld() instanceof ServerWorld sw) {
                     sw.playSound(null, this.getX(), this.getY() + 2.0, this.getZ(),
                             SoundEvents.ITEM_TRIDENT_HIT, SoundCategory.PLAYERS, 2.0f, 0.7f);
-                    sw.spawnParticles(ParticleTypes.SPLASH, this.getX(), this.getY() + 2.0, this.getZ(), 20, 0.3, 0.3, 0.3, 0.1);
+                    sw.spawnParticles(ParticleTypes.SPLASH, this.getX(), this.getY() + 2.0, this.getZ(), 20, 0.3, 0.3,
+                            0.3, 0.1);
                 }
             }
         }
@@ -473,7 +511,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                     handleHammerStrike(player);
                 }
             }
-            // Stickable weapon check during Phase 2 & 3: Only when melee attacks are CONTINUOUS!
+            // Stickable weapon check during Phase 2 & 3: Only when melee attacks are
+            // CONTINUOUS!
             else if (getPhase() >= 2 && isStickableWeapon(held)) {
                 long currentTick = this.getWorld().getTime();
                 Long lastTick = this.lastMeleeHitTime.get(player.getUuid());
@@ -488,9 +527,12 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                     if (this.getWorld() instanceof ServerWorld sw) {
                         sw.playSound(null, this.getX(), this.getY() + 2.0, this.getZ(),
                                 SoundEvents.BLOCK_GRINDSTONE_USE, SoundCategory.HOSTILE, 1.4f, 1.2f);
-                        sw.spawnParticles(ParticleTypes.CRIT, this.getX(), this.getY() + 2.0, this.getZ(), 10, 0.2, 0.2, 0.2, 0.1);
+                        sw.spawnParticles(ParticleTypes.CRIT, this.getX(), this.getY() + 2.0, this.getZ(), 10, 0.2, 0.2,
+                                0.2, 0.1);
                     }
-                    player.sendMessage(Text.literal("§6⚠ The stone hide is gripping your weapon! Step back or it will get stuck!"), true);
+                    player.sendMessage(
+                            Text.literal("§6⚠ The stone hide is gripping your weapon! Step back or it will get stuck!"),
+                            true);
                 } else if (streak >= 3) {
                     this.consecutiveMeleeHits.remove(player.getUuid());
                     this.lastMeleeHitTime.remove(player.getUuid());
@@ -512,12 +554,14 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     }
 
     private boolean isStormcallerHammer(ItemStack stack) {
-        if (stack.isEmpty()) return false;
+        if (stack.isEmpty())
+            return false;
         return stack.isOf(ModItems.STORMCALLER_HAMMER) || stack.getItem() instanceof StormcallerHammerItem;
     }
 
     private boolean isStickableWeapon(ItemStack stack) {
-        if (stack.isEmpty()) return false;
+        if (stack.isEmpty())
+            return false;
         Item item = stack.getItem();
         if (item instanceof SunforgedScimitarItem || item instanceof FrostwakePickItem
                 || item instanceof RootboundAxeItem || item instanceof AshenRiftBladeItem) {
@@ -539,8 +583,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
 
         // Stagger positions across the chest plate
         int count = this.stuckWeapons.size();
-        double[] xOffsets = {-0.4, 0.4, -0.15, 0.15, -0.55, 0.55, 0.0};
-        double[] yOffsets = {2.7, 2.5, 3.0, 2.3, 2.8, 2.6, 2.4};
+        double[] xOffsets = { -0.4, 0.4, -0.15, 0.15, -0.55, 0.55, 0.0 };
+        double[] yOffsets = { 2.7, 2.5, 3.0, 2.3, 2.8, 2.6, 2.4 };
         int idx = count % xOffsets.length;
 
         sw.offsetX = xOffsets[idx] + (Math.random() - 0.5) * 0.1;
@@ -558,24 +602,31 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                     SoundEvents.BLOCK_ANVIL_PLACE, SoundCategory.HOSTILE, 1.8f, 0.7f);
             serverWorld.spawnParticles(ParticleTypes.CRIT, this.getX(), this.getY() + 2.0, this.getZ(),
                     25, 0.4, 0.4, 0.4, 0.15);
-            serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
+            serverWorld.spawnParticles(
+                    new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
                     this.getX(), this.getY() + 2.0, this.getZ(), 20, 0.3, 0.3, 0.3, 0.1);
         }
 
-        player.sendMessage(Text.literal("Your weapon got stuck into the Colossus's stone chest! Hit it with a Stormcaller Hammer to free it!").formatted(Formatting.GOLD, Formatting.BOLD), true);
+        player.sendMessage(Text.literal(
+                "Your weapon got stuck into the Colossus's stone chest! Hit it with a Stormcaller Hammer to free it!")
+                .formatted(Formatting.GOLD, Formatting.BOLD), true);
     }
 
     private void handleHammerStrike(PlayerEntity player) {
-        if (this.stuckWeapons.isEmpty()) return;
+        if (this.stuckWeapons.isEmpty())
+            return;
 
         StuckWeapon target = this.stuckWeapons.get(0);
         target.hitsRemaining--;
 
         if (this.getWorld() instanceof ServerWorld serverWorld) {
             // Sparks & cracks feedback
-            serverWorld.spawnParticles(ParticleTypes.CRIT, this.getX(), this.getY() + 2.0, this.getZ(), 25, 0.3, 0.3, 0.3, 0.15);
-            serverWorld.spawnParticles(ParticleTypes.WAX_OFF, this.getX(), this.getY() + 2.0, this.getZ(), 20, 0.3, 0.3, 0.3, 0.1);
-            serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.CRACKED_STONE_BRICKS.getDefaultState()),
+            serverWorld.spawnParticles(ParticleTypes.CRIT, this.getX(), this.getY() + 2.0, this.getZ(), 25, 0.3, 0.3,
+                    0.3, 0.15);
+            serverWorld.spawnParticles(ParticleTypes.WAX_OFF, this.getX(), this.getY() + 2.0, this.getZ(), 20, 0.3, 0.3,
+                    0.3, 0.1);
+            serverWorld.spawnParticles(
+                    new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.CRACKED_STONE_BRICKS.getDefaultState()),
                     this.getX(), this.getY() + 2.0, this.getZ(), 30, 0.4, 0.4, 0.4, 0.1);
 
             serverWorld.playSound(null, this.getX(), this.getY() + 2.0, this.getZ(),
@@ -587,7 +638,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             this.stuckWeapons.remove(0);
             this.syncStuckWeapons();
 
-            ItemEntity drop = new ItemEntity(this.getWorld(), this.getX(), this.getY() + 1.5, this.getZ(), target.stack);
+            ItemEntity drop = new ItemEntity(this.getWorld(), this.getX(), this.getY() + 1.5, this.getZ(),
+                    target.stack);
             drop.setVelocity((Math.random() - 0.5) * 0.3, 0.45, (Math.random() - 0.5) * 0.3);
             this.getWorld().spawnEntity(drop);
 
@@ -595,9 +647,12 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                 serverWorld.playSound(null, this.getX(), this.getY() + 1.5, this.getZ(),
                         SoundEvents.BLOCK_ANVIL_BREAK, SoundCategory.PLAYERS, 1.4f, 1.4f);
             }
-            player.sendMessage(Text.literal("You dislodged a stuck weapon!").formatted(Formatting.GREEN, Formatting.BOLD), true);
+            player.sendMessage(
+                    Text.literal("You dislodged a stuck weapon!").formatted(Formatting.GREEN, Formatting.BOLD), true);
         } else {
-            player.sendMessage(Text.literal("Hammer strike cracked the stone! " + target.hitsRemaining + " hits remaining to free weapon!").formatted(Formatting.YELLOW), true);
+            player.sendMessage(Text.literal(
+                    "Hammer strike cracked the stone! " + target.hitsRemaining + " hits remaining to free weapon!")
+                    .formatted(Formatting.YELLOW), true);
         }
     }
 
@@ -621,7 +676,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                     ModSounds.SEISMIC_COLOSSUS_ROAR, SoundCategory.HOSTILE, 3.0f, 0.7f);
 
             // Falling rock / explosion particles
-            serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
+            serverWorld.spawnParticles(
+                    new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
                     this.getX(), this.getY() + 3.0, this.getZ(), 80, 2.0, 2.0, 2.0, 0.2);
             serverWorld.spawnParticles(ParticleTypes.EXPLOSION,
                     this.getX(), this.getY() + 2.0, this.getZ(), 5, 1.0, 1.0, 1.0, 0.0);
@@ -635,24 +691,31 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                         SoundEvents.BLOCK_AMETHYST_CLUSTER_BREAK, SoundCategory.HOSTILE, 3.5f, 0.7f);
                 serverWorld.playSound(null, this.getX(), this.getY() + 2.0, this.getZ(),
                         SoundEvents.ENTITY_IRON_GOLEM_DAMAGE, SoundCategory.HOSTILE, 2.5f, 0.5f);
-                serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.AMETHYST_BLOCK.getDefaultState()),
+                serverWorld.spawnParticles(
+                        new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.AMETHYST_BLOCK.getDefaultState()),
                         this.getX() + 1.5, this.getY() + 2.0, this.getZ(), 100, 1.0, 1.2, 1.0, 0.25);
                 serverWorld.spawnParticles(ParticleTypes.PORTAL,
                         this.getX() + 1.5, this.getY() + 2.0, this.getZ(), 40, 0.8, 1.0, 0.8, 0.1);
                 serverWorld.getServer().getPlayerManager().broadcast(
-                        Text.literal("§5§l[Seismic Colossus] §cThe purple crystal hand shatters and breaks off! Phase 2: Living Quarry has begun!"), false);
+                        Text.literal(
+                                "§5§l[Seismic Colossus] §cThe purple crystal hand shatters and breaks off! Phase 2: Living Quarry has begun!"),
+                        false);
             } else if (nextPhase == 3) {
                 // Entire purple arm breaks off completely!
                 serverWorld.playSound(null, this.getX(), this.getY() + 2.5, this.getZ(),
                         SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.HOSTILE, 3.0f, 0.6f);
                 serverWorld.playSound(null, this.getX(), this.getY() + 2.5, this.getZ(),
                         SoundEvents.BLOCK_ANVIL_DESTROY, SoundCategory.HOSTILE, 2.8f, 0.6f);
-                serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.CRYING_OBSIDIAN.getDefaultState()),
+                serverWorld.spawnParticles(
+                        new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.CRYING_OBSIDIAN.getDefaultState()),
                         this.getX() + 1.5, this.getY() + 2.5, this.getZ(), 120, 1.2, 1.5, 1.2, 0.3);
-                serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.AMETHYST_CLUSTER.getDefaultState()),
+                serverWorld.spawnParticles(
+                        new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.AMETHYST_CLUSTER.getDefaultState()),
                         this.getX() + 1.5, this.getY() + 2.5, this.getZ(), 80, 1.0, 1.2, 1.0, 0.2);
                 serverWorld.getServer().getPlayerManager().broadcast(
-                        Text.literal("§4§l[Seismic Colossus] §cThe entire purple arm breaks completely off! The titan enters an unstoppable Seismic Rage!"), false);
+                        Text.literal(
+                                "§4§l[Seismic Colossus] §cThe entire purple arm breaks completely off! The titan enters an unstoppable Seismic Rage!"),
+                        false);
             }
         }
     }
@@ -692,7 +755,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     }
 
     private void spawnColossusMinions() {
-        if (!(this.getWorld() instanceof ServerWorld serverWorld)) return;
+        if (!(this.getWorld() instanceof ServerWorld serverWorld))
+            return;
 
         int count = ElementalConfig.get().seismicColossusMinionCount;
         for (int i = 0; i < count; i++) {
@@ -705,7 +769,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             serverWorld.spawnEntityAndPassengers(minion);
 
             serverWorld.spawnParticles(ParticleTypes.POOF, spawnX, this.getY() + 0.5, spawnZ, 15, 0.4, 0.4, 0.4, 0.05);
-            serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
+            serverWorld.spawnParticles(
+                    new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
                     spawnX, this.getY() + 0.5, spawnZ, 20, 0.4, 0.4, 0.4, 0.1);
         }
     }
@@ -727,8 +792,10 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
         if (this.getWorld() instanceof ServerWorld serverWorld) {
             serverWorld.playSound(null, this.getX(), this.getY() + 2.0, this.getZ(),
                     ModSounds.SEISMIC_COLOSSUS_HURT, SoundCategory.HOSTILE, 2.0f, 0.5f);
-            serverWorld.spawnParticles(ParticleTypes.SWEEP_ATTACK, target.getX(), target.getY() + 1.0, target.getZ(), 2, 0, 0, 0, 0);
-            serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
+            serverWorld.spawnParticles(ParticleTypes.SWEEP_ATTACK, target.getX(), target.getY() + 1.0, target.getZ(), 2,
+                    0, 0, 0, 0);
+            serverWorld.spawnParticles(
+                    new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
                     target.getX(), target.getY() + 1.0, target.getZ(), 20, 0.3, 0.3, 0.3, 0.1);
         }
     }
@@ -748,7 +815,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                 double rad = Math.toRadians(i * 10);
                 double px = this.getX() + Math.cos(rad) * 4.0;
                 double pz = this.getZ() + Math.sin(rad) * 4.0;
-                serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
+                serverWorld.spawnParticles(
+                        new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
                         px, this.getY() + 0.1, pz, 4, 0.2, 0.1, 0.2, 0.05);
                 serverWorld.spawnParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE,
                         px, this.getY() + 0.1, pz, 1, 0.1, 0.05, 0.1, 0.02);
@@ -762,7 +830,7 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             List<PlayerEntity> players = serverWorld.getEntitiesByClass(PlayerEntity.class, box, LivingEntity::isAlive);
             for (PlayerEntity player : players) {
                 DamageSource source = this.getDamageSources().mobAttack(this);
-                player.damage(source, 12.0f);
+                player.damage(source, SLAM_DAMAGE);
                 player.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, 80, 1));
             }
         }
@@ -776,7 +844,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             serverWorld.playSound(null, this.getX(), this.getY(), this.getZ(),
                     ModSounds.SEISMIC_COLOSSUS_STEP, SoundCategory.HOSTILE, 2.5f, 0.4f);
 
-            serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
+            serverWorld.spawnParticles(
+                    new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
                     this.getX(), this.getY() + 0.1, this.getZ(), 40, 1.5, 0.1, 1.5, 0.2);
 
             SeismicColossusNetworking.sendScreenShakeNearby(serverWorld, this.getPos(), 20.0, 2.4f, 14);
@@ -785,7 +854,7 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             List<PlayerEntity> players = serverWorld.getEntitiesByClass(PlayerEntity.class, box, LivingEntity::isAlive);
             for (PlayerEntity player : players) {
                 DamageSource source = this.getDamageSources().mobAttack(this);
-                player.damage(source, 8.0f);
+                player.damage(source, STOMP_DAMAGE);
                 // Launch upward!
                 player.addVelocity(0.0, 0.85, 0.0);
                 player.velocityModified = true;
@@ -838,9 +907,11 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     }
 
     public void releaseBlockThrow(LivingEntity target) {
-        if (!(this.getWorld() instanceof ServerWorld serverWorld)) return;
+        if (!(this.getWorld() instanceof ServerWorld serverWorld))
+            return;
 
-        BlockState stateToThrow = this.heldRipBlockState != null ? this.heldRipBlockState : Blocks.COBBLESTONE.getDefaultState();
+        BlockState stateToThrow = this.heldRipBlockState != null ? this.heldRipBlockState
+                : Blocks.COBBLESTONE.getDefaultState();
         this.heldRipBlockState = null;
 
         float damage = 12.0f;
@@ -848,7 +919,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             damage *= 1.10f; // 10% Phase 3 buff
         }
 
-        SeismicThrownBlockEntity blockEntity = new SeismicThrownBlockEntity(this.getWorld(), this, stateToThrow, damage);
+        SeismicThrownBlockEntity blockEntity = new SeismicThrownBlockEntity(this.getWorld(), this, stateToThrow,
+                damage);
         Vec3d targetVec = target.getEyePos().subtract(blockEntity.getPos());
         double dist = targetVec.horizontalLength();
         blockEntity.setVelocity(targetVec.x, targetVec.y + dist * 0.18, targetVec.z, 1.25f, 2.0f);
@@ -879,7 +951,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
 
             for (double d = 1.5; d <= distance; d += 1.5) {
                 Vec3d point = start.add(dir.multiply(d));
-                BlockPos floor = new BlockPos((int) Math.floor(point.x), (int) Math.floor(point.y), (int) Math.floor(point.z));
+                BlockPos floor = new BlockPos((int) Math.floor(point.x), (int) Math.floor(point.y),
+                        (int) Math.floor(point.z));
                 while (floor.getY() > serverWorld.getBottomY() && serverWorld.getBlockState(floor).isAir()) {
                     floor = floor.down();
                 }
@@ -888,7 +961,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                 }
                 double fy = floor.getY() + 1.0;
 
-                serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
+                serverWorld.spawnParticles(
+                        new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
                         point.x, fy, point.z, 20, 0.3, 0.5, 0.3, 0.15);
                 serverWorld.spawnParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE,
                         point.x, fy, point.z, 3, 0.2, 0.3, 0.2, 0.02);
@@ -896,10 +970,11 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                         point.x, fy, point.z, 1, 0, 0, 0, 0);
 
                 Box hitBox = new Box(point.x - 1.2, fy - 0.5, point.z - 1.2, point.x + 1.2, fy + 2.0, point.z + 1.2);
-                List<PlayerEntity> hitPlayers = serverWorld.getEntitiesByClass(PlayerEntity.class, hitBox, LivingEntity::isAlive);
+                List<PlayerEntity> hitPlayers = serverWorld.getEntitiesByClass(PlayerEntity.class, hitBox,
+                        LivingEntity::isAlive);
                 for (PlayerEntity player : hitPlayers) {
                     DamageSource source = this.getDamageSources().mobAttack(this);
-                    player.damage(source, 14.0f);
+                    player.damage(source, FISSURE_DAMAGE);
                     player.addVelocity(0.0, 0.65, 0.0);
                     player.velocityModified = true;
                     player.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, 60, 1));
@@ -925,17 +1000,19 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                 double rad = Math.toRadians(i * 7.5);
                 double px = this.getX() + Math.cos(rad) * 6.0;
                 double pz = this.getZ() + Math.sin(rad) * 6.0;
-                serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
+                serverWorld.spawnParticles(
+                        new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
                         px, this.getY() + 0.2, pz, 5, 0.2, 0.2, 0.2, 0.1);
                 serverWorld.spawnParticles(ParticleTypes.SONIC_BOOM,
-                        this.getX() + Math.cos(rad) * 1.5, this.getY() + 2.0, this.getZ() + Math.sin(rad) * 1.5, 1, 0, 0, 0, 0);
+                        this.getX() + Math.cos(rad) * 1.5, this.getY() + 2.0, this.getZ() + Math.sin(rad) * 1.5, 1, 0,
+                        0, 0, 0);
             }
 
             Box box = this.getBoundingBox().expand(10.0, 3.0, 10.0);
             List<PlayerEntity> players = serverWorld.getEntitiesByClass(PlayerEntity.class, box, LivingEntity::isAlive);
             for (PlayerEntity player : players) {
                 DamageSource source = this.getDamageSources().mobAttack(this);
-                player.damage(source, 8.0f);
+                player.damage(source, WAR_ROAR_DAMAGE);
                 Vec3d push = player.getPos().subtract(this.getPos()).normalize().multiply(1.6);
                 player.addVelocity(push.x, 0.35, push.z);
                 player.velocityModified = true;
@@ -968,11 +1045,14 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                 // Dust marker on ground
                 serverWorld.spawnParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE,
                         spawnX, targetPos.y + 0.1, spawnZ, 5, 0.3, 0.05, 0.3, 0.01);
-                serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.COBBLESTONE.getDefaultState()),
+                serverWorld.spawnParticles(
+                        new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.COBBLESTONE.getDefaultState()),
                         spawnX, targetPos.y + 0.1, spawnZ, 12, 0.3, 0.05, 0.3, 0.05);
 
-                BlockState boulderState = rng.nextBoolean() ? Blocks.COBBLESTONE.getDefaultState() : Blocks.STONE.getDefaultState();
-                SeismicThrownBlockEntity boulder = new SeismicThrownBlockEntity(this.getWorld(), this, boulderState, 11.0f);
+                BlockState boulderState = rng.nextBoolean() ? Blocks.COBBLESTONE.getDefaultState()
+                        : Blocks.STONE.getDefaultState();
+                SeismicThrownBlockEntity boulder = new SeismicThrownBlockEntity(this.getWorld(), this, boulderState,
+                        11.0f);
                 boulder.setPos(spawnX, spawnY, spawnZ);
                 boulder.setVelocity(0, -1.0 - rng.nextDouble() * 0.4, 0);
                 serverWorld.spawnEntity(boulder);
@@ -1003,7 +1083,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     }
 
     private void tickChargeSequence() {
-        if (!(this.getWorld() instanceof ServerWorld sw)) return;
+        if (!(this.getWorld() instanceof ServerWorld sw))
+            return;
         this.chargeTicks--;
 
         if (this.chargeTicks <= 0) {
@@ -1030,7 +1111,7 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
         if (!players.isEmpty()) {
             for (PlayerEntity player : players) {
                 DamageSource source = this.getDamageSources().mobAttack(this);
-                player.damage(source, 16.0f);
+                player.damage(source, CHARGE_DAMAGE);
                 Vec3d knock = this.chargeVelocity.normalize().multiply(1.5).add(0, 0.5, 0);
                 player.addVelocity(knock.x, knock.y, knock.z);
                 player.velocityModified = true;
@@ -1050,7 +1131,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                 for (int z = -radius; z <= radius; z++) {
                     BlockPos pos = center.add(x, y, z);
                     BlockState state = world.getBlockState(pos);
-                    if (isValidRipBlock(state) && (world.isAir(pos.up()) || world.getBlockState(pos.up()).isReplaceable())) {
+                    if (isValidRipBlock(state)
+                            && (world.isAir(pos.up()) || world.getBlockState(pos.up()).isReplaceable())) {
                         return pos;
                     }
                 }
@@ -1060,7 +1142,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     }
 
     private boolean isValidRipBlock(BlockState state) {
-        if (state.isAir() || state.getHardness(this.getWorld(), BlockPos.ORIGIN) < 0) return false;
+        if (state.isAir() || state.getHardness(this.getWorld(), BlockPos.ORIGIN) < 0)
+            return false;
         Block block = state.getBlock();
         return state.isIn(BlockTags.BASE_STONE_OVERWORLD)
                 || state.isIn(BlockTags.DIRT)
@@ -1077,7 +1160,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     }
 
     public void restorePulledBlocks() {
-        if (!ElementalConfig.get().seismicColossusRestoreTerrain) return;
+        if (!ElementalConfig.get().seismicColossusRestoreTerrain)
+            return;
         for (Map.Entry<BlockPos, BlockState> entry : this.pulledBlocks.entrySet()) {
             if (this.getWorld().isAir(entry.getKey())) {
                 this.getWorld().setBlockState(entry.getKey(), entry.getValue(), Block.NOTIFY_ALL);
@@ -1086,7 +1170,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
         this.pulledBlocks.clear();
     }
 
-    // ==================== EARTHSHATTER BREAKOUT (OUT OF RIFT HOLES / PITS) ====================
+    // ==================== EARTHSHATTER BREAKOUT (OUT OF RIFT HOLES / PITS)
+    // ====================
     private boolean isSolidObstructing(World world, BlockPos pos) {
         BlockState state = world.getBlockState(pos);
         return !state.isAir() && state.isSolidBlock(world, pos);
@@ -1114,7 +1199,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     }
 
     private void checkIfTrappedAndTriggerBreakout() {
-        if (!(this.getWorld() instanceof ServerWorld serverWorld)) return;
+        if (!(this.getWorld() instanceof ServerWorld serverWorld))
+            return;
 
         BlockPos feet = this.getBlockPos();
         BlockPos body = feet.up();
@@ -1131,7 +1217,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             this.trappedTicks--;
         }
 
-        // When suffocating inside collapsed hole: 8 ticks (0.4s) triggers blast breakout!
+        // When suffocating inside collapsed hole: 8 ticks (0.4s) triggers blast
+        // breakout!
         // When in a deep open pit/hole: 70 ticks (3.5s) triggers blast breakout!
         int threshold = suffocating ? 8 : 70;
         if (this.trappedTicks >= threshold) {
@@ -1141,7 +1228,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     }
 
     public void triggerBreakout() {
-        if (getAttackState() == STATE_BREAKOUT) return;
+        if (getAttackState() == STATE_BREAKOUT)
+            return;
         setAttackState(STATE_BREAKOUT);
         this.breakoutTimer = 0;
         this.isBreakoutAirborne = false;
@@ -1155,15 +1243,18 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     }
 
     private void tickBreakoutSequence() {
-        if (!(this.getWorld() instanceof ServerWorld serverWorld)) return;
+        if (!(this.getWorld() instanceof ServerWorld serverWorld))
+            return;
 
         this.breakoutTimer++;
 
         // Phase 1: Tremor windup & gather kinetic power (Ticks 1 - 15)
         if (this.breakoutTimer < 16) {
             this.getNavigation().stop();
-            serverWorld.spawnParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE, this.getX(), this.getY() + 0.2, this.getZ(), 8, 1.5, 0.2, 1.5, 0.05);
-            serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
+            serverWorld.spawnParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE, this.getX(), this.getY() + 0.2, this.getZ(),
+                    8, 1.5, 0.2, 1.5, 0.05);
+            serverWorld.spawnParticles(
+                    new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
                     this.getX(), this.getY() + 0.2, this.getZ(), 15, 1.5, 0.2, 1.5, 0.1);
             if (this.breakoutTimer % 4 == 0) {
                 serverWorld.playSound(null, this.getX(), this.getY(), this.getZ(),
@@ -1184,9 +1275,11 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                     for (int dz = -radius; dz <= radius; dz++) {
                         BlockPos targetPos = new BlockPos(center.getX() + dx, y, center.getZ() + dz);
                         BlockState state = serverWorld.getBlockState(targetPos);
-                        if (!state.isAir() && !state.isOf(Blocks.BEDROCK) && !state.isOf(Blocks.BARRIER) && state.getHardness(serverWorld, targetPos) >= 0) {
+                        if (!state.isAir() && !state.isOf(Blocks.BEDROCK) && !state.isOf(Blocks.BARRIER)
+                                && state.getHardness(serverWorld, targetPos) >= 0) {
                             serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, state),
-                                    targetPos.getX() + 0.5, targetPos.getY() + 0.5, targetPos.getZ() + 0.5, 6, 0.3, 0.3, 0.3, 0.15);
+                                    targetPos.getX() + 0.5, targetPos.getY() + 0.5, targetPos.getZ() + 0.5, 6, 0.3, 0.3,
+                                    0.3, 0.15);
                             serverWorld.breakBlock(targetPos, false);
                             if (!serverWorld.getBlockState(targetPos).isAir()) {
                                 serverWorld.setBlockState(targetPos, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);
@@ -1201,7 +1294,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                     SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.HOSTILE, 3.5f, 0.7f);
             serverWorld.playSound(null, this.getX(), this.getY(), this.getZ(),
                     SoundEvents.BLOCK_ANVIL_DESTROY, SoundCategory.HOSTILE, 3.0f, 0.5f);
-            serverWorld.spawnParticles(ParticleTypes.EXPLOSION_EMITTER, this.getX(), this.getY() + 1.0, this.getZ(), 2, 0.5, 0.5, 0.5, 0.0);
+            serverWorld.spawnParticles(ParticleTypes.EXPLOSION_EMITTER, this.getX(), this.getY() + 1.0, this.getZ(), 2,
+                    0.5, 0.5, 0.5, 0.0);
             SeismicColossusNetworking.sendScreenShakeNearby(serverWorld, this.getPos(), 36.0, 5.0f, 30);
 
             // Explosive leap upwards out of the hole!
@@ -1210,7 +1304,9 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             this.isBreakoutAirborne = true;
 
             serverWorld.getServer().getPlayerManager().broadcast(
-                    Text.literal("§6§l[Seismic Colossus] §cThe stone titan shatters the earth and erupts from the depths!"), false);
+                    Text.literal(
+                            "§6§l[Seismic Colossus] §cThe stone titan shatters the earth and erupts from the depths!"),
+                    false);
             return;
         }
 
@@ -1234,16 +1330,18 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                     double rad = Math.toRadians(i * 9);
                     double px = this.getX() + Math.cos(rad) * 4.5;
                     double pz = this.getZ() + Math.sin(rad) * 4.5;
-                    serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
+                    serverWorld.spawnParticles(
+                            new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
                             px, this.getY() + 0.1, pz, 6, 0.3, 0.1, 0.3, 0.08);
                     serverWorld.spawnParticles(ParticleTypes.EXPLOSION, px, this.getY() + 0.2, pz, 1, 0, 0, 0, 0);
                 }
 
                 Box box = this.getBoundingBox().expand(7.0, 2.5, 7.0);
-                List<PlayerEntity> players = serverWorld.getEntitiesByClass(PlayerEntity.class, box, LivingEntity::isAlive);
+                List<PlayerEntity> players = serverWorld.getEntitiesByClass(PlayerEntity.class, box,
+                        LivingEntity::isAlive);
                 for (PlayerEntity player : players) {
                     DamageSource source = this.getDamageSources().mobAttack(this);
-                    player.damage(source, 14.0f);
+                    player.damage(source, BREAKOUT_DAMAGE);
                     player.addVelocity(0, 0.75, 0);
                     player.velocityModified = true;
                 }
@@ -1276,8 +1374,10 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
         if (this.getWorld() instanceof ServerWorld serverWorld) {
             serverWorld.playSound(null, this.getX(), this.getY(), this.getZ(),
                     ModSounds.SEISMIC_COLOSSUS_DEATH, SoundCategory.HOSTILE, 3.0f, 0.5f);
-            serverWorld.spawnParticles(ParticleTypes.EXPLOSION_EMITTER, this.getX(), this.getY() + 2.0, this.getZ(), 1, 0, 0, 0, 0);
-            serverWorld.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
+            serverWorld.spawnParticles(ParticleTypes.EXPLOSION_EMITTER, this.getX(), this.getY() + 2.0, this.getZ(), 1,
+                    0, 0, 0, 0);
+            serverWorld.spawnParticles(
+                    new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.STONE.getDefaultState()),
                     this.getX(), this.getY() + 2.0, this.getZ(), 120, 2.0, 2.0, 2.0, 0.2);
             SeismicColossusNetworking.sendScreenShakeNearby(serverWorld, this.getPos(), 36.0, 5.5f, 40);
         }
@@ -1414,17 +1514,22 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
         @Override
         public void tick() {
             LivingEntity target = this.boss.getTarget();
-            if (target == null) return;
+            if (target == null)
+                return;
 
             this.boss.getLookControl().lookAt(target, 30.0f, 30.0f);
             double distSq = this.boss.squaredDistanceTo(target);
             int phase = this.boss.getPhase();
 
             // Tick internal ability cooldowns
-            if (this.fissureCooldown > 0) this.fissureCooldown--;
-            if (this.warRoarCooldown > 0) this.warRoarCooldown--;
-            if (this.avalancheCooldown > 0) this.avalancheCooldown--;
-            if (this.chargeCooldown > 0) this.chargeCooldown--;
+            if (this.fissureCooldown > 0)
+                this.fissureCooldown--;
+            if (this.warRoarCooldown > 0)
+                this.warRoarCooldown--;
+            if (this.avalancheCooldown > 0)
+                this.avalancheCooldown--;
+            if (this.chargeCooldown > 0)
+                this.chargeCooldown--;
 
             // 1. Check active block throw windup
             if (this.blockThrowWarmup > 0) {
@@ -1504,7 +1609,8 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                         this.boss.attackCooldownTicks = cooldownBase;
                         return;
                     }
-                    if (this.blockThrowCooldown <= 0 && distSq <= ElementalConfig.get().seismicColossusBlockThrowRange * ElementalConfig.get().seismicColossusBlockThrowRange) {
+                    if (this.blockThrowCooldown <= 0 && distSq <= ElementalConfig.get().seismicColossusBlockThrowRange
+                            * ElementalConfig.get().seismicColossusBlockThrowRange) {
                         this.boss.prepareBlockThrow(target);
                         this.blockThrowWarmup = 15;
                         int cd = phase == 3 ? 65 : 75;
@@ -1532,8 +1638,10 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
             }
 
             // Decrement remaining timers when not used
-            if (this.blockThrowCooldown > 0) this.blockThrowCooldown--;
-            if (this.rockThrowCooldown > 0) this.rockThrowCooldown--;
+            if (this.blockThrowCooldown > 0)
+                this.blockThrowCooldown--;
+            if (this.rockThrowCooldown > 0)
+                this.rockThrowCooldown--;
         }
     }
 

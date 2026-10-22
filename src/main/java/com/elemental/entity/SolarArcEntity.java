@@ -20,24 +20,26 @@ import software.bernie.geckolib.core.animation.RawAnimation;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
 public class SolarArcEntity extends PersistentProjectileEntity implements GeoEntity {
+
+    // ==================== CONFIGURATION VARIABLES ====================
     // Base travel speed of the solar arc projectile
-    public static final float BASE_SPEED = 1.5f;
+    public static float BASE_SPEED = 1.5f;
     // Additional speed per Solar Core upgrade level
-    public static final float CORE_SPEED_BONUS = 0.5f;
+    public static float CORE_SPEED_BONUS = 0.5f;
     // Base maximum lifetime of the projectile in ticks (40 ticks = 2 seconds)
-    public static final int BASE_LIFETIME = 40;
+    public static int BASE_LIFETIME = 40;
     // Additional lifetime in ticks per Solar Core upgrade level
-    public static final int CORE_LIFETIME_BONUS = 20;
+    public static int CORE_LIFETIME_BONUS = 20;
     // Base damage dealt by the projectile on hit at full charge (deals 6 hearts through full diamond armor, 13 hearts unarmored)
-    public static final float BASE_DAMAGE = 26.0f;
+    public static float BASE_DAMAGE = 26.0f;
     // Damage multiplier applied when projectile or caster is in rain or water (50% reduction)
-    public static final float RAIN_DAMAGE_MULTIPLIER = 0.5f;
+    public static float RAIN_DAMAGE_MULTIPLIER = 0.5f;
     // Base duration in seconds the target is set on fire
-    public static final int BASE_FIRE_SECONDS = 4;
+    public static int BASE_FIRE_SECONDS = 4;
     // Fire duration in seconds when hit in rain or water
-    public static final int RAIN_FIRE_SECONDS = 1;
+    public static int RAIN_FIRE_SECONDS = 1;
     // Additional seconds of fire applied per Solar Core upgrade level
-    public static final int CORE_FIRE_BONUS_SECONDS = 2;
+    public static int CORE_FIRE_BONUS_SECONDS = 2;
 
     private static final RawAnimation TRAVEL_ANIM = RawAnimation.begin().thenLoop("animation.solar_arc.travel");
     private static final RawAnimation IMPACT_ANIM = RawAnimation.begin().thenPlay("animation.solar_arc.impact");

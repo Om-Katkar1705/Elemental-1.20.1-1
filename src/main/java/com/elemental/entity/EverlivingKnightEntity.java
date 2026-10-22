@@ -52,39 +52,40 @@ import java.util.UUID;
  */
 public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
 
-    // ==================== BASE ATTRIBUTES ====================
-    public static final float MAX_HEALTH = 250.0f; // Tuned so normal weapons feel impactful
-    public static final float BASE_ATTACK_DAMAGE = 14.0f;
-    public static final float ENRAGED_ATTACK_DAMAGE = 21.0f;
-    public static final int BASE_ARMOR = 8;
-    public static final float BASE_ARMOR_TOUGHNESS = 2.0f;
-    public static final double BASE_KNOCKBACK_RESISTANCE = 0.9;
-    public static final double BASE_MOVEMENT_SPEED = 0.25;
-    public static final double FOLLOW_RANGE = 48.0;
+    // ==================== CONFIGURATION VARIABLES ====================
+    public static float MAX_HEALTH = 250.0f; // Tuned so normal weapons feel impactful
+    public static float BASE_ATTACK_DAMAGE = 14.0f;
+    public static float ENRAGED_ATTACK_DAMAGE = 21.0f;
+    public static int BASE_ARMOR = 8;
+    public static float BASE_ARMOR_TOUGHNESS = 2.0f;
+    public static double BASE_KNOCKBACK_RESISTANCE = 0.9;
+    public static double BASE_MOVEMENT_SPEED = 0.25;
+    public static double FOLLOW_RANGE = 48.0;
+    public static int EXPERIENCE_POINTS = 5000;
 
     // Initial AI Chase Speeds (authentic specifications)
-    public static final double CHASE_SPEED_NORMAL = 1.35;
-    public static final double CHASE_SPEED_PHASE3 = 1.60;
+    public static double CHASE_SPEED_NORMAL = 1.35;
+    public static double CHASE_SPEED_PHASE3 = 1.60;
 
     // Regeneration
-    public static final float BASE_REGEN_PER_SECOND = 5.0f; // 2% max HP per second (5 HP/s)
-    public static final float BASE_REGEN_PER_TICK = BASE_REGEN_PER_SECOND / 20.0f; // 0.25 HP/tick
-    public static final float THORN_CAGE_REGEN_MULTIPLIER = 0.40f; // 2.0 HP/s
-    public static final int FROSTBURST_LOCK_TICKS = 300; // 15 seconds
-    public static final int THORN_CAGE_DURATION_TICKS = 100; // 5 seconds
+    public static float BASE_REGEN_PER_SECOND = 5.0f; // 2% max HP per second (5 HP/s)
+    public static float BASE_REGEN_PER_TICK = BASE_REGEN_PER_SECOND / 20.0f; // 0.25 HP/tick
+    public static float THORN_CAGE_REGEN_MULTIPLIER = 0.40f; // 2.0 HP/s
+    public static int FROSTBURST_LOCK_TICKS = 300; // 15 seconds
+    public static int THORN_CAGE_DURATION_TICKS = 100; // 5 seconds
 
     // 3 Cores System (100 -> 66 -> 32 -> 0)
-    public static final int MAX_CORE_INTEGRITY = 100;
-    public static final int CORE_DAMAGE_PER_THORN_CAGE = 34; // 3 hits break the 3 cores
-    public static final int CORE_DAMAGE_PER_EXPOSED_HIT = 34; // 1 Rootbound Axe strike during core exposure destroys a core
+    public static int MAX_CORE_INTEGRITY = 100;
+    public static int CORE_DAMAGE_PER_THORN_CAGE = 34; // 3 hits break the 3 cores
+    public static int CORE_DAMAGE_PER_EXPOSED_HIT = 34; // 1 Rootbound Axe strike during core exposure destroys a core
 
     // Core Exposure & Stagger
-    public static final int CORE_EXPOSURE_DURATION = 90; // 3 seconds exposure after Core Pulse
-    public static final int STAGGER_DURATION = 100; // 5 seconds vulnerability after all cores break
-    public static final int ENRAGE_COUNTDOWN_TICKS = 600; // 30 seconds
+    public static int CORE_EXPOSURE_DURATION = 90; // 3 seconds exposure after Core Pulse
+    public static int STAGGER_DURATION = 100; // 5 seconds vulnerability after all cores break
+    public static int ENRAGE_COUNTDOWN_TICKS = 600; // 30 seconds
 
     // Arena boundary (10 block radius center fighting zone)
-    public static final double ARENA_RADIUS = 10.0;
+    public static double ARENA_RADIUS = 10.0;
 
     // ==================== ATTACK ENUMS ====================
     public enum AttackType {
@@ -170,7 +171,7 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
 
     public EverlivingKnightEntity(EntityType<? extends HostileEntity> entityType, World world) {
         super(entityType, world);
-        this.experiencePoints = 5000;
+        this.experiencePoints = EXPERIENCE_POINTS;
         this.bossBar = new ServerBossBar(
                 Text.literal("Sir Solvane, the Everliving Knight"),
                 BossBar.Color.RED,

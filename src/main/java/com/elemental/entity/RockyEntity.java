@@ -50,6 +50,19 @@ import java.util.UUID;
  */
 public class RockyEntity extends TameableEntity implements GeoEntity {
 
+    // ==================== CONFIGURATION VARIABLES ====================
+    public static double MAX_HEALTH = 60.0;
+    public static double MOVEMENT_SPEED = 0.28;
+    public static double ARMOR = 10.0;
+    public static double ARMOR_TOUGHNESS = 4.0;
+    public static double KNOCKBACK_RESISTANCE = 0.8;
+    public static double ATTACK_DAMAGE = 7.0;
+    public static double FOLLOW_RANGE = 32.0;
+    public static int EXPERIENCE_POINTS = 5;
+    public static double ATTACK_CHASE_SPEED = 1.25;
+    public static double FOLLOW_OWNER_SPEED = 1.2;
+    public static double WANDER_SPEED = 0.75;
+
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
 
     // ==================== GECKOLIB ANIMATIONS ====================
@@ -70,28 +83,28 @@ public class RockyEntity extends TameableEntity implements GeoEntity {
 
     public RockyEntity(EntityType<? extends TameableEntity> entityType, World world) {
         super(entityType, world);
-        this.experiencePoints = 5;
+        this.experiencePoints = EXPERIENCE_POINTS;
     }
 
     public static DefaultAttributeContainer.Builder createRockyAttributes() {
         return TameableEntity.createMobAttributes()
-                .add(EntityAttributes.GENERIC_MAX_HEALTH, 60.0)
-                .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.28)
-                .add(EntityAttributes.GENERIC_ARMOR, 10.0)
-                .add(EntityAttributes.GENERIC_ARMOR_TOUGHNESS, 4.0)
-                .add(EntityAttributes.GENERIC_KNOCKBACK_RESISTANCE, 0.8)
-                .add(EntityAttributes.GENERIC_ATTACK_DAMAGE, 7.0)
-                .add(EntityAttributes.GENERIC_FOLLOW_RANGE, 32.0);
+                .add(EntityAttributes.GENERIC_MAX_HEALTH, MAX_HEALTH)
+                .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, MOVEMENT_SPEED)
+                .add(EntityAttributes.GENERIC_ARMOR, ARMOR)
+                .add(EntityAttributes.GENERIC_ARMOR_TOUGHNESS, ARMOR_TOUGHNESS)
+                .add(EntityAttributes.GENERIC_KNOCKBACK_RESISTANCE, KNOCKBACK_RESISTANCE)
+                .add(EntityAttributes.GENERIC_ATTACK_DAMAGE, ATTACK_DAMAGE)
+                .add(EntityAttributes.GENERIC_FOLLOW_RANGE, FOLLOW_RANGE);
     }
 
     @Override
     protected void initGoals() {
         this.goalSelector.add(1, new SwimGoal(this));
         this.goalSelector.add(2, new SitGoal(this));
-        this.goalSelector.add(3, new MeleeAttackGoal(this, 1.25, true));
-        this.goalSelector.add(4, new FollowOwnerGoal(this, 1.2, 5.0f, 2.0f, false));
+        this.goalSelector.add(3, new MeleeAttackGoal(this, ATTACK_CHASE_SPEED, true));
+        this.goalSelector.add(4, new FollowOwnerGoal(this, FOLLOW_OWNER_SPEED, 5.0f, 2.0f, false));
         this.goalSelector.add(5, new AnimalMateGoal(this, 1.0));
-        this.goalSelector.add(6, new WanderAroundFarGoal(this, 0.75));
+        this.goalSelector.add(6, new WanderAroundFarGoal(this, WANDER_SPEED));
         this.goalSelector.add(7, new LookAtEntityGoal(this, PlayerEntity.class, 8.0f));
         this.goalSelector.add(8, new LookAroundGoal(this));
 
