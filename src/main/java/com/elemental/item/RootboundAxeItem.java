@@ -60,9 +60,9 @@ public class RootboundAxeItem extends AxeItem implements GeoItem {
     // Fast woodcutting speed multiplier on logs/wood
     public static final float WOOD_MINING_SPEED = 10.0f;
 
-    // Sweep attack configuration
-    public static final float SWEEP_ATTACK_RADIUS = 6.0f;
-    public static final float SWEEP_ANGLE = 180.0f; // degrees (vanilla axe is ~120)
+    // Sweep attack configuration (generalized to 4.25 blocks range)
+    public static final float SWEEP_ATTACK_RADIUS = 4.25f;
+    public static final float SWEEP_ANGLE = 135.0f; // degrees
 
     // Passive: Healing Root configuration
     public static final double PASSIVE_TRIGGER_CHANCE = 0.15; // 15% chance on hit
@@ -192,12 +192,7 @@ public class RootboundAxeItem extends AxeItem implements GeoItem {
         super.postHit(stack, target, attacker);
         World world = attacker.getWorld();
 
-        if (world.isClient()) {
-            long id = GeoItem.getId(stack);
-            if (id != Long.MAX_VALUE) {
-                triggerAnim(attacker, id, "controller", "wide_sweep");
-            }
-        } else if (world instanceof ServerWorld serverWorld) {
+        if (world instanceof ServerWorld serverWorld) {
             // Perform sweep attack
             performSweepAttack(serverWorld, attacker, stack, target);
 
@@ -212,8 +207,6 @@ public class RootboundAxeItem extends AxeItem implements GeoItem {
      */
     private void performSweepAttack(ServerWorld world, LivingEntity attacker, ItemStack stack, LivingEntity primaryTarget) {
         if (!(attacker instanceof PlayerEntity)) return;
-
-        triggerAnim(attacker, GeoItem.getOrAssignId(stack, world), "controller", "wide_sweep");
 
         float attackAngle = SWEEP_ANGLE;
         float attackRadius = SWEEP_ATTACK_RADIUS;

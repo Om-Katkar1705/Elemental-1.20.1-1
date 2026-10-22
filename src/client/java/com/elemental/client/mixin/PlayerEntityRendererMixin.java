@@ -93,13 +93,4 @@ public abstract class PlayerEntityRendererMixin extends LivingEntityRenderer<Abs
         matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(targetPitch));
         matrices.translate(0.0f, -1.0f, 0.0f);
     }
-
-    @Inject(method = "renderRightArm", at = @At("HEAD"))
-    private void elemental$fistBumpFirstPersonArm(MatrixStack matrices, net.minecraft.client.render.VertexConsumerProvider vertexConsumers, int light, AbstractClientPlayerEntity player, CallbackInfo ci) {
-        if (com.elemental.client.util.ClientFistBumpSync.isAnimating(player.getId())) {
-            float tickDelta = net.minecraft.client.MinecraftClient.getInstance().getTickDelta();
-            float currentTick = com.elemental.client.util.ClientFistBumpSync.getAnimationTick(player.getId(), tickDelta);
-            com.elemental.client.animation.PlayerFistBumpAnimation.applyFirstPersonArm(matrices, currentTick);
-        }
-    }
 }

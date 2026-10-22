@@ -277,17 +277,7 @@ public class ElementalClient implements ClientModInitializer {
 			});
 		});
 
-		// Register Player Fist Bump Animation Client Receiver
-		ClientPlayNetworking.registerGlobalReceiver(com.elemental.network.QuestNetworking.PLAYER_FIST_BUMP_PACKET_ID, (client, handler, buf, responseSender) -> {
-			int entityId = buf.readInt();
-			int durationTicks = buf.readInt();
-			client.execute(() -> {
-				com.elemental.client.util.ClientFistBumpSync.startAnimation(entityId, durationTicks);
-			});
-		});
-
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
-			com.elemental.client.util.ClientFistBumpSync.clientTick();
 			if (client.player == null) return;
 
 			// Weapon R ability (Tidebreaker dash or Stormcaller thunderclap)
@@ -319,8 +309,6 @@ public class ElementalClient implements ClientModInitializer {
 							geoItem.triggerAnim(client.player, id, "controller", "attack");
 						} else if (main.isOf(ModItems.FROSTWAKE_PICK)) {
 							geoItem.triggerAnim(client.player, id, "controller", "swing");
-						} else if (main.isOf(ModItems.ROOTBOUND_AXE)) {
-							geoItem.triggerAnim(client.player, id, "controller", "wide_sweep");
 						} else if (main.isOf(ModItems.TIDEBREAKER_TRIDENT)) {
 							geoItem.triggerAnim(client.player, id, "controller", "swing");
 						} else if (main.isOf(ModItems.ASHEN_RIFT_BLADE)) {

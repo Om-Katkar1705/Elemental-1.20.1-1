@@ -377,6 +377,6 @@ public class SunforgedScimitarItem extends SwordItem implements GeoItem {
             tooltip.add(Text.literal("Solar Core Level: " + coreLevel).formatted(Formatting.GOLD));
         }
         tooltip.add(Text.literal("► Hold [Right Click]: Solar Arc Flame Strike").formatted(Formatting.GOLD));
-        tooltip.add(Text.literal("  - Full charge: 13♥ unarmored | 6♥ vs Diamond Armor").formatted(Formatting.GRAY));
+        tooltip.add(Text.literal("  - Unleashes a piercing solar arc").formatted(Formatting.GRAY));
     }
 }

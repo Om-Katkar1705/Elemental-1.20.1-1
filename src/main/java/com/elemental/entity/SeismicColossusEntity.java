@@ -174,6 +174,7 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
     // Continuous melee attack tracking (streak resets if player pauses > 50 ticks)
     private final Map<java.util.UUID, Integer> consecutiveMeleeHits = new HashMap<>();
     private final Map<java.util.UUID, Long> lastMeleeHitTime = new HashMap<>();
+    private final Map<java.util.UUID, Integer> requiredHitsToStick = new HashMap<>();
 
     // Stuck Weapons representation
     public static class StuckWeapon {
@@ -519,11 +520,17 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                 int streak = 1;
                 if (lastTick != null && (currentTick - lastTick) <= 50) {
                     streak = this.consecutiveMeleeHits.getOrDefault(player.getUuid(), 0) + 1;
+                } else {
+                    this.requiredHitsToStick.remove(player.getUuid());
                 }
                 this.consecutiveMeleeHits.put(player.getUuid(), streak);
                 this.lastMeleeHitTime.put(player.getUuid(), currentTick);
 
-                if (streak == 2) {
+                // Randomly requires between 3 and 6 consecutive attacks to stick
+                int required = this.requiredHitsToStick.computeIfAbsent(player.getUuid(),
+                        k -> 3 + this.random.nextInt(4)); // 3, 4, 5, or 6
+
+                if (streak == required - 1) {
                     if (this.getWorld() instanceof ServerWorld sw) {
                         sw.playSound(null, this.getX(), this.getY() + 2.0, this.getZ(),
                                 SoundEvents.BLOCK_GRINDSTONE_USE, SoundCategory.HOSTILE, 1.4f, 1.2f);
@@ -533,9 +540,10 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                     player.sendMessage(
                             Text.literal("§6⚠ The stone hide is gripping your weapon! Step back or it will get stuck!"),
                             true);
-                } else if (streak >= 3) {
+                } else if (streak >= required) {
                     this.consecutiveMeleeHits.remove(player.getUuid());
                     this.lastMeleeHitTime.remove(player.getUuid());
+                    this.requiredHitsToStick.remove(player.getUuid());
                     handleWeaponSticking(player, held);
                 }
             }

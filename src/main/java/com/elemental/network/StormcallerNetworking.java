@@ -68,20 +68,7 @@ public class StormcallerNetworking {
      * Broadcasts animation playback to the player and all players tracking them.
      */
     public static void broadcastPlayAnimation(ServerPlayerEntity player, String animName) {
-        PacketByteBuf buf = PacketByteBufs.create();
-        buf.writeInt(player.getId());
-        buf.writeString(animName);
-
-        // Send to attacker
-        ServerPlayNetworking.send(player, S2C_PLAY_ANIMATION, buf);
-
-        // Send to all tracking players in range
-        for (ServerPlayerEntity tracker : PlayerLookup.tracking(player)) {
-            PacketByteBuf trackerBuf = PacketByteBufs.create();
-            trackerBuf.writeInt(player.getId());
-            trackerBuf.writeString(animName);
-            ServerPlayNetworking.send(tracker, S2C_PLAY_ANIMATION, trackerBuf);
-        }
+        // No-op: player animations disabled
     }
 
     /**

@@ -169,78 +169,14 @@ public class StormcallerHammerAnimationHandler {
 
     /**
      * Plays a PlayerAnimator animation on the given player.
-     * Uses FIRST_PERSON_MODEL mode so heavy hammer animations are visible in first person.
+     * Disabled per user request to preserve regular vanilla player animations.
      */
-    @SuppressWarnings("unchecked")
     public static void playPlayerAnimation(AbstractClientPlayerEntity player, String animName) {
-        if (player == null || animName == null) return;
-
-        ModifierLayer<IAnimation> layer = null;
-        try {
-            layer = (ModifierLayer<IAnimation>) PlayerAnimationAccess.getPlayerAssociatedData(player).get(LAYER_ID);
-        } catch (Exception ignored) {}
-
-        if (layer == null) {
-            layer = PLAYER_LAYERS.get(player.getUuid());
-        }
-
-        if (layer == null) {
-            try {
-                var stack = PlayerAnimationAccess.getPlayerAnimLayer(player);
-                if (stack != null) {
-                    layer = new ModifierLayer<>();
-                    stack.addAnimLayer(1000, layer);
-                    PLAYER_LAYERS.put(player.getUuid(), layer);
-                    try {
-                        PlayerAnimationAccess.getPlayerAssociatedData(player).set(LAYER_ID, layer);
-                    } catch (Exception ignored) {}
-                }
-            } catch (Exception ignored) {}
-        }
-        if (layer == null) return;
-
-        KeyframeAnimation anim = getAnimation(animName);
-        if (anim == null) {
-            // Try simplified identifier
-            String simplified = animName.replace("animation.stormcaller_hammer.", "");
-            anim = getAnimation(simplified);
-        }
-
-        if (anim != null) {
-            KeyframeAnimationPlayer playerAnim = new KeyframeAnimationPlayer(anim);
-            // Show animated arms and weapon in first-person mode
-            FirstPersonConfiguration config = new FirstPersonConfiguration();
-            config.setShowRightArm(true);
-            config.setShowLeftArm(true);
-            config.setShowRightItem(true);
-            config.setShowLeftItem(true);
-            playerAnim.setFirstPersonConfiguration(config);
-            playerAnim.setFirstPersonMode(FirstPersonMode.THIRD_PERSON_MODEL);
-            layer.setAnimation(playerAnim);
-
-            // If local player starts ground smash, activate synchronized first-person camera curve
-            MinecraftClient mc = MinecraftClient.getInstance();
-            if (mc.player != null && mc.player.getUuid().equals(player.getUuid())) {
-                if (animName.contains("ground_smash")) {
-                    startSmashCameraAnimation();
-                }
-            }
-        }
+        // No-op: custom player animations removed
     }
 
-    @SuppressWarnings("unchecked")
     public static void stopPlayerAnimation(AbstractClientPlayerEntity player) {
-        if (player == null) return;
-        ModifierLayer<IAnimation> layer = null;
-        try {
-            layer = (ModifierLayer<IAnimation>) PlayerAnimationAccess.getPlayerAssociatedData(player).get(LAYER_ID);
-        } catch (Exception ignored) {}
-        if (layer == null) {
-            layer = PLAYER_LAYERS.get(player.getUuid());
-        }
-        if (layer != null) {
-            layer.setAnimation(null);
-        }
+        // No-op: custom player animations removed
     }
 
     // ==========================================

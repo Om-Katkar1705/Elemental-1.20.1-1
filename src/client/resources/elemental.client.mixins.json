@@ -8,7 +8,8 @@
 		"CreativeInventoryScreenMixin",
 		"PlayerEntityRendererMixin",
 		"PlayerEntityModelMixin",
-		"CameraMixin"
+		"CameraMixin",
+		"GameRendererMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

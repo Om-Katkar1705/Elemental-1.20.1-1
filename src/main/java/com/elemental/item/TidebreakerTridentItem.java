@@ -461,7 +461,7 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
         if (owner.getWorld().isClient()) return;
         if (target == owner) return;
         if (owner.isTeammate(target)) return;
-        if (target.getType().isIn(ModEntityTags.BOSSES)) return;
+        if (target.getType().isIn(ModEntityTags.BOSSES) && !(target instanceof com.elemental.entity.SeismicColossusEntity)) return;
 
         if (owner.squaredDistanceTo(target) > BUBBLE_MAX_RANGE * BUBBLE_MAX_RANGE) return;
 

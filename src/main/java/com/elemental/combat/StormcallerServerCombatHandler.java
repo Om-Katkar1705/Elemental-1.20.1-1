@@ -176,21 +176,24 @@ public class StormcallerServerCombatHandler {
         if (attack.currentTick >= MELEE_HIT_START_TICK && attack.currentTick <= MELEE_HIT_END_TICK) {
             Vec3d eyePos = player.getEyePos();
             Vec3d lookDir = player.getRotationVec(1.0f);
-            double reach = 3.8;
-            Vec3d sweepCenter = eyePos.add(lookDir.multiply(reach * 0.6));
+            double reach = 4.25;
+            Vec3d sweepCenter = eyePos.add(lookDir.multiply(reach * 0.5));
 
-            Box sweepBox = new Box(sweepCenter.x - 2.5, sweepCenter.y - 1.5, sweepCenter.z - 2.5,
-                    sweepCenter.x + 2.5, sweepCenter.y + 1.5, sweepCenter.z + 2.5);
+            Box sweepBox = new Box(sweepCenter.x - 2.0, sweepCenter.y - 1.5, sweepCenter.z - 2.0,
+                    sweepCenter.x + 2.0, sweepCenter.y + 1.5, sweepCenter.z + 2.0);
 
             List<LivingEntity> targets = world.getEntitiesByClass(LivingEntity.class, sweepBox, e ->
                     e != player && e.isAlive() && !e.isSpectator() && !attack.damagedEntities.contains(e.getUuid())
             );
 
             for (LivingEntity target : targets) {
+                if (eyePos.distanceTo(target.getEyePos()) > reach && player.distanceTo(target) > reach) {
+                    continue;
+                }
                 Vec3d toTarget = target.getEyePos().subtract(eyePos).normalize();
                 double dot = lookDir.dotProduct(toTarget);
-                // Wide horizontal sweep arc (within ~130 degrees cone)
-                if (dot > 0.25) {
+                // Horizontal sweep arc in front of player
+                if (dot > 0.3) {
                     attack.damagedEntities.add(target.getUuid());
 
                     boolean onCooldown = StormcallerHammerItem.isCoolingDown(world, stack);

@@ -55,6 +55,9 @@ public class TidebreakerBubbleEntity extends Entity {
         if (world.getDimension().ultrawarm()) {
             duration = (int) (duration * NETHER_DURATION_MULTIPLIER);
         }
+        if (target instanceof com.elemental.entity.SeismicColossusEntity) {
+            duration = duration / 2;
+        }
         this.maxDurationTicks = duration;
     }
 
@@ -93,15 +96,17 @@ public class TidebreakerBubbleEntity extends Entity {
             return;
         }
 
-        // Expiration check or maximum lift height check
+        // Expiration check or maximum lift height check (half height for heavy Seismic Colossus)
+        boolean isSeismicColossus = target instanceof com.elemental.entity.SeismicColossusEntity;
+        double maxLift = isSeismicColossus ? (TidebreakerTridentItem.BUBBLE_LIFT_HEIGHT * 0.5) : TidebreakerTridentItem.BUBBLE_LIFT_HEIGHT;
         double heightGained = this.originPos != null ? target.getY() - this.originPos.y : 0.0;
-        if (this.lifetimeTicks >= this.maxDurationTicks || heightGained >= TidebreakerTridentItem.BUBBLE_LIFT_HEIGHT) {
+        if (this.lifetimeTicks >= this.maxDurationTicks || heightGained >= maxLift) {
             popBubble(target);
             return;
         }
 
-        // Controlled upward motion (lifts smoothly ~30-40 blocks across duration)
-        double upwardSpeed = UPWARD_SPEED;
+        // Controlled upward motion (lifts smoothly; half speed for heavy rock colossus)
+        double upwardSpeed = isSeismicColossus ? (UPWARD_SPEED * 0.5) : UPWARD_SPEED;
         target.setVelocity(target.getVelocity().x * 0.2, upwardSpeed, target.getVelocity().z * 0.2);
         target.velocityModified = true;
         target.fallDistance = 0.0f;
