@@ -1,6 +1,7 @@
 {
   "replace": false,
   "values": [
-    "elemental:everliving_knight"
+    "elemental:everliving_knight",
+    "elemental:seismic_colossus"
   ]
 }

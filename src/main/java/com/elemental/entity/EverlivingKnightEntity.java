@@ -1,5 +1,7 @@
 package com.elemental.entity;
 
+import net.minecraft.block.Blocks;
+import net.minecraft.particle.BlockStateParticleEffect;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.ai.goal.Goal;
@@ -67,6 +69,16 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
     public static double CHASE_SPEED_NORMAL = 1.35;
     public static double CHASE_SPEED_PHASE3 = 1.60;
 
+    // Floating Smoke & Soul Sand Cloud Configuration
+    public static boolean ENABLE_FLOATING_CLOUD_PARTICLES = true;
+    public static double CLOUD_PARTICLE_RADIUS = 0.85;
+    public static double CLOUD_PARTICLE_BASE_Y_OFFSET = 0.15;
+    public static int CLOUD_SMOKE_COUNT_PER_TICK = 3;
+    public static int CLOUD_SOUL_COUNT_PER_TICK = 1;
+    public static boolean ENABLE_SOUL_SAND_DUST_IN_CLOUD = true;
+    public static boolean ENABLE_SOUL_FLAME_IN_CLOUD = true;
+    public static double CLOUD_PARTICLE_UPWARD_SPEED = 0.02;
+
     // Regeneration
     public static float BASE_REGEN_PER_SECOND = 5.0f; // 2% max HP per second (5 HP/s)
     public static float BASE_REGEN_PER_TICK = BASE_REGEN_PER_SECOND / 20.0f; // 0.25 HP/tick
@@ -91,7 +103,6 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
     public enum AttackType {
         NONE,
         SLASH,
-        SHIELD_BASH,
         CHARGE,
         CORE_PULSE
     }
@@ -129,7 +140,7 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
     private static final RawAnimation RUN_ANIM = RawAnimation.begin().thenLoop("animation.everliving_knight.run");
     private static final RawAnimation STAGGER_LOOP = RawAnimation.begin().thenLoop("animation.everliving_knight.stagger");
     private static final RawAnimation DEATH_ANIM = RawAnimation.begin().thenPlayAndHold("animation.everliving_knight.death");
-    private static final RawAnimation CORE_EXPOSED_ANIM = RawAnimation.begin().thenPlay("animation.everliving_knight.core_exposed");
+    private static final RawAnimation CORE_EXPOSED_ANIM = RawAnimation.begin().thenLoop("animation.everliving_knight.core_exposed");
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     private final ServerBossBar bossBar;
@@ -153,7 +164,6 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
 
     // Initial Attack Cooldowns (authentic mechanics)
     private int slashCooldown = 0;
-    private int shieldBashCooldown = 0;
     private int chargeCooldown = 0;
     private int corePulseCooldown = 0;
 
@@ -195,13 +205,12 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
     protected void initGoals() {
         this.goalSelector.add(1, new SwimGoal(this));
         this.goalSelector.add(2, new KnightMeleeSlashGoal(this));
-        this.goalSelector.add(3, new KnightShieldBashGoal(this));
-        this.goalSelector.add(4, new KnightChargeGoal(this));
-        this.goalSelector.add(5, new KnightCorePulseGoal(this));
-        this.goalSelector.add(6, new KnightChaseTargetGoal(this));
-        this.goalSelector.add(7, new WanderAroundFarGoal(this, 0.8, 40));
-        this.goalSelector.add(8, new LookAtEntityGoal(this, PlayerEntity.class, 24.0f));
-        this.goalSelector.add(9, new LookAroundGoal(this));
+        this.goalSelector.add(3, new KnightChargeGoal(this));
+        this.goalSelector.add(4, new KnightCorePulseGoal(this));
+        this.goalSelector.add(5, new KnightChaseTargetGoal(this));
+        this.goalSelector.add(6, new WanderAroundFarGoal(this, 0.8, 40));
+        this.goalSelector.add(7, new LookAtEntityGoal(this, PlayerEntity.class, 24.0f));
+        this.goalSelector.add(8, new LookAroundGoal(this));
 
         this.targetSelector.add(1, new KnightTargetGoal(this));
         this.targetSelector.add(2, new RevengeGoal(this));
@@ -235,22 +244,24 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
                 return state.setAndContinue(CORE_EXPOSED_ANIM);
             }
             if (state.isMoving()) {
-                return state.setAndContinue(this.isEnraged() || this.getPhase() == 3 ? RUN_ANIM : WALK_ANIM);
+                if (this.isEnraged() || this.getPhase() == 3) {
+                    return state.setAndContinue(RUN_ANIM);
+                }
+                return state.setAndContinue(WALK_ANIM);
             }
             return state.setAndContinue(IDLE_ANIM);
         })
         .triggerableAnim("idle", IDLE_ANIM)
+        .triggerableAnim("walk", WALK_ANIM)
+        .triggerableAnim("run", RUN_ANIM)
         .triggerableAnim("slash_windup", RawAnimation.begin().thenPlay("animation.everliving_knight.slash_windup"))
         .triggerableAnim("slash", RawAnimation.begin().thenPlay("animation.everliving_knight.slash"))
-        .triggerableAnim("combo", RawAnimation.begin().thenPlay("animation.everliving_knight.combo"))
-        .triggerableAnim("shield_bash_windup", RawAnimation.begin().thenPlay("animation.everliving_knight.shield_bash_windup"))
-        .triggerableAnim("shield_bash", RawAnimation.begin().thenPlay("animation.everliving_knight.shield_bash"))
         .triggerableAnim("charge_windup", RawAnimation.begin().thenPlay("animation.everliving_knight.charge_windup"))
         .triggerableAnim("charge", RawAnimation.begin().thenPlay("animation.everliving_knight.charge"))
         .triggerableAnim("core_pulse_windup", RawAnimation.begin().thenPlay("animation.everliving_knight.core_pulse_windup"))
         .triggerableAnim("core_pulse", RawAnimation.begin().thenPlay("animation.everliving_knight.core_pulse"))
         .triggerableAnim("core_exposed", CORE_EXPOSED_ANIM)
-        .triggerableAnim("stagger", RawAnimation.begin().thenPlay("animation.everliving_knight.stagger"))
+        .triggerableAnim("stagger", STAGGER_LOOP)
         .triggerableAnim("phase_two", RawAnimation.begin().thenPlay("animation.everliving_knight.phase_two"))
         .triggerableAnim("phase_three", RawAnimation.begin().thenPlay("animation.everliving_knight.phase_three"))
         .triggerableAnim("enrage", RawAnimation.begin().thenPlay("animation.everliving_knight.enrage"))
@@ -341,10 +352,6 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
 
     public int getSlashCooldown() {
         return this.slashCooldown;
-    }
-
-    public int getShieldBashCooldown() {
-        return this.shieldBashCooldown;
     }
 
     public int getChargeCooldown() {
@@ -646,7 +653,6 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
 
         // Decrement cooldowns
         if (this.slashCooldown > 0) this.slashCooldown--;
-        if (this.shieldBashCooldown > 0) this.shieldBashCooldown--;
         if (this.chargeCooldown > 0) this.chargeCooldown--;
         if (this.corePulseCooldown > 0) this.corePulseCooldown--;
 
@@ -660,7 +666,6 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
 
         switch (this.currentAttack) {
             case SLASH -> handleSlashTick(target);
-            case SHIELD_BASH -> handleShieldBashTick(target);
             case CHARGE -> handleChargeTick();
             case CORE_PULSE -> handleCorePulseTick();
             default -> resetAttackState();
@@ -691,55 +696,6 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
         } else if (this.currentAttackPhase == AttackPhase.RECOVERY) {
             if (this.attackTimer <= 0) {
                 this.slashCooldown = 30; // Initial 30 ticks cooldown
-                resetAttackState();
-            }
-        }
-    }
-
-    private void handleShieldBashTick(LivingEntity target) {
-        if (this.currentAttackPhase == AttackPhase.WINDUP) {
-            if (target != null) {
-                this.getLookControl().lookAt(target, 45.0f, 45.0f);
-            }
-            if (this.attackTimer <= 0) {
-                this.currentAttackPhase = AttackPhase.ACTIVE;
-                this.attackTimer = 5;
-                this.activeDamagedEntities.clear();
-                triggerAnimation("shield_bash");
-                if (this.getWorld() instanceof ServerWorld world) {
-                    world.playSound(null, this.getX(), this.getY(), this.getZ(),
-                            SoundEvents.ITEM_SHIELD_BLOCK, SoundCategory.HOSTILE, 1.5f, 0.7f);
-                }
-            }
-        } else if (this.currentAttackPhase == AttackPhase.ACTIVE) {
-            // 4-block directional cone (~45 degrees)
-            Vec3d lookDir = this.getRotationVec(1.0f).normalize();
-            Box area = this.getBoundingBox().expand(4.0);
-            List<LivingEntity> list = this.getWorld().getNonSpectatingEntities(LivingEntity.class, area);
-            for (LivingEntity e : list) {
-                if (e != this && !this.activeDamagedEntities.contains(e.getUuid())) {
-                    Vec3d toEntity = e.getPos().subtract(this.getPos()).normalize();
-                    double dot = lookDir.dotProduct(toEntity);
-                    double dist = this.distanceTo(e);
-                    if (dist <= 4.0 && dot >= 0.707) { // 45-degree cone
-                        this.activeDamagedEntities.add(e.getUuid());
-                        e.damage(this.getDamageSources().mobAttack(this), 10.0f);
-                        // Heavy directional knockback
-                        e.addVelocity(lookDir.x * 1.6, 0.25, lookDir.z * 1.6);
-                        e.velocityModified = true;
-                        // Slowness X for 10 ticks
-                        e.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, 10, 9, false, false, true));
-                    }
-                }
-            }
-
-            if (this.attackTimer <= 0) {
-                this.currentAttackPhase = AttackPhase.RECOVERY;
-                this.attackTimer = 15;
-            }
-        } else if (this.currentAttackPhase == AttackPhase.RECOVERY) {
-            if (this.attackTimer <= 0) {
-                this.shieldBashCooldown = 80; // Initial 80 ticks cooldown
                 resetAttackState();
             }
         }
@@ -869,14 +825,6 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
         triggerAnimation("slash_windup");
     }
 
-    public void startShieldBash() {
-        this.currentAttack = AttackType.SHIELD_BASH;
-        this.currentAttackPhase = AttackPhase.WINDUP;
-        this.attackTimer = 10; // Initial 10 ticks windup
-        this.activeDamagedEntities.clear();
-        triggerAnimation("shield_bash_windup");
-    }
-
     public void startCharge(Vec3d targetPos) {
         this.currentAttack = AttackType.CHARGE;
         this.currentAttackPhase = AttackPhase.WINDUP;
@@ -950,6 +898,42 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
         triggerAnimation("death");
         this.bossBar.clearPlayers();
         super.onDeath(source);
+    }
+
+    @Override
+    protected void updatePostDeath() {
+        this.deathTime++;
+        if (this.getWorld() instanceof ServerWorld world) {
+            // Rapid spinning vortex particles during death spin (0 - 50 ticks = 2.5s)
+            if (this.deathTime < 50) {
+                double angle = (this.deathTime * 0.9);
+                double r = 1.6;
+                world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME,
+                        this.getX() + Math.cos(angle) * r, this.getY() + 1.2, this.getZ() + Math.sin(angle) * r,
+                        4, 0.05, 0.1, 0.05, 0.02);
+                world.spawnParticles(ParticleTypes.FLAME,
+                        this.getX() - Math.cos(angle) * r, this.getY() + 1.2, this.getZ() - Math.sin(angle) * r,
+                        4, 0.05, 0.1, 0.05, 0.02);
+                if (this.deathTime % 3 == 0) {
+                    world.playSound(null, this.getX(), this.getY(), this.getZ(),
+                            SoundEvents.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.HOSTILE, 1.2f, 1.2f + (this.deathTime * 0.02f));
+                }
+            } else if (this.deathTime == 50) {
+                // THE BLAST!
+                world.spawnParticles(ParticleTypes.EXPLOSION_EMITTER, this.getX(), this.getY() + 1.2, this.getZ(), 4, 0, 0, 0, 0);
+                world.spawnParticles(ParticleTypes.FLASH, this.getX(), this.getY() + 1.2, this.getZ(), 3, 0.1, 0.1, 0.1, 0.0);
+                world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, this.getX(), this.getY() + 1.2, this.getZ(), 100, 2.0, 1.5, 2.0, 0.3);
+                world.spawnParticles(ParticleTypes.FLAME, this.getX(), this.getY() + 1.2, this.getZ(), 100, 2.0, 1.5, 2.0, 0.3);
+                world.playSound(null, this.getX(), this.getY(), this.getZ(),
+                        SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.HOSTILE, 3.0f, 0.8f);
+                world.playSound(null, this.getX(), this.getY(), this.getZ(),
+                        SoundEvents.ITEM_TOTEM_USE, SoundCategory.HOSTILE, 2.0f, 0.6f);
+            }
+        }
+
+        if (this.deathTime >= 55) {
+            this.remove(RemovalReason.KILLED);
+        }
     }
 
     @Override
@@ -1039,12 +1023,92 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
     public void tick() {
         super.tick();
 
-        if (!this.getWorld().isClient()) {
+        if (this.getWorld().isClient()) {
+            tickFloatingCloudParticles();
+        } else {
             enforceArenaBoundary();
             tickRegeneration();
             tickPhaseSystem();
             tickAttackStateMachine();
             updateBossBar();
+        }
+    }
+
+    // ==================== FLOATING CLOUD PARTICLES ====================
+    /**
+     * Spawns swirling smoke and soul sand particles beneath the floating entity to create a hovering cloud pedestal.
+     */
+    private void tickFloatingCloudParticles() {
+        if (!ENABLE_FLOATING_CLOUD_PARTICLES || this.isDead()) {
+            return;
+        }
+
+        // 1. Billowing Smoke Cloud Base
+        for (int i = 0; i < CLOUD_SMOKE_COUNT_PER_TICK; i++) {
+            double angle = this.random.nextDouble() * Math.PI * 2.0;
+            double dist = Math.sqrt(this.random.nextDouble()) * CLOUD_PARTICLE_RADIUS;
+            double px = this.getX() + Math.cos(angle) * dist;
+            double py = this.getY() + CLOUD_PARTICLE_BASE_Y_OFFSET + (this.random.nextDouble() * 0.35);
+            double pz = this.getZ() + Math.sin(angle) * dist;
+
+            double vx = (this.random.nextDouble() - 0.5) * 0.03;
+            double vy = CLOUD_PARTICLE_UPWARD_SPEED + (this.random.nextDouble() * 0.015);
+            double vz = (this.random.nextDouble() - 0.5) * 0.03;
+
+            // Mixture of soft lingering campfire smoke and dark smoke puffs
+            if (this.random.nextFloat() < 0.35f) {
+                this.getWorld().addParticle(ParticleTypes.CAMPFIRE_COSY_SMOKE, px, py, pz, vx * 0.5, vy * 0.8, vz * 0.5);
+            } else {
+                this.getWorld().addParticle(ParticleTypes.SMOKE, px, py, pz, vx, vy, vz);
+            }
+        }
+
+        // 2. Rising Soul Sand Spirits (Soul faces)
+        for (int i = 0; i < CLOUD_SOUL_COUNT_PER_TICK; i++) {
+            if (this.random.nextFloat() < 0.75f) {
+                double angle = this.random.nextDouble() * Math.PI * 2.0;
+                double dist = Math.sqrt(this.random.nextDouble()) * (CLOUD_PARTICLE_RADIUS * 0.85);
+                double px = this.getX() + Math.cos(angle) * dist;
+                double py = this.getY() + CLOUD_PARTICLE_BASE_Y_OFFSET + (this.random.nextDouble() * 0.2);
+                double pz = this.getZ() + Math.sin(angle) * dist;
+
+                double vx = (this.random.nextDouble() - 0.5) * 0.02;
+                double vy = CLOUD_PARTICLE_UPWARD_SPEED * 1.5 + (this.random.nextDouble() * 0.02);
+                double vz = (this.random.nextDouble() - 0.5) * 0.02;
+
+                this.getWorld().addParticle(ParticleTypes.SOUL, px, py, pz, vx, vy, vz);
+            }
+        }
+
+        // 3. Soul Sand Block Dust Crumbs
+        if (ENABLE_SOUL_SAND_DUST_IN_CLOUD && this.random.nextFloat() < 0.5f) {
+            double angle = this.random.nextDouble() * Math.PI * 2.0;
+            double dist = Math.sqrt(this.random.nextDouble()) * (CLOUD_PARTICLE_RADIUS * 0.7);
+            double px = this.getX() + Math.cos(angle) * dist;
+            double py = this.getY() + CLOUD_PARTICLE_BASE_Y_OFFSET + (this.random.nextDouble() * 0.2);
+            double pz = this.getZ() + Math.sin(angle) * dist;
+
+            this.getWorld().addParticle(
+                    new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.SOUL_SAND.getDefaultState()),
+                    px, py, pz,
+                    (this.random.nextDouble() - 0.5) * 0.05,
+                    0.01 + this.random.nextDouble() * 0.02,
+                    (this.random.nextDouble() - 0.5) * 0.05
+            );
+        }
+
+        // 4. Ethereal Soul Fire Embers inside the Cloud
+        if (ENABLE_SOUL_FLAME_IN_CLOUD && this.random.nextFloat() < 0.4f) {
+            double angle = this.random.nextDouble() * Math.PI * 2.0;
+            double dist = Math.sqrt(this.random.nextDouble()) * (CLOUD_PARTICLE_RADIUS * 0.6);
+            double px = this.getX() + Math.cos(angle) * dist;
+            double py = this.getY() + CLOUD_PARTICLE_BASE_Y_OFFSET + (this.random.nextDouble() * 0.25);
+            double pz = this.getZ() + Math.sin(angle) * dist;
+
+            this.getWorld().addParticle(ParticleTypes.SOUL_FIRE_FLAME, px, py, pz,
+                    (this.random.nextDouble() - 0.5) * 0.02,
+                    0.01 + this.random.nextDouble() * 0.02,
+                    (this.random.nextDouble() - 0.5) * 0.02);
         }
     }
 
@@ -1063,7 +1127,6 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
         nbt.putBoolean("EnrageStarted", this.enrageStarted);
         nbt.putBoolean("Enraged", isEnraged());
         nbt.putInt("SlashCooldown", this.slashCooldown);
-        nbt.putInt("ShieldBashCooldown", this.shieldBashCooldown);
         nbt.putInt("ChargeCooldown", this.chargeCooldown);
         nbt.putInt("CorePulseCooldown", this.corePulseCooldown);
         if (this.arenaCenter != null) {
@@ -1108,7 +1171,6 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
             setEnraged(nbt.getBoolean("Enraged"));
         }
         if (nbt.contains("SlashCooldown")) this.slashCooldown = nbt.getInt("SlashCooldown");
-        if (nbt.contains("ShieldBashCooldown")) this.shieldBashCooldown = nbt.getInt("ShieldBashCooldown");
         if (nbt.contains("ChargeCooldown")) this.chargeCooldown = nbt.getInt("ChargeCooldown");
         if (nbt.contains("CorePulseCooldown")) this.corePulseCooldown = nbt.getInt("CorePulseCooldown");
         if (nbt.contains("ArenaCenter")) {
@@ -1257,41 +1319,6 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
         @Override
         public boolean shouldContinue() {
             return this.knight.getCurrentAttack() == AttackType.SLASH
-                    && this.knight.getCurrentAttackPhase() != AttackPhase.IDLE;
-        }
-    }
-
-    /**
-     * Shield Bash Attack Goal
-     * Trigger: Target within 4.0 blocks, ~35% chance per tick when ready.
-     */
-    public static class KnightShieldBashGoal extends Goal {
-        private final EverlivingKnightEntity knight;
-
-        public KnightShieldBashGoal(EverlivingKnightEntity knight) {
-            this.knight = knight;
-            this.setControls(EnumSet.of(Control.MOVE, Control.LOOK));
-        }
-
-        @Override
-        public boolean canStart() {
-            if (this.knight.isBusy() || this.knight.getShieldBashCooldown() > 0) return false;
-            LivingEntity target = this.knight.getTarget();
-            if (target == null || !target.isAlive() || target.isSpectator()) return false;
-
-            double dist = this.knight.distanceTo(target);
-            return dist <= 4.0 && this.knight.random.nextFloat() < 0.35f;
-        }
-
-        @Override
-        public void start() {
-            this.knight.getNavigation().stop();
-            this.knight.startShieldBash();
-        }
-
-        @Override
-        public boolean shouldContinue() {
-            return this.knight.getCurrentAttack() == AttackType.SHIELD_BASH
                     && this.knight.getCurrentAttackPhase() != AttackPhase.IDLE;
         }
     }

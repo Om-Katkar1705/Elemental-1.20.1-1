@@ -19,15 +19,15 @@ public class ElementalConfig {
     public boolean spawnOnFirstPlayerJoin = true;
 
     // Seismic Colossus Boss Settings (Health is identical across all phases)
-    public float seismicColossusPhase1Health = 400.0f;
-    public float seismicColossusPhase2Health = 400.0f;
-    public float seismicColossusPhase3Health = 400.0f;
-    public float seismicColossusBaseDamage = 16.0f;
+    public float seismicColossusPhase1Health = 250.0f;
+    public float seismicColossusPhase2Health = 250.0f;
+    public float seismicColossusPhase3Health = 250.0f;
+    public float seismicColossusBaseDamage = 12.0f;
     public double seismicColossusSpeed = 0.22;
-    public int seismicColossusAttackCooldown = 40;
+    public int seismicColossusAttackCooldown = 50;
     public double seismicColossusBlockThrowRange = 24.0;
-    public int seismicColossusMinionCount = 4;
-    public int seismicColossusWeaponStickDuration = 110;
+    public int seismicColossusMinionCount = 2;
+    public int seismicColossusWeaponStickDuration = 80;
     public boolean seismicColossusRestoreTerrain = true;
 
     private static ElementalConfig INSTANCE;

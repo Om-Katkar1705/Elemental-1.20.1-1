@@ -84,19 +84,19 @@ import java.util.Random;
 public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
 
     // ==================== CONFIGURATION VARIABLES ====================
-    public static double ARMOR = 14.0;
-    public static double ARMOR_TOUGHNESS = 6.0;
+    public static double ARMOR = 10.0;
+    public static double ARMOR_TOUGHNESS = 3.0;
     public static double KNOCKBACK_RESISTANCE = 1.0;
     public static double FOLLOW_RANGE = 48.0;
     public static int EXPERIENCE_POINTS = 100;
 
-    // Special Attack Damages
-    public static float SLAM_DAMAGE = 10.0f;
-    public static float STOMP_DAMAGE = 7.0f;
-    public static float FISSURE_DAMAGE = 12.0f;
-    public static float WAR_ROAR_DAMAGE = 7.0f;
-    public static float CHARGE_DAMAGE = 14.0f;
-    public static float BREAKOUT_DAMAGE = 12.0f;
+    // Special Attack Damages (Nerfed for balanced combat)
+    public static float SLAM_DAMAGE = 8.0f;
+    public static float STOMP_DAMAGE = 5.0f;
+    public static float FISSURE_DAMAGE = 8.0f;
+    public static float WAR_ROAR_DAMAGE = 5.0f;
+    public static float CHARGE_DAMAGE = 10.0f;
+    public static float BREAKOUT_DAMAGE = 8.0f;
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
 
@@ -914,7 +914,7 @@ public class SeismicColossusEntity extends HostileEntity implements GeoEntity {
                 : Blocks.COBBLESTONE.getDefaultState();
         this.heldRipBlockState = null;
 
-        float damage = 12.0f;
+        float damage = 9.0f;
         if (getPhase() >= 3) {
             damage *= 1.10f; // 10% Phase 3 buff
         }
