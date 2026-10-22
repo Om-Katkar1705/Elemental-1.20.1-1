@@ -254,16 +254,16 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
         if (!target.isAlive() || target.isRemoved() || target.isSpectator()) {
             return false;
         }
+        // Exclude flying mobs (e.g., Ender Dragon, Wither, Ghast, Phantom)
+        if (isFlyingMob(target)) {
+            return false;
+        }
+        // Bosses in bosses.json are valid targets for collapse and special breakout sequences
+        if (isBossMob(target)) {
+            return true;
+        }
         // Exclude fire-proof mobs
         if (isFireProofMob(target)) {
-            return false;
-        }
-        // Exclude boss mobs
-        if (isBossMob(target)) {
-            return false;
-        }
-        // Exclude flying mobs
-        if (isFlyingMob(target)) {
             return false;
         }
         return true;
@@ -305,7 +305,7 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
         Box box = new Box(player.getX() - 6.0, player.getY() - 3.0, player.getZ() - 6.0,
                 player.getX() + 6.0, player.getY() + 4.0, player.getZ() + 6.0);
         List<LivingEntity> targets = world.getEntitiesByClass(LivingEntity.class, box, e ->
-                isValidCollapseTarget(e, player) && e.squaredDistanceTo(player) <= 36.0
+                isValidCollapseTarget(e, player) && (e.squaredDistanceTo(player) <= 36.0 || (isBossMob(e) && e.getBoundingBox().intersects(box)))
         );
 
         if (targets.isEmpty()) {

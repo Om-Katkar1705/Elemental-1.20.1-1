@@ -372,6 +372,7 @@ public class AshenRiftScheduler {
                 }
 
                 // If a Seismic Colossus is trapped/buried inside the closing hole, signal it to blast out!
+                // For other bosses (e.g. Everliving Knight), safely reposition them above the refilled hole.
                 for (HoleSpec hole : session.holes) {
                     net.minecraft.util.math.Box holeBox = new net.minecraft.util.math.Box(
                             hole.centerPos.getX() - hole.radius - 1, hole.surfaceY - hole.depth - 2, hole.centerPos.getZ() - hole.radius - 1,
@@ -382,6 +383,15 @@ public class AshenRiftScheduler {
                     );
                     for (com.elemental.entity.SeismicColossusEntity boss : bosses) {
                         boss.triggerBreakout();
+                    }
+
+                    List<LivingEntity> otherBosses = world.getEntitiesByClass(
+                            LivingEntity.class, holeBox, e -> e.isAlive() && !(e instanceof com.elemental.entity.SeismicColossusEntity) && AshenRiftBladeItem.isBossMob(e)
+                    );
+                    for (LivingEntity otherBoss : otherBosses) {
+                        otherBoss.teleport(otherBoss.getX(), hole.surfaceY + 1.0, otherBoss.getZ());
+                        otherBoss.setVelocity(0, 0.2, 0);
+                        otherBoss.velocityModified = true;
                     }
                 }
 
