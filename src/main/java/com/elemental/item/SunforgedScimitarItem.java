@@ -84,7 +84,7 @@ public class SunforgedScimitarItem extends SwordItem implements GeoItem {
     public static final float HEAT_BONUS_DAMAGE = 1.0f;
 
     // Controls whether high heat causes self-damage to the holder (configurable risk/reward)
-    public static final boolean SELF_DAMAGE_ENABLED = false;
+    public static boolean SELF_DAMAGE_ENABLED = false;
 
     // Amount of self-damage dealt to the player when heat threshold is exceeded (if enabled)
     public static final float HEAT_SELF_DAMAGE = 1.0f;
