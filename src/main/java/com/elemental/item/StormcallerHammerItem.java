@@ -70,12 +70,13 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
             REDUCED_DAMAGE_MODIFIER_UUID,
             "Stormcaller Cooldown Reduced Damage",
             -5.0, // Deals less damage than normal during cooldown
-            EntityAttributeModifier.Operation.ADDITION
-    );
+            EntityAttributeModifier.Operation.ADDITION);
 
-    // GeckoLib animation definitions (weapon model idle and cooldown ONLY; player animations handled by PlayerAnimator)
+    // GeckoLib animation definitions (weapon model idle and cooldown ONLY; player
+    // animations handled by PlayerAnimator)
     private static final RawAnimation IDLE_ANIM = RawAnimation.begin().thenLoop("animation.stormcaller_hammer.idle");
-    private static final RawAnimation COOLDOWN_ANIM = RawAnimation.begin().thenLoop("animation.stormcaller_hammer.cooldown");
+    private static final RawAnimation COOLDOWN_ANIM = RawAnimation.begin()
+            .thenLoop("animation.stormcaller_hammer.cooldown");
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     private final Supplier<Object> renderProvider = GeoItem.makeRenderer(this);
@@ -100,9 +101,11 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
         builder.put(EntityAttributes.GENERIC_ATTACK_DAMAGE, new EntityAttributeModifier(
                 ATTACK_DAMAGE_MODIFIER_ID, "Weapon modifier", 10.0, EntityAttributeModifier.Operation.ADDITION));
         builder.put(EntityAttributes.GENERIC_ATTACK_SPEED, new EntityAttributeModifier(
-                ATTACK_SPEED_MODIFIER_ID, "Weapon modifier", BASE_ATTACK_SPEED, EntityAttributeModifier.Operation.ADDITION));
+                ATTACK_SPEED_MODIFIER_ID, "Weapon modifier", BASE_ATTACK_SPEED,
+                EntityAttributeModifier.Operation.ADDITION));
         builder.put(EntityAttributes.GENERIC_ATTACK_KNOCKBACK, new EntityAttributeModifier(
-                UUID.fromString("9352e071-70e2-4bd5-b28e-5b12da6f23a8"), "Weapon knockback modifier", BONUS_KNOCKBACK, EntityAttributeModifier.Operation.ADDITION));
+                UUID.fromString("9352e071-70e2-4bd5-b28e-5b12da6f23a8"), "Weapon knockback modifier", BONUS_KNOCKBACK,
+                EntityAttributeModifier.Operation.ADDITION));
         this.attributeModifiers = builder.build();
     }
 
@@ -124,13 +127,14 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
             ItemStack stack = state.getData(DataTickets.ITEMSTACK);
             Entity entity = state.getData(DataTickets.ENTITY);
             if (stack != null && entity != null) {
-                if (isThunderclapCoolingDown(entity.getWorld(), stack) && isThunderstormCoolingDown(entity.getWorld(), stack)) {
+                if (isThunderclapCoolingDown(entity.getWorld(), stack)
+                        && isThunderstormCoolingDown(entity.getWorld(), stack)) {
                     return state.setAndContinue(COOLDOWN_ANIM);
                 }
             }
             return state.setAndContinue(IDLE_ANIM);
         }).triggerableAnim("cooldown", COOLDOWN_ANIM)
-          .triggerableAnim("idle", IDLE_ANIM));
+                .triggerableAnim("idle", IDLE_ANIM));
     }
 
     @Override
@@ -161,39 +165,46 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
     // ==========================================
 
     public static boolean isThunderclapCoolingDown(World world, ItemStack stack) {
-        if (!stack.hasNbt()) return false;
+        if (!stack.hasNbt())
+            return false;
         long endTick = stack.getNbt().getLong(NBT_THUNDERCLAP_COOLDOWN_END);
         return world.getTime() < endTick;
     }
 
     public static int getRemainingThunderclapSeconds(World world, ItemStack stack) {
-        if (!stack.hasNbt()) return 0;
+        if (!stack.hasNbt())
+            return 0;
         long endTick = stack.getNbt().getLong(NBT_THUNDERCLAP_COOLDOWN_END);
         long remaining = endTick - world.getTime();
         return remaining > 0 ? (int) Math.ceil(remaining / 20.0) : 0;
     }
 
-    public static void applyThunderclapCooldown(ServerWorld world, ServerPlayerEntity player, ItemStack stack, int ticks) {
+    public static void applyThunderclapCooldown(ServerWorld world, ServerPlayerEntity player, ItemStack stack,
+            int ticks) {
         long endTick = world.getTime() + ticks;
         stack.getOrCreateNbt().putLong(NBT_THUNDERCLAP_COOLDOWN_END, endTick);
         stack.getOrCreateNbt().putBoolean(NBT_THUNDERCLAP_NOTIFIED, true);
-        // Do NOT call player.getItemCooldownManager().set(...) so right-click Thunderstorm is not blocked!
+        // Do NOT call player.getItemCooldownManager().set(...) so right-click
+        // Thunderstorm is not blocked!
     }
 
     public static boolean isThunderstormCoolingDown(World world, ItemStack stack) {
-        if (!stack.hasNbt()) return false;
+        if (!stack.hasNbt())
+            return false;
         long endTick = stack.getNbt().getLong(NBT_THUNDERSTORM_COOLDOWN_END);
         return world.getTime() < endTick;
     }
 
     public static int getRemainingThunderstormSeconds(World world, ItemStack stack) {
-        if (!stack.hasNbt()) return 0;
+        if (!stack.hasNbt())
+            return 0;
         long endTick = stack.getNbt().getLong(NBT_THUNDERSTORM_COOLDOWN_END);
         long remaining = endTick - world.getTime();
         return remaining > 0 ? (int) Math.ceil(remaining / 20.0) : 0;
     }
 
-    public static void applyThunderstormCooldown(ServerWorld world, ServerPlayerEntity player, ItemStack stack, int ticks) {
+    public static void applyThunderstormCooldown(ServerWorld world, ServerPlayerEntity player, ItemStack stack,
+            int ticks) {
         long endTick = world.getTime() + ticks;
         stack.getOrCreateNbt().putLong(NBT_THUNDERSTORM_COOLDOWN_END, endTick);
         stack.getOrCreateNbt().putBoolean(NBT_THUNDERSTORM_NOTIFIED, true);
@@ -237,12 +248,16 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
             if (isHolding && stack.hasNbt()) {
                 if (!thunderclapCooling && stack.getNbt().getBoolean(NBT_THUNDERCLAP_NOTIFIED)) {
                     stack.getNbt().remove(NBT_THUNDERCLAP_NOTIFIED);
-                    player.sendMessage(Text.literal("§a⚡ Thunderclap recharged!").formatted(Formatting.GREEN, Formatting.BOLD), true);
+                    player.sendMessage(
+                            Text.literal("§a⚡ Thunderclap recharged!").formatted(Formatting.GREEN, Formatting.BOLD),
+                            true);
                     player.playSound(SoundEvents.BLOCK_BEACON_ACTIVATE, SoundCategory.PLAYERS, 0.7f, 1.8f);
                 }
                 if (!thunderstormCooling && stack.getNbt().getBoolean(NBT_THUNDERSTORM_NOTIFIED)) {
                     stack.getNbt().remove(NBT_THUNDERSTORM_NOTIFIED);
-                    player.sendMessage(Text.literal("§a⚡ Thunderstorm recharged!").formatted(Formatting.GREEN, Formatting.BOLD), true);
+                    player.sendMessage(
+                            Text.literal("§a⚡ Thunderstorm recharged!").formatted(Formatting.GREEN, Formatting.BOLD),
+                            true);
                     player.playSound(SoundEvents.BLOCK_BEACON_ACTIVATE, SoundCategory.PLAYERS, 0.7f, 1.8f);
                 }
                 // Backwards compatibility clean-up
@@ -271,7 +286,8 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
                 world.playSound(null, target.getX(), target.getY(), target.getZ(),
                         SoundEvents.ENTITY_LIGHTNING_BOLT_IMPACT, SoundCategory.PLAYERS, 0.4f, 1.6f);
                 if (world instanceof ServerWorld serverWorld) {
-                    serverWorld.spawnParticles(ParticleTypes.ELECTRIC_SPARK, target.getX(), target.getY() + 1.0, target.getZ(),
+                    serverWorld.spawnParticles(ParticleTypes.ELECTRIC_SPARK, target.getX(), target.getY() + 1.0,
+                            target.getZ(),
                             12, 0.3, 0.4, 0.3, 0.1);
                 }
             }
@@ -332,13 +348,17 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
         if (isThunderstormCoolingDown(world, stack)) {
             if (!world.isClient() && user instanceof ServerPlayerEntity serverPlayer) {
                 int remaining = getRemainingThunderstormSeconds(world, stack);
-                serverPlayer.sendMessage(Text.literal("§c⚡ Thunderstorm is cooling down! (" + remaining + "s remaining)").formatted(Formatting.RED), true);
+                serverPlayer
+                        .sendMessage(Text.literal("§c⚡ Thunderstorm is cooling down! (" + remaining + "s remaining)")
+                                .formatted(Formatting.RED), true);
             }
-            world.playSound(null, user.getX(), user.getY(), user.getZ(), SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.PLAYERS, 0.6f, 1.4f);
+            world.playSound(null, user.getX(), user.getY(), user.getZ(), SoundEvents.BLOCK_FIRE_EXTINGUISH,
+                    SoundCategory.PLAYERS, 0.6f, 1.4f);
             return TypedActionResult.fail(stack);
         }
         user.setCurrentHand(hand);
-        world.playSound(null, user.getX(), user.getY(), user.getZ(), SoundEvents.ITEM_CROSSBOW_LOADING_START, SoundCategory.PLAYERS, 0.8f, 0.7f);
+        world.playSound(null, user.getX(), user.getY(), user.getZ(), SoundEvents.ITEM_CROSSBOW_LOADING_START,
+                SoundCategory.PLAYERS, 0.8f, 0.7f);
         if (world.isClient()) {
             if (CLIENT_AIM_START_CALLBACK != null) {
                 CLIENT_AIM_START_CALLBACK.accept(user);
@@ -365,13 +385,16 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
 
         if (chargeTicks % 10 == 0) {
             float pitch = Math.min(2.0f, 0.6f + (chargeTicks / 40.0f) * 0.8f);
-            world.playSound(null, user.getX(), user.getY(), user.getZ(), SoundEvents.BLOCK_RESPAWN_ANCHOR_CHARGE, SoundCategory.PLAYERS, 0.35f, pitch);
+            world.playSound(null, user.getX(), user.getY(), user.getZ(), SoundEvents.BLOCK_RESPAWN_ANCHOR_CHARGE,
+                    SoundCategory.PLAYERS, 0.35f, pitch);
         }
 
         if (chargeTicks == 40 && user instanceof PlayerEntity player) {
-            world.playSound(null, user.getX(), user.getY(), user.getZ(), SoundEvents.BLOCK_BEACON_ACTIVATE, SoundCategory.PLAYERS, 0.8f, 1.8f);
+            world.playSound(null, user.getX(), user.getY(), user.getZ(), SoundEvents.BLOCK_BEACON_ACTIVATE,
+                    SoundCategory.PLAYERS, 0.8f, 1.8f);
             if (world.isClient()) {
-                player.sendMessage(Text.literal("§e⚡ FULL CHARGE READY!").formatted(Formatting.YELLOW, Formatting.BOLD), true);
+                player.sendMessage(Text.literal("§e⚡ FULL CHARGE READY!").formatted(Formatting.YELLOW, Formatting.BOLD),
+                        true);
             }
         }
     }
@@ -421,8 +444,7 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
 
         // Check line of sight against solid blocks
         BlockHitResult blockHit = world.raycast(new RaycastContext(
-                eyePos, endPos, RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, player
-        ));
+                eyePos, endPos, RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, player));
         if (blockHit.getType() != HitResult.Type.MISS) {
             endPos = blockHit.getPos();
         }
@@ -459,16 +481,14 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
 
         // Check line of sight against solid blocks
         BlockHitResult blockHit = world.raycast(new RaycastContext(
-                eyePos, endPos, RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, player
-        ));
+                eyePos, endPos, RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, player));
         if (blockHit.getType() != HitResult.Type.MISS) {
             endPos = blockHit.getPos();
         }
 
         Box searchBox = new Box(eyePos, endPos).expand(1.2);
-        List<LivingEntity> list = world.getEntitiesByClass(LivingEntity.class, searchBox, e ->
-                e != player && !(e instanceof PlayerEntity) && e.isAlive() && !e.isSpectator()
-        );
+        List<LivingEntity> list = world.getEntitiesByClass(LivingEntity.class, searchBox,
+                e -> e != player && !(e instanceof PlayerEntity) && e.isAlive() && !e.isSpectator());
 
         LivingEntity closest = null;
         double closestDistSq = Double.MAX_VALUE;

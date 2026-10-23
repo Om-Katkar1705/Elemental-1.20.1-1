@@ -80,7 +80,8 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
     public static final String NBT_THROW_COOLDOWN_END = "TidebreakerThrowCooldownEnd";
 
     public static boolean isDashCoolingDown(World world, ItemStack stack) {
-        if (!stack.hasNbt()) return false;
+        if (!stack.hasNbt())
+            return false;
         long endTick = stack.getNbt().getLong(NBT_DASH_COOLDOWN_END);
         if (endTick == 0) {
             long lastDash = stack.getNbt().getLong("LastDashTime");
@@ -90,7 +91,8 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
     }
 
     public static int getRemainingDashSeconds(World world, ItemStack stack) {
-        if (!stack.hasNbt()) return 0;
+        if (!stack.hasNbt())
+            return 0;
         long endTick = stack.getNbt().getLong(NBT_DASH_COOLDOWN_END);
         if (endTick == 0) {
             long lastDash = stack.getNbt().getLong("LastDashTime");
@@ -108,13 +110,15 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
     }
 
     public static boolean isThrowCoolingDown(World world, ItemStack stack) {
-        if (!stack.hasNbt()) return false;
+        if (!stack.hasNbt())
+            return false;
         long endTick = stack.getNbt().getLong(NBT_THROW_COOLDOWN_END);
         return world.getTime() < endTick;
     }
 
     public static int getRemainingThrowSeconds(World world, ItemStack stack) {
-        if (!stack.hasNbt()) return 0;
+        if (!stack.hasNbt())
+            return 0;
         long endTick = stack.getNbt().getLong(NBT_THROW_COOLDOWN_END);
         long remaining = endTick - world.getTime();
         return remaining > 0 ? (int) Math.ceil(remaining / 20.0) : 0;
@@ -140,17 +144,19 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
             UNDERWATER_ATTACK_SPEED_UUID,
             "Tidebreaker underwater attack speed",
             UNDERWATER_ATTACK_SPEED_BONUS,
-            EntityAttributeModifier.Operation.MULTIPLY_TOTAL
-    );
+            EntityAttributeModifier.Operation.MULTIPLY_TOTAL);
 
     // GeckoLib animations
     private static final RawAnimation IDLE_ANIM = RawAnimation.begin().thenLoop("animation.tidebreaker_trident.idle");
     private static final RawAnimation SWING_ANIM = RawAnimation.begin().thenPlay("animation.tidebreaker_trident.swing");
-    private static final RawAnimation CHARGE_ANIM = RawAnimation.begin().thenLoop("animation.tidebreaker_trident.charge");
+    private static final RawAnimation CHARGE_ANIM = RawAnimation.begin()
+            .thenLoop("animation.tidebreaker_trident.charge");
     private static final RawAnimation THROW_ANIM = RawAnimation.begin().thenPlay("animation.tidebreaker_trident.throw");
     private static final RawAnimation DASH_ANIM = RawAnimation.begin().thenPlay("animation.tidebreaker_trident.dash");
-    private static final RawAnimation FAILED_DASH_ANIM = RawAnimation.begin().thenPlay("animation.tidebreaker_trident.failed_dash");
-    private static final RawAnimation COOLDOWN_ANIM = RawAnimation.begin().thenLoop("animation.tidebreaker_trident.cooldown");
+    private static final RawAnimation FAILED_DASH_ANIM = RawAnimation.begin()
+            .thenPlay("animation.tidebreaker_trident.failed_dash");
+    private static final RawAnimation COOLDOWN_ANIM = RawAnimation.begin()
+            .thenLoop("animation.tidebreaker_trident.cooldown");
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     private final Supplier<Object> renderProvider = GeoItem.makeRenderer(this);
@@ -164,7 +170,8 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
         SingletonGeoAnimatable.registerSyncedAnimatable(this);
         ImmutableMultimap.Builder<EntityAttribute, EntityAttributeModifier> builder = ImmutableMultimap.builder();
         builder.put(EntityAttributes.GENERIC_ATTACK_DAMAGE, new EntityAttributeModifier(
-                ATTACK_DAMAGE_MODIFIER_ID, "Weapon modifier", MELEE_DAMAGE, EntityAttributeModifier.Operation.ADDITION));
+                ATTACK_DAMAGE_MODIFIER_ID, "Weapon modifier", MELEE_DAMAGE,
+                EntityAttributeModifier.Operation.ADDITION));
         builder.put(EntityAttributes.GENERIC_ATTACK_SPEED, new EntityAttributeModifier(
                 ATTACK_SPEED_MODIFIER_ID, "Weapon modifier", ATTACK_SPEED, EntityAttributeModifier.Operation.ADDITION));
         this.attributeModifiers = builder.build();
@@ -191,18 +198,19 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
                 long now = entity.getWorld().getTime();
                 long lastBubble = stack.hasNbt() ? stack.getNbt().getLong("LastBubbleTime") : 0;
                 boolean bubbleCd = (now - lastBubble < BUBBLE_COOLDOWN_TICKS);
-                if (player.getItemCooldownManager().isCoolingDown(this) && isDashCoolingDown(entity.getWorld(), stack)) {
+                if (player.getItemCooldownManager().isCoolingDown(this)
+                        && isDashCoolingDown(entity.getWorld(), stack)) {
                     return state.setAndContinue(COOLDOWN_ANIM);
                 }
             }
             return state.setAndContinue(IDLE_ANIM);
         }).triggerableAnim("swing", SWING_ANIM)
-          .triggerableAnim("charge", CHARGE_ANIM)
-          .triggerableAnim("throw", THROW_ANIM)
-          .triggerableAnim("dash", DASH_ANIM)
-          .triggerableAnim("failed_dash", FAILED_DASH_ANIM)
-          .triggerableAnim("cooldown", COOLDOWN_ANIM)
-          .triggerableAnim("idle", IDLE_ANIM));
+                .triggerableAnim("charge", CHARGE_ANIM)
+                .triggerableAnim("throw", THROW_ANIM)
+                .triggerableAnim("dash", DASH_ANIM)
+                .triggerableAnim("failed_dash", FAILED_DASH_ANIM)
+                .triggerableAnim("cooldown", COOLDOWN_ANIM)
+                .triggerableAnim("idle", IDLE_ANIM));
     }
 
     @Override
@@ -344,7 +352,8 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
 
     @Override
     public void onStoppedUsing(ItemStack stack, World world, LivingEntity user, int remainingUseTicks) {
-        if (!(user instanceof PlayerEntity player)) return;
+        if (!(user instanceof PlayerEntity player))
+            return;
 
         int chargeTime = this.getMaxUseTime(stack) - remainingUseTicks;
         if (chargeTime >= 10) {
@@ -359,7 +368,8 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
                 }
 
                 world.spawnEntity(entity);
-                world.playSoundFromEntity(null, entity, SoundEvents.ITEM_TRIDENT_THROW, SoundCategory.PLAYERS, 1.0f, 1.0f);
+                world.playSoundFromEntity(null, entity, SoundEvents.ITEM_TRIDENT_THROW, SoundCategory.PLAYERS, 1.0f,
+                        1.0f);
 
                 if (!player.getAbilities().creativeMode) {
                     player.getInventory().removeOne(stack);
@@ -412,11 +422,13 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
             hand = Hand.OFF_HAND;
         }
 
-        if (stack == null) return;
+        if (stack == null)
+            return;
 
         if (isDashCoolingDown(player.getWorld(), stack)) {
             int remainingSec = getRemainingDashSeconds(player.getWorld(), stack);
-            player.sendMessage(Text.literal("§c✦ Tidebreaker Dash is cooling down! (" + remainingSec + "s remaining)").formatted(Formatting.RED), true);
+            player.sendMessage(Text.literal("§c✦ Tidebreaker Dash is cooling down! (" + remainingSec + "s remaining)")
+                    .formatted(Formatting.RED), true);
             return; // Cooldown active
         }
 
@@ -429,7 +441,8 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
             Vec3d push = look.multiply(0.65).add(0, 0.1, 0);
             player.setVelocity(push.x, push.y, push.z);
             player.velocityModified = true;
-            player.networkHandler.sendPacket(new net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket(player));
+            player.networkHandler
+                    .sendPacket(new net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket(player));
 
             world.spawnParticles(ParticleTypes.SMOKE, player.getX(), player.getY() + 0.5, player.getZ(),
                     20, 0.4, 0.4, 0.4, 0.05);
@@ -457,7 +470,8 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
         player.setVelocity(dashVec.x, dashVec.y * 0.85 + 0.15, dashVec.z);
         player.velocityModified = true;
         player.fallDistance = 0.0f;
-        player.networkHandler.sendPacket(new net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket(player));
+        player.networkHandler
+                .sendPacket(new net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket(player));
 
         // Visual and sound effects
         world.spawnParticles(ParticleTypes.SPLASH, player.getX(), player.getY() + 0.5, player.getZ(),
@@ -487,7 +501,8 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
         ServerWorld world = player.getServerWorld();
         BlockPos playerPos = player.getBlockPos();
         // Fast checks: immediately below or around player feet
-        if (world.getFluidState(playerPos).isIn(FluidTags.WATER) || world.getFluidState(playerPos.down()).isIn(FluidTags.WATER)) {
+        if (world.getFluidState(playerPos).isIn(FluidTags.WATER)
+                || world.getFluidState(playerPos.down()).isIn(FluidTags.WATER)) {
             return true;
         }
         int r = WATER_SEARCH_RADIUS;
@@ -506,12 +521,18 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
     // ==========================================
 
     public static void tryApplyBubbleAbility(PlayerEntity owner, LivingEntity target, ItemStack tridentStack) {
-        if (owner.getWorld().isClient()) return;
-        if (target == owner) return;
-        if (owner.isTeammate(target)) return;
-        if (target.getType().isIn(ModEntityTags.BOSSES) && !(target instanceof com.elemental.entity.SeismicColossusEntity)) return;
+        if (owner.getWorld().isClient())
+            return;
+        if (target == owner)
+            return;
+        if (owner.isTeammate(target))
+            return;
+        if (target.getType().isIn(ModEntityTags.BOSSES)
+                && !(target instanceof com.elemental.entity.SeismicColossusEntity))
+            return;
 
-        if (owner.squaredDistanceTo(target) > BUBBLE_MAX_RANGE * BUBBLE_MAX_RANGE) return;
+        if (owner.squaredDistanceTo(target) > BUBBLE_MAX_RANGE * BUBBLE_MAX_RANGE)
+            return;
 
         long now = owner.getWorld().getTime();
         Long lastPlayerBubble = LAST_BUBBLE_BY_PLAYER.get(owner.getUuid());
@@ -548,26 +569,34 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
     }
 
     public static double getBiomePowerMultiplier(Entity entity) {
-        if (isInOcean(entity)) return 1.20;
-        if (isInRiver(entity)) return 1.10;
+        if (isInOcean(entity))
+            return 1.20;
+        if (isInRiver(entity))
+            return 1.10;
         return 1.0;
     }
 
     public static float getBiomeMeleeBonus(Entity entity) {
-        if (isInOcean(entity)) return OCEAN_MELEE_BONUS;
-        if (isInRiver(entity)) return RIVER_MELEE_BONUS;
+        if (isInOcean(entity))
+            return OCEAN_MELEE_BONUS;
+        if (isInRiver(entity))
+            return RIVER_MELEE_BONUS;
         return 0.0f;
     }
 
     public static double getBiomeDashMultiplier(Entity entity) {
-        if (isInOcean(entity)) return OCEAN_DASH_MULTIPLIER;
-        if (isInRiver(entity)) return RIVER_DASH_MULTIPLIER;
+        if (isInOcean(entity))
+            return OCEAN_DASH_MULTIPLIER;
+        if (isInRiver(entity))
+            return RIVER_DASH_MULTIPLIER;
         return 1.0;
     }
 
     public static double getBiomeBubbleMultiplier(Entity entity) {
-        if (isInOcean(entity)) return OCEAN_BUBBLE_MULTIPLIER;
-        if (isInRiver(entity)) return RIVER_BUBBLE_MULTIPLIER;
+        if (isInOcean(entity))
+            return OCEAN_BUBBLE_MULTIPLIER;
+        if (isInRiver(entity))
+            return RIVER_BUBBLE_MULTIPLIER;
         return 1.0;
     }
 
@@ -597,8 +626,10 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
             }
         }
 
-        tooltip.add(Text.literal("Active [R]: Tidebreaker Dash (4s CD; requires water within 10 blocks, 2s on fail)").formatted(Formatting.BLUE));
-        tooltip.add(Text.literal("Throw: Water Bubble Levitation on entity impact (3s CD)").formatted(Formatting.LIGHT_PURPLE));
+        tooltip.add(Text.literal("Active [R]: Tidebreaker Dash (4s CD; requires water within 10 blocks, 2s on fail)")
+                .formatted(Formatting.BLUE));
+        tooltip.add(Text.literal("Throw: Water Bubble Levitation on entity impact (3s CD)")
+                .formatted(Formatting.LIGHT_PURPLE));
         tooltip.add(Text.literal("Empowered in Oceans (+20%) and Rivers (+10%)").formatted(Formatting.GRAY));
     }
 }

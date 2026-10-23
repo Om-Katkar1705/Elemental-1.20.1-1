@@ -22,8 +22,15 @@ public class EverlivingKnightRenderer extends GeoEntityRenderer<EverlivingKnight
     }
 
     @Override
+    protected void applyRotations(EverlivingKnightEntity animatable, MatrixStack poseStack, float ageInTicks,
+            float rotationYaw, float partialTick) {
+        super.applyRotations(animatable, poseStack, ageInTicks, rotationYaw, partialTick);
+        poseStack.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Y.rotationDegrees(90f));
+    }
+
+    @Override
     public void render(EverlivingKnightEntity entity, float entityYaw, float partialTick,
-                       MatrixStack poseStack, VertexConsumerProvider bufferSource, int packedLight) {
+            MatrixStack poseStack, VertexConsumerProvider bufferSource, int packedLight) {
         poseStack.push();
         // Scale 1.3x for large armored knight presence
         poseStack.scale(1.3f, 1.3f, 1.3f);
