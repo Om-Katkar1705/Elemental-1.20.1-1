@@ -272,6 +272,16 @@ public class StormcallerServerCombatHandler {
             return false;
         }
 
+        // Check thunderstorm cooldown
+        if (StormcallerHammerItem.isThunderstormCoolingDown(world, stack)) {
+            int remainingSec = StormcallerHammerItem.getRemainingThunderstormSeconds(world, stack);
+            player.sendMessage(Text.literal("§c⚡ Thunderstorm cooling down! (" + remainingSec + "s remaining)").formatted(Formatting.RED), true);
+            world.playSound(null, player.getX(), player.getY(), player.getZ(),
+                    SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.PLAYERS, 0.5f, 1.5f);
+            StormcallerNetworking.broadcastPlayAnimation(player, "stop");
+            return false;
+        }
+
         ActiveAttack attack = new ActiveAttack(AttackType.LIGHTNING_RELEASE, LIGHTNING_RELEASE_DURATION_TICKS);
         attack.targetEntityId = target.getId();
         attack.chargeProgress = chargeProgress;
@@ -309,7 +319,6 @@ public class StormcallerServerCombatHandler {
                     strikeCount = Math.max(1, Math.round(1 + (maxStrikes - 1) * charge));
                 }
 
-                boolean onCooldown = StormcallerHammerItem.isCoolingDown(world, stack);
                 float damagePerStrike;
                 if (strikeCount == 1) {
                     damagePerStrike = 14.0f;
@@ -319,9 +328,6 @@ public class StormcallerServerCombatHandler {
                     float totalDamage = 22.0f + (14.0f * charge);
                     damagePerStrike = totalDamage / strikeCount;
                 }
-                if (onCooldown) {
-                    damagePerStrike *= 0.55f;
-                }
 
                 int intervalTicks = (strikeCount > 10) ? 1 : 2;
                 StormcallerLightningScheduler.scheduleBarrage(world, player, target, strikeCount, damagePerStrike, intervalTicks);
@@ -330,14 +336,10 @@ public class StormcallerServerCombatHandler {
                         SoundEvents.ENTITY_LIGHTNING_BOLT_THUNDER, SoundCategory.PLAYERS, 1.2f, 1.0f);
 
                 // Apply cooldown and tool damage
-                StormcallerHammerItem.applyCooldown(world, player, stack, StormcallerHammerItem.COOLDOWN_TICKS);
+                StormcallerHammerItem.applyThunderstormCooldown(world, player, stack, StormcallerHammerItem.COOLDOWN_THUNDERSTORM_TICKS);
                 stack.damage(2, player, p -> p.sendToolBreakStatus(Hand.MAIN_HAND));
 
-                if (onCooldown) {
-                    player.sendMessage(Text.literal("§6⚡ Charged Lightning Strike! §c(Reduced damage during cooldown)").formatted(Formatting.YELLOW), true);
-                } else {
-                    player.sendMessage(Text.literal("§6⚡ Charged Lightning Strike unleashed! (" + strikeCount + " strikes)").formatted(Formatting.GOLD), true);
-                }
+                player.sendMessage(Text.literal("§6⚡ Charged Lightning Strike unleashed! (" + strikeCount + " strikes)").formatted(Formatting.GOLD), true);
             }
         }
     }
@@ -356,9 +358,9 @@ public class StormcallerServerCombatHandler {
 
         ServerWorld world = player.getServerWorld();
 
-        if (StormcallerHammerItem.isCoolingDown(world, stack)) {
-            int remainingSec = StormcallerHammerItem.getRemainingCooldownSeconds(world, stack);
-            player.sendMessage(Text.literal("§c⚡ Ground Smash cooling down! (" + remainingSec + "s remaining)").formatted(Formatting.RED), true);
+        if (StormcallerHammerItem.isThunderclapCoolingDown(world, stack)) {
+            int remainingSec = StormcallerHammerItem.getRemainingThunderclapSeconds(world, stack);
+            player.sendMessage(Text.literal("§c⚡ Thunderclap cooling down! (" + remainingSec + "s remaining)").formatted(Formatting.RED), true);
             world.playSound(null, player.getX(), player.getY(), player.getZ(),
                     SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.PLAYERS, 0.6f, 1.4f);
             return false;
@@ -444,9 +446,9 @@ public class StormcallerServerCombatHandler {
             }
 
             // Apply 15s cooldown and durability loss
-            StormcallerHammerItem.applyCooldown(world, player, stack, StormcallerHammerItem.COOLDOWN_TICKS);
+            StormcallerHammerItem.applyThunderclapCooldown(world, player, stack, StormcallerHammerItem.COOLDOWN_THUNDERCLAP_TICKS);
             stack.damage(2, player, p -> p.sendToolBreakStatus(Hand.MAIN_HAND));
-            player.sendMessage(Text.literal("§6⚡ Ground Smash! §cStormcaller cooling down (15s)").formatted(Formatting.GOLD), true);
+            player.sendMessage(Text.literal("§6⚡ Thunderclap unleashed!").formatted(Formatting.GOLD), true);
         }
     }
 }

@@ -76,6 +76,56 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
     public static final float BUBBLE_EXPLOSION_DAMAGE = 8.0f;
     public static final float PROJECTILE_BASE_DAMAGE = 8.0f;
 
+    public static final String NBT_DASH_COOLDOWN_END = "TidebreakerDashCooldownEnd";
+    public static final String NBT_THROW_COOLDOWN_END = "TidebreakerThrowCooldownEnd";
+
+    public static boolean isDashCoolingDown(World world, ItemStack stack) {
+        if (!stack.hasNbt()) return false;
+        long endTick = stack.getNbt().getLong(NBT_DASH_COOLDOWN_END);
+        if (endTick == 0) {
+            long lastDash = stack.getNbt().getLong("LastDashTime");
+            return world.getTime() - lastDash < DASH_COOLDOWN_TICKS;
+        }
+        return world.getTime() < endTick;
+    }
+
+    public static int getRemainingDashSeconds(World world, ItemStack stack) {
+        if (!stack.hasNbt()) return 0;
+        long endTick = stack.getNbt().getLong(NBT_DASH_COOLDOWN_END);
+        if (endTick == 0) {
+            long lastDash = stack.getNbt().getLong("LastDashTime");
+            long rem = (lastDash + DASH_COOLDOWN_TICKS) - world.getTime();
+            return rem > 0 ? (int) Math.ceil(rem / 20.0) : 0;
+        }
+        long remaining = endTick - world.getTime();
+        return remaining > 0 ? (int) Math.ceil(remaining / 20.0) : 0;
+    }
+
+    public static void applyDashCooldown(ServerWorld world, ItemStack stack, int ticks) {
+        long endTick = world.getTime() + ticks;
+        stack.getOrCreateNbt().putLong(NBT_DASH_COOLDOWN_END, endTick);
+        stack.getOrCreateNbt().putLong("LastDashTime", world.getTime());
+    }
+
+    public static boolean isThrowCoolingDown(World world, ItemStack stack) {
+        if (!stack.hasNbt()) return false;
+        long endTick = stack.getNbt().getLong(NBT_THROW_COOLDOWN_END);
+        return world.getTime() < endTick;
+    }
+
+    public static int getRemainingThrowSeconds(World world, ItemStack stack) {
+        if (!stack.hasNbt()) return 0;
+        long endTick = stack.getNbt().getLong(NBT_THROW_COOLDOWN_END);
+        long remaining = endTick - world.getTime();
+        return remaining > 0 ? (int) Math.ceil(remaining / 20.0) : 0;
+    }
+
+    public static void applyThrowCooldown(ServerWorld world, PlayerEntity player, ItemStack stack, int ticks) {
+        long endTick = world.getTime() + ticks;
+        stack.getOrCreateNbt().putLong(NBT_THROW_COOLDOWN_END, endTick);
+        player.getItemCooldownManager().set(stack.getItem(), ticks);
+    }
+
     // Biome multipliers and bonuses
     public static final float OCEAN_MELEE_BONUS = 2.0f;
     public static final float RIVER_MELEE_BONUS = 1.0f;
@@ -141,7 +191,7 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
                 long now = entity.getWorld().getTime();
                 long lastBubble = stack.hasNbt() ? stack.getNbt().getLong("LastBubbleTime") : 0;
                 boolean bubbleCd = (now - lastBubble < BUBBLE_COOLDOWN_TICKS);
-                if (player.getItemCooldownManager().isCoolingDown(this) || bubbleCd) {
+                if (player.getItemCooldownManager().isCoolingDown(this) && isDashCoolingDown(entity.getWorld(), stack)) {
                     return state.setAndContinue(COOLDOWN_ANIM);
                 }
             }
@@ -316,7 +366,7 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
                 }
 
                 // Apply cooldown to trident throw
-                player.getItemCooldownManager().set(this, THROW_COOLDOWN_TICKS);
+                applyThrowCooldown((ServerWorld) world, player, stack, THROW_COOLDOWN_TICKS);
 
                 if (world instanceof ServerWorld serverWorld) {
                     long id = GeoItem.getOrAssignId(stack, serverWorld);
@@ -364,9 +414,9 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
 
         if (stack == null) return;
 
-        long now = player.getWorld().getTime();
-        long lastDash = stack.getOrCreateNbt().getLong("LastDashTime");
-        if (player.getItemCooldownManager().isCoolingDown(ModItems.TIDEBREAKER_TRIDENT) || now - lastDash < DASH_COOLDOWN_TICKS) {
+        if (isDashCoolingDown(player.getWorld(), stack)) {
+            int remainingSec = getRemainingDashSeconds(player.getWorld(), stack);
+            player.sendMessage(Text.literal("§c✦ Tidebreaker Dash is cooling down! (" + remainingSec + "s remaining)").formatted(Formatting.RED), true);
             return; // Cooldown active
         }
 
@@ -389,8 +439,7 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
                     SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.PLAYERS, 0.8f, 1.5f);
 
             // Add cooldown for failed dash
-            player.getItemCooldownManager().set(ModItems.TIDEBREAKER_TRIDENT, FAILED_DASH_COOLDOWN_TICKS);
-            stack.getOrCreateNbt().putLong("LastDashTime", now);
+            applyDashCooldown(world, stack, FAILED_DASH_COOLDOWN_TICKS);
 
             if (stack.getItem() instanceof GeoItem geoItem) {
                 long id = GeoItem.getOrAssignId(stack, world);
@@ -421,8 +470,7 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
                 SoundEvents.ITEM_TRIDENT_RIPTIDE_2, SoundCategory.PLAYERS, 0.9f, 1.4f);
 
         // Record cooldown and consume durability
-        player.getItemCooldownManager().set(ModItems.TIDEBREAKER_TRIDENT, DASH_COOLDOWN_TICKS);
-        stack.getOrCreateNbt().putLong("LastDashTime", now);
+        applyDashCooldown(world, stack, DASH_COOLDOWN_TICKS);
         Hand finalHand = hand;
         stack.damage(1, player, p -> p.sendToolBreakStatus(finalHand));
 
@@ -532,6 +580,23 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
         super.appendTooltip(stack, world, tooltip, context);
         tooltip.add(Text.literal("Passive: +25% Attack Speed underwater").formatted(Formatting.AQUA));
         tooltip.add(Text.literal("Tool: Accelerated underwater mining").formatted(Formatting.DARK_AQUA));
+
+        if (world != null) {
+            if (isDashCoolingDown(world, stack)) {
+                int rem = getRemainingDashSeconds(world, stack);
+                tooltip.add(Text.literal("§c✦ Tidebreaker Dash Cooldown: " + rem + "s").formatted(Formatting.RED));
+            } else {
+                tooltip.add(Text.literal("§a✦ Tidebreaker Dash: Ready").formatted(Formatting.GREEN));
+            }
+
+            if (isThrowCoolingDown(world, stack)) {
+                int rem = getRemainingThrowSeconds(world, stack);
+                tooltip.add(Text.literal("§c✦ Trident Throw Cooldown: " + rem + "s").formatted(Formatting.RED));
+            } else {
+                tooltip.add(Text.literal("§a✦ Trident Throw: Ready").formatted(Formatting.GREEN));
+            }
+        }
+
         tooltip.add(Text.literal("Active [R]: Tidebreaker Dash (4s CD; requires water within 10 blocks, 2s on fail)").formatted(Formatting.BLUE));
         tooltip.add(Text.literal("Throw: Water Bubble Levitation on entity impact (3s CD)").formatted(Formatting.LIGHT_PURPLE));
         tooltip.add(Text.literal("Empowered in Oceans (+20%) and Rivers (+10%)").formatted(Formatting.GRAY));

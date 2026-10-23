@@ -68,7 +68,7 @@ public class StormcallerNetworking {
      * Broadcasts animation playback to the player and all players tracking them.
      */
     public static void broadcastPlayAnimation(ServerPlayerEntity player, String animName) {
-        // No-op: player animations disabled
+        // No-op: player animations disabled per user request
     }
 
     /**

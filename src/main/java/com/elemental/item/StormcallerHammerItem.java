@@ -53,7 +53,15 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
     public static final float BASE_ATTACK_SPEED = -3.3f;
     public static final double BONUS_KNOCKBACK = 1.5;
 
-    public static final int COOLDOWN_TICKS = 300; // 15 seconds
+    public static final int COOLDOWN_THUNDERCLAP_TICKS = 300; // 15 seconds
+    public static final int COOLDOWN_THUNDERSTORM_TICKS = 300; // 15 seconds
+    public static final int COOLDOWN_TICKS = 300; // 15 seconds (backwards compatibility alias)
+
+    public static final String NBT_THUNDERCLAP_COOLDOWN_END = "StormcallerThunderclapCooldownEnd";
+    public static final String NBT_THUNDERSTORM_COOLDOWN_END = "StormcallerThunderstormCooldownEnd";
+    public static final String NBT_THUNDERCLAP_NOTIFIED = "StormcallerThunderclapNotified";
+    public static final String NBT_THUNDERSTORM_NOTIFIED = "StormcallerThunderstormNotified";
+
     public static final String NBT_COOLDOWN_END = "StormcallerCooldownEnd";
     public static final String NBT_COOLDOWN_NOTIFIED = "StormcallerNotifiedCooldown";
 
@@ -116,7 +124,7 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
             ItemStack stack = state.getData(DataTickets.ITEMSTACK);
             Entity entity = state.getData(DataTickets.ENTITY);
             if (stack != null && entity != null) {
-                if (isCoolingDown(entity.getWorld(), stack)) {
+                if (isThunderclapCoolingDown(entity.getWorld(), stack) && isThunderstormCoolingDown(entity.getWorld(), stack)) {
                     return state.setAndContinue(COOLDOWN_ANIM);
                 }
             }
@@ -152,24 +160,56 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
     // COOLDOWN & REDUCED DAMAGE HANDLING
     // ==========================================
 
-    public static void applyCooldown(ServerWorld world, ServerPlayerEntity player, ItemStack stack, int ticks) {
+    public static boolean isThunderclapCoolingDown(World world, ItemStack stack) {
+        if (!stack.hasNbt()) return false;
+        long endTick = stack.getNbt().getLong(NBT_THUNDERCLAP_COOLDOWN_END);
+        return world.getTime() < endTick;
+    }
+
+    public static int getRemainingThunderclapSeconds(World world, ItemStack stack) {
+        if (!stack.hasNbt()) return 0;
+        long endTick = stack.getNbt().getLong(NBT_THUNDERCLAP_COOLDOWN_END);
+        long remaining = endTick - world.getTime();
+        return remaining > 0 ? (int) Math.ceil(remaining / 20.0) : 0;
+    }
+
+    public static void applyThunderclapCooldown(ServerWorld world, ServerPlayerEntity player, ItemStack stack, int ticks) {
         long endTick = world.getTime() + ticks;
-        stack.getOrCreateNbt().putLong(NBT_COOLDOWN_END, endTick);
-        stack.getOrCreateNbt().putBoolean(NBT_COOLDOWN_NOTIFIED, true);
+        stack.getOrCreateNbt().putLong(NBT_THUNDERCLAP_COOLDOWN_END, endTick);
+        stack.getOrCreateNbt().putBoolean(NBT_THUNDERCLAP_NOTIFIED, true);
+        // Do NOT call player.getItemCooldownManager().set(...) so right-click Thunderstorm is not blocked!
+    }
+
+    public static boolean isThunderstormCoolingDown(World world, ItemStack stack) {
+        if (!stack.hasNbt()) return false;
+        long endTick = stack.getNbt().getLong(NBT_THUNDERSTORM_COOLDOWN_END);
+        return world.getTime() < endTick;
+    }
+
+    public static int getRemainingThunderstormSeconds(World world, ItemStack stack) {
+        if (!stack.hasNbt()) return 0;
+        long endTick = stack.getNbt().getLong(NBT_THUNDERSTORM_COOLDOWN_END);
+        long remaining = endTick - world.getTime();
+        return remaining > 0 ? (int) Math.ceil(remaining / 20.0) : 0;
+    }
+
+    public static void applyThunderstormCooldown(ServerWorld world, ServerPlayerEntity player, ItemStack stack, int ticks) {
+        long endTick = world.getTime() + ticks;
+        stack.getOrCreateNbt().putLong(NBT_THUNDERSTORM_COOLDOWN_END, endTick);
+        stack.getOrCreateNbt().putBoolean(NBT_THUNDERSTORM_NOTIFIED, true);
         player.getItemCooldownManager().set(stack.getItem(), ticks);
     }
 
     public static boolean isCoolingDown(World world, ItemStack stack) {
-        if (!stack.hasNbt()) return false;
-        long endTick = stack.getNbt().getLong(NBT_COOLDOWN_END);
-        return world.getTime() < endTick;
+        return isThunderclapCoolingDown(world, stack) || isThunderstormCoolingDown(world, stack);
     }
 
     public static int getRemainingCooldownSeconds(World world, ItemStack stack) {
-        if (!stack.hasNbt()) return 0;
-        long endTick = stack.getNbt().getLong(NBT_COOLDOWN_END);
-        long remaining = endTick - world.getTime();
-        return remaining > 0 ? (int) Math.ceil(remaining / 20.0) : 0;
+        return Math.max(getRemainingThunderclapSeconds(world, stack), getRemainingThunderstormSeconds(world, stack));
+    }
+
+    public static void applyCooldown(ServerWorld world, ServerPlayerEntity player, ItemStack stack, int ticks) {
+        applyThunderstormCooldown(world, player, stack, ticks);
     }
 
     @Override
@@ -180,8 +220,9 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
         }
         if (!world.isClient() && entity instanceof PlayerEntity player) {
             boolean isHolding = selected || player.getOffHandStack() == stack;
-            boolean coolingDown = isCoolingDown(world, stack);
-            boolean shouldReduceDamage = isHolding && coolingDown;
+            boolean thunderclapCooling = isThunderclapCoolingDown(world, stack);
+            boolean thunderstormCooling = isThunderstormCoolingDown(world, stack);
+            boolean shouldReduceDamage = isHolding && (thunderclapCooling && thunderstormCooling);
 
             EntityAttributeInstance attr = player.getAttributeInstance(EntityAttributes.GENERIC_ATTACK_DAMAGE);
             if (attr != null) {
@@ -190,15 +231,23 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
                     attr.addTemporaryModifier(REDUCED_DAMAGE_MODIFIER);
                 } else if (!shouldReduceDamage && hasMod) {
                     attr.removeModifier(REDUCED_DAMAGE_MODIFIER);
-                    // Notify player on cooldown expiry
-                    if (isHolding && stack.hasNbt() && stack.getNbt().getBoolean(NBT_COOLDOWN_NOTIFIED)) {
-                        stack.getNbt().remove(NBT_COOLDOWN_NOTIFIED);
-                        player.sendMessage(Text.literal("§a⚡ Stormcaller Hammer fully recharged!").formatted(Formatting.GREEN, Formatting.BOLD), true);
-                        player.playSound(SoundEvents.BLOCK_BEACON_ACTIVATE, SoundCategory.PLAYERS, 0.7f, 1.8f);
-                        if (player instanceof ServerPlayerEntity serverPlayer && world instanceof ServerWorld serverWorld) {
-                            triggerAnim(serverPlayer, GeoItem.getOrAssignId(stack, serverWorld), "controller", "idle");
-                        }
-                    }
+                }
+            }
+
+            if (isHolding && stack.hasNbt()) {
+                if (!thunderclapCooling && stack.getNbt().getBoolean(NBT_THUNDERCLAP_NOTIFIED)) {
+                    stack.getNbt().remove(NBT_THUNDERCLAP_NOTIFIED);
+                    player.sendMessage(Text.literal("§a⚡ Thunderclap recharged!").formatted(Formatting.GREEN, Formatting.BOLD), true);
+                    player.playSound(SoundEvents.BLOCK_BEACON_ACTIVATE, SoundCategory.PLAYERS, 0.7f, 1.8f);
+                }
+                if (!thunderstormCooling && stack.getNbt().getBoolean(NBT_THUNDERSTORM_NOTIFIED)) {
+                    stack.getNbt().remove(NBT_THUNDERSTORM_NOTIFIED);
+                    player.sendMessage(Text.literal("§a⚡ Thunderstorm recharged!").formatted(Formatting.GREEN, Formatting.BOLD), true);
+                    player.playSound(SoundEvents.BLOCK_BEACON_ACTIVATE, SoundCategory.PLAYERS, 0.7f, 1.8f);
+                }
+                // Backwards compatibility clean-up
+                if (stack.getNbt().contains(NBT_COOLDOWN_NOTIFIED)) {
+                    stack.getNbt().remove(NBT_COOLDOWN_NOTIFIED);
                 }
             }
         }
@@ -278,6 +327,14 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
     public TypedActionResult<ItemStack> use(World world, PlayerEntity user, Hand hand) {
         ItemStack stack = user.getStackInHand(hand);
         if (stack.getDamage() >= stack.getMaxDamage() - 1) {
+            return TypedActionResult.fail(stack);
+        }
+        if (isThunderstormCoolingDown(world, stack)) {
+            if (!world.isClient() && user instanceof ServerPlayerEntity serverPlayer) {
+                int remaining = getRemainingThunderstormSeconds(world, stack);
+                serverPlayer.sendMessage(Text.literal("§c⚡ Thunderstorm is cooling down! (" + remaining + "s remaining)").formatted(Formatting.RED), true);
+            }
+            world.playSound(null, user.getX(), user.getY(), user.getZ(), SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.PLAYERS, 0.6f, 1.4f);
             return TypedActionResult.fail(stack);
         }
         user.setCurrentHand(hand);
@@ -437,11 +494,18 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
     public void appendTooltip(ItemStack stack, @Nullable World world, List<Text> tooltip, TooltipContext context) {
         super.appendTooltip(stack, world, tooltip, context);
         if (world != null) {
-            if (isCoolingDown(world, stack)) {
-                int remaining = getRemainingCooldownSeconds(world, stack);
-                tooltip.add(Text.literal("⚡ Cooldown: " + remaining + "s (Damage Reduced)").formatted(Formatting.RED));
+            if (isThunderclapCoolingDown(world, stack)) {
+                int rem = getRemainingThunderclapSeconds(world, stack);
+                tooltip.add(Text.literal("§c⚡ Thunderclap Cooldown: " + rem + "s").formatted(Formatting.RED));
             } else {
-                tooltip.add(Text.literal("⚡ Ability: Ready").formatted(Formatting.GREEN));
+                tooltip.add(Text.literal("§a⚡ Thunderclap: Ready").formatted(Formatting.GREEN));
+            }
+
+            if (isThunderstormCoolingDown(world, stack)) {
+                int rem = getRemainingThunderstormSeconds(world, stack);
+                tooltip.add(Text.literal("§c⚡ Thunderstorm Cooldown: " + rem + "s").formatted(Formatting.RED));
+            } else {
+                tooltip.add(Text.literal("§a⚡ Thunderstorm: Ready").formatted(Formatting.GREEN));
             }
         }
         tooltip.add(Text.literal("► Press [R]: Thunderclap (4m shockwave launch)").formatted(Formatting.AQUA));

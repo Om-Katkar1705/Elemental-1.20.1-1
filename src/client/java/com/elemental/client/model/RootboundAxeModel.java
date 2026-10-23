@@ -21,6 +21,6 @@ public class RootboundAxeModel extends GeoModel<RootboundAxeItem> {
 
     @Override
     public Identifier getAnimationResource(RootboundAxeItem animatable) {
-        return ANIMATION;
+        return null;
     }
 }

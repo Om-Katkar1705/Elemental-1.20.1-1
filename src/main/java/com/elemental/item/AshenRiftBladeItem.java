@@ -111,7 +111,7 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
             ItemStack stack = state.getData(DataTickets.ITEMSTACK);
             Entity entity = state.getData(DataTickets.ENTITY);
             if (stack != null && entity != null) {
-                if (isCollapseCoolingDown(entity.getWorld(), stack) || isTeleportCoolingDown(entity.getWorld(), stack)) {
+                if (isCollapseCoolingDown(entity.getWorld(), stack) && isTeleportCoolingDown(entity.getWorld(), stack)) {
                     return state.setAndContinue(COOLDOWN_ANIM);
                 }
             }
@@ -190,7 +190,7 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
     public static void applyCollapseCooldown(ServerWorld world, ServerPlayerEntity player, ItemStack stack, int ticks) {
         long endTick = world.getTime() + ticks;
         stack.getOrCreateNbt().putLong(NBT_COLLAPSE_COOLDOWN_END, endTick);
-        player.getItemCooldownManager().set(stack.getItem(), ticks);
+        // Do not set player.getItemCooldownManager() so Rift Teleport (Right Click) is not blocked
     }
 
     public static boolean isTeleportCoolingDown(World world, ItemStack stack) {

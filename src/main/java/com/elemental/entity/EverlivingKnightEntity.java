@@ -133,12 +133,12 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
             DataTracker.registerData(EverlivingKnightEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
 
     // ==================== GECKOLIB ANIMATIONS ====================
-    private static final RawAnimation IDLE_ANIM = RawAnimation.begin().thenLoop("animation.everliving_knight.idle");
-    private static final RawAnimation WALK_ANIM = RawAnimation.begin().thenLoop("animation.everliving_knight.walk");
-    private static final RawAnimation RUN_ANIM = RawAnimation.begin().thenLoop("animation.everliving_knight.run");
-    private static final RawAnimation STAGGER_LOOP = RawAnimation.begin().thenLoop("animation.everliving_knight.stagger");
-    private static final RawAnimation DEATH_ANIM = RawAnimation.begin().thenPlayAndHold("animation.everliving_knight.death");
-    private static final RawAnimation CORE_EXPOSED_ANIM = RawAnimation.begin().thenLoop("animation.everliving_knight.core_exposed");
+    private static final RawAnimation IDLE_ANIM = RawAnimation.begin().thenLoop("idle");
+    private static final RawAnimation WALK_ANIM = RawAnimation.begin().thenLoop("walk");
+    private static final RawAnimation RUN_ANIM = RawAnimation.begin().thenLoop("run");
+    private static final RawAnimation STAGGER_LOOP = RawAnimation.begin().thenLoop("stagger");
+    private static final RawAnimation DEATH_ANIM = RawAnimation.begin().thenPlayAndHold("death");
+    private static final RawAnimation CORE_EXPOSED_ANIM = RawAnimation.begin().thenLoop("core_exposed");
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     private final ServerBossBar bossBar;
@@ -252,21 +252,21 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
         .triggerableAnim("idle", IDLE_ANIM)
         .triggerableAnim("walk", WALK_ANIM)
         .triggerableAnim("run", RUN_ANIM)
-        .triggerableAnim("slash_windup", RawAnimation.begin().thenPlay("animation.everliving_knight.slash_windup"))
-        .triggerableAnim("slash", RawAnimation.begin().thenPlay("animation.everliving_knight.slash"))
-        .triggerableAnim("charge_windup", RawAnimation.begin().thenPlay("animation.everliving_knight.charge_windup"))
-        .triggerableAnim("charge", RawAnimation.begin().thenPlay("animation.everliving_knight.charge"))
-        .triggerableAnim("core_pulse_windup", RawAnimation.begin().thenPlay("animation.everliving_knight.core_pulse_windup"))
-        .triggerableAnim("core_pulse", RawAnimation.begin().thenPlay("animation.everliving_knight.core_pulse"))
+        .triggerableAnim("slash_windup", RawAnimation.begin().thenPlay("slash_windup"))
+        .triggerableAnim("slash", RawAnimation.begin().thenPlay("slash"))
+        .triggerableAnim("charge_windup", RawAnimation.begin().thenPlay("charge_windup"))
+        .triggerableAnim("charge", RawAnimation.begin().thenPlay("charge"))
+        .triggerableAnim("core_pulse_windup", RawAnimation.begin().thenPlay("core_pulse_windup"))
+        .triggerableAnim("core_pulse", RawAnimation.begin().thenPlay("core_pulse"))
         .triggerableAnim("core_exposed", CORE_EXPOSED_ANIM)
         .triggerableAnim("stagger", STAGGER_LOOP)
-        .triggerableAnim("phase_two", RawAnimation.begin().thenPlay("animation.everliving_knight.phase_two"))
-        .triggerableAnim("phase_three", RawAnimation.begin().thenPlay("animation.everliving_knight.phase_three"))
-        .triggerableAnim("enrage", RawAnimation.begin().thenPlay("animation.everliving_knight.enrage"))
-        .triggerableAnim("death", RawAnimation.begin().thenPlay("animation.everliving_knight.death"))
-        .triggerableAnim("frostburst_reaction", RawAnimation.begin().thenPlay("animation.everliving_knight.frostburst_reaction"))
-        .triggerableAnim("thorn_cage_reaction", RawAnimation.begin().thenPlay("animation.everliving_knight.thorn_cage_reaction"))
-        .triggerableAnim("solar_arc_reaction", RawAnimation.begin().thenPlay("animation.everliving_knight.solar_arc_reaction")));
+        .triggerableAnim("phase_two", RawAnimation.begin().thenPlay("phase_two"))
+        .triggerableAnim("phase_three", RawAnimation.begin().thenPlay("phase_three"))
+        .triggerableAnim("enrage", RawAnimation.begin().thenPlay("enrage"))
+        .triggerableAnim("death", RawAnimation.begin().thenPlay("death"))
+        .triggerableAnim("frostburst_reaction", RawAnimation.begin().thenPlay("frostburst_reaction"))
+        .triggerableAnim("thorn_cage_reaction", RawAnimation.begin().thenPlay("thorn_cage_reaction"))
+        .triggerableAnim("solar_arc_reaction", RawAnimation.begin().thenPlay("solar_arc_reaction")));
     }
 
     public void triggerAnimation(String animName) {

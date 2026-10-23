@@ -98,13 +98,6 @@ public class RootboundAxeItem extends AxeItem implements GeoItem {
             new Identifier("minecraft", "is_forest")
     );
 
-    // GeckoLib animation definitions
-    private static final RawAnimation IDLE_ANIM = RawAnimation.begin().thenLoop("animation.rootbound_axe.idle");
-    private static final RawAnimation WIDE_SWEEP_ANIM = RawAnimation.begin().thenPlay("animation.rootbound_axe.wide_sweep");
-    private static final RawAnimation THORN_CAGE_ANIM = RawAnimation.begin().thenPlay("animation.rootbound_axe.thorn_cage");
-    private static final RawAnimation HEALING_ROOT_ANIM = RawAnimation.begin().thenPlay("animation.rootbound_axe.healing_root");
-    private static final RawAnimation COOLDOWN_ANIM = RawAnimation.begin().thenLoop("animation.rootbound_axe.cooldown");
-    private static final RawAnimation EQUIP_ANIM = RawAnimation.begin().thenPlay("animation.rootbound_axe.equip");
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     private final Supplier<Object> renderProvider = GeoItem.makeRenderer(this);
@@ -136,22 +129,7 @@ public class RootboundAxeItem extends AxeItem implements GeoItem {
 
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
-        controllers.add(new AnimationController<>(this, "controller", 4, state -> {
-            ItemStack stack = state.getData(DataTickets.ITEMSTACK);
-            Entity entity = state.getData(DataTickets.ENTITY);
-            if (stack != null && entity instanceof PlayerEntity player) {
-                if (player.getItemCooldownManager().isCoolingDown(this)) {
-                    return state.setAndContinue(COOLDOWN_ANIM);
-                }
-            }
-            return state.setAndContinue(IDLE_ANIM);
-        })
-                .triggerableAnim("wide_sweep", WIDE_SWEEP_ANIM)
-                .triggerableAnim("thorn_cage", THORN_CAGE_ANIM)
-                .triggerableAnim("healing_root", HEALING_ROOT_ANIM)
-                .triggerableAnim("cooldown", COOLDOWN_ANIM)
-                .triggerableAnim("idle", IDLE_ANIM)
-                .triggerableAnim("equip", EQUIP_ANIM));
+        // No GeckoLib animations registered per user request
     }
 
     @Override
@@ -267,7 +245,6 @@ public class RootboundAxeItem extends AxeItem implements GeoItem {
      * Spawns a healing root at the given position.
      */
     private void spawnHealingRoot(ServerWorld world, BlockPos pos, LivingEntity source, ItemStack stack) {
-        triggerAnim(source, GeoItem.getOrAssignId(stack, world), "controller", "healing_root");
 
         // Check biome for forest/jungle bonus
         boolean isForestJungle = world.getBiome(pos).isIn(FOREST_JUNGLE_BIOMES);
@@ -305,23 +282,10 @@ public class RootboundAxeItem extends AxeItem implements GeoItem {
 
         // Check cooldown
         if (user.getItemCooldownManager().isCoolingDown(this)) {
-            if (world.isClient()) {
-                long id = GeoItem.getId(stack);
-                if (id != Long.MAX_VALUE) {
-                    triggerAnim(user, id, "controller", "cooldown");
-                }
-            } else if (world instanceof ServerWorld serverWorld) {
-                long id = GeoItem.getOrAssignId(stack, serverWorld);
-                triggerAnim(user, id, "controller", "cooldown");
-            }
             return TypedActionResult.fail(stack);
         }
 
         if (world.isClient()) {
-            long id = GeoItem.getId(stack);
-            if (id != Long.MAX_VALUE) {
-                triggerAnim(user, id, "controller", "thorn_cage");
-            }
             return TypedActionResult.consume(stack);
         }
 
@@ -334,7 +298,6 @@ public class RootboundAxeItem extends AxeItem implements GeoItem {
      * Performs the active Thorn Cage ability.
      */
     private void performThornCage(ServerWorld world, PlayerEntity user, ItemStack stack, Hand hand) {
-        triggerAnim(user, GeoItem.getOrAssignId(stack, world), "controller", "thorn_cage");
 
         Vec3d center = user.getPos();
         BlockPos centerPos = user.getBlockPos();

@@ -285,10 +285,8 @@ public class ElementalClient implements ClientModInitializer {
 				ItemStack main = client.player.getMainHandStack();
 				ItemStack off = client.player.getOffHandStack();
 				if (main.isOf(ModItems.TIDEBREAKER_TRIDENT) || off.isOf(ModItems.TIDEBREAKER_TRIDENT)) {
-					if (!client.player.getItemCooldownManager().isCoolingDown(ModItems.TIDEBREAKER_TRIDENT)) {
-						PacketByteBuf buf = PacketByteBufs.create();
-						ClientPlayNetworking.send(TidebreakerNetworking.DASH_PACKET_ID, buf);
-					}
+					PacketByteBuf buf = PacketByteBufs.create();
+					ClientPlayNetworking.send(TidebreakerNetworking.DASH_PACKET_ID, buf);
 				} else if (main.isOf(ModItems.STORMCALLER_HAMMER) || off.isOf(ModItems.STORMCALLER_HAMMER)) {
 					com.elemental.client.animation.StormcallerHammerAnimationHandler.triggerGroundSmash();
 				} else if (main.isOf(ModItems.ASHEN_RIFT_BLADE) || off.isOf(ModItems.ASHEN_RIFT_BLADE)) {

@@ -3,10 +3,15 @@ package com.elemental.client.animation;
 import com.elemental.combat.StormcallerServerCombatHandler;
 import com.elemental.item.StormcallerHammerItem;
 import com.elemental.network.StormcallerNetworking;
+import dev.kosmx.playerAnim.api.firstPerson.FirstPersonConfiguration;
+import dev.kosmx.playerAnim.api.firstPerson.FirstPersonMode;
 import dev.kosmx.playerAnim.api.layered.IAnimation;
+import dev.kosmx.playerAnim.api.layered.KeyframeAnimationPlayer;
 import dev.kosmx.playerAnim.api.layered.ModifierLayer;
+import dev.kosmx.playerAnim.api.layered.modifier.AbstractFadeModifier;
 import dev.kosmx.playerAnim.core.data.KeyframeAnimation;
 import dev.kosmx.playerAnim.core.data.gson.AnimationSerializing;
+import dev.kosmx.playerAnim.core.util.Ease;
 import dev.kosmx.playerAnim.minecraftApi.PlayerAnimationAccess;
 import dev.kosmx.playerAnim.minecraftApi.PlayerAnimationFactory;
 import dev.kosmx.playerAnim.minecraftApi.PlayerAnimationRegistry;
@@ -85,6 +90,13 @@ public class StormcallerHammerAnimationHandler {
                         if ("stop".equals(animName)) {
                             stopPlayerAnimation(player);
                         } else {
+                            // If local player already has this animation playing from local prediction, avoid restarting
+                            if (client.player != null && client.player.getId() == entityId) {
+                                ModifierLayer<IAnimation> layer = getPlayerLayer(player);
+                                if (layer != null && layer.isActive()) {
+                                    return;
+                                }
+                            }
                             playPlayerAnimation(player, animName);
                         }
                     }
@@ -111,6 +123,34 @@ public class StormcallerHammerAnimationHandler {
 
     public static void setPlayerLayer(UUID uuid, ModifierLayer<IAnimation> layer) {
         PLAYER_LAYERS.put(uuid, layer);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static ModifierLayer<IAnimation> getPlayerLayer(AbstractClientPlayerEntity player) {
+        if (player == null) return null;
+        ModifierLayer<IAnimation> layer = null;
+        try {
+            layer = (ModifierLayer<IAnimation>) PlayerAnimationAccess.getPlayerAssociatedData(player).get(LAYER_ID);
+        } catch (Exception ignored) {}
+
+        if (layer == null) {
+            layer = PLAYER_LAYERS.get(player.getUuid());
+        }
+
+        if (layer == null) {
+            try {
+                var stack = PlayerAnimationAccess.getPlayerAnimLayer(player);
+                if (stack != null) {
+                    layer = new ModifierLayer<>();
+                    stack.addAnimLayer(1000, layer);
+                    PLAYER_LAYERS.put(player.getUuid(), layer);
+                    try {
+                        PlayerAnimationAccess.getPlayerAssociatedData(player).set(LAYER_ID, layer);
+                    } catch (Exception ignored) {}
+                }
+            } catch (Exception ignored) {}
+        }
+        return layer;
     }
 
     private static void ensureAnimationsLoaded() {
@@ -150,6 +190,13 @@ public class StormcallerHammerAnimationHandler {
         try {
             KeyframeAnimation anim = PlayerAnimationRegistry.getAnimation(new Identifier("elemental", lower));
             if (anim != null) return anim;
+            anim = PlayerAnimationRegistry.getAnimation(new Identifier("elemental", "stormcaller_hammer." + lower));
+            if (anim != null) return anim;
+            for (Map.Entry<Identifier, KeyframeAnimation> entry : PlayerAnimationRegistry.getAnimations().entrySet()) {
+                if (entry.getKey().getNamespace().equals("elemental") && entry.getKey().getPath().contains("ground_smash") && lower.contains("ground_smash")) {
+                    return entry.getValue();
+                }
+            }
         } catch (Exception ignored) {}
 
         // 2. Try Cache
@@ -158,10 +205,20 @@ public class StormcallerHammerAnimationHandler {
 
         if (lower.startsWith("animation.stormcaller_hammer.")) {
             String shortName = lower.substring("animation.stormcaller_hammer.".length());
-            return ANIMATION_CACHE.get(shortName);
+            anim = ANIMATION_CACHE.get(shortName);
+            if (anim != null) return anim;
         } else {
-            return ANIMATION_CACHE.get("animation.stormcaller_hammer." + lower);
+            anim = ANIMATION_CACHE.get("animation.stormcaller_hammer." + lower);
+            if (anim != null) return anim;
         }
+
+        for (Map.Entry<String, KeyframeAnimation> entry : ANIMATION_CACHE.entrySet()) {
+            if (entry.getKey().contains("ground_smash") && lower.contains("ground_smash")) {
+                return entry.getValue();
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -169,11 +226,11 @@ public class StormcallerHammerAnimationHandler {
      * Disabled per user request to preserve regular vanilla player animations.
      */
     public static void playPlayerAnimation(AbstractClientPlayerEntity player, String animName) {
-        // No-op: custom player animations removed
+        // No-op: custom player animations removed per user request
     }
 
     public static void stopPlayerAnimation(AbstractClientPlayerEntity player) {
-        // No-op: custom player animations removed
+        // No-op: custom player animations removed per user request
     }
 
     // ==========================================
