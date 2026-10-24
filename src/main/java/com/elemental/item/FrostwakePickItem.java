@@ -269,6 +269,13 @@ public class FrostwakePickItem extends PickaxeItem implements GeoItem {
         world.playSound(null, center.x, center.y, center.z, SoundEvents.BLOCK_GLASS_BREAK, SoundCategory.PLAYERS, 1.0f, 0.8f);
         world.playSound(null, center.x, center.y, center.z, SoundEvents.ITEM_HONEY_BOTTLE_DRINK, SoundCategory.PLAYERS, 0.6f, 1.2f);
 
+        // Spike Shockwave Enchantment: Erupts concentric ice spikes and launches mobs with knockback
+        int spikeLevel = com.elemental.enchantment.ModEnchantments.getSpikeShockwaveLevel(stack);
+        if (spikeLevel > 0) {
+            int maxRadius = com.elemental.enchantment.ModEnchantments.getSpikeShockwaveMaxRadius(spikeLevel);
+            performSpikeShockwave(world, user, center, maxRadius, spikeLevel);
+        }
+
         int cooldown = BASE_COOLDOWN_TICKS;
         if (world.getBiome(user.getBlockPos()).isIn(COLD_SNOWY)) {
             cooldown = SNOWY_COOLDOWN_TICKS;
@@ -276,6 +283,48 @@ public class FrostwakePickItem extends PickaxeItem implements GeoItem {
         user.getItemCooldownManager().set(this, cooldown);
 
         stack.damage(2, user, (p) -> p.sendToolBreakStatus(Hand.MAIN_HAND));
+    }
+
+    private void performSpikeShockwave(ServerWorld world, PlayerEntity user, Vec3d center, int maxRadius, int level) {
+        // Concentric circles from 4 blocks up to maxRadius (4, 6, 8, 10)
+        for (int r = 4; r <= maxRadius; r++) {
+            int points = (int) (r * 3.5);
+            for (int i = 0; i < points; i++) {
+                double angle = (2.0 * Math.PI * i) / points;
+                double px = center.x + r * Math.cos(angle);
+                double pz = center.z + r * Math.sin(angle);
+                double py = center.y;
+                world.spawnParticles(new net.minecraft.particle.BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.PACKED_ICE.getDefaultState()),
+                        px, py + 0.2, pz, 3, 0.1, 0.4, 0.1, 0.05);
+                world.spawnParticles(ParticleTypes.SNOWFLAKE, px, py + 0.4, pz, 2, 0.1, 0.2, 0.1, 0.02);
+            }
+        }
+
+        Box spikeArea = new Box(center.x - maxRadius, center.y - 3.0, center.z - maxRadius,
+                center.x + maxRadius, center.y + 4.0, center.z + maxRadius);
+        double maxRadiusSq = (double) maxRadius * maxRadius;
+
+        float spikeDamage = 4.0f + 2.5f * level;
+        for (LivingEntity living : world.getEntitiesByClass(LivingEntity.class, spikeArea,
+                e -> e != user && e.isAlive() && !e.isSpectator() && e.squaredDistanceTo(center) <= maxRadiusSq)) {
+            if (user.isTeammate(living)) continue;
+
+            // Damage and preserved slowness
+            living.damage(world.getDamageSources().playerAttack(user), spikeDamage);
+            living.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, ACTIVE_SLOW_DURATION, Math.min(3, level), false, false, true));
+
+            // Upward and outward knockback
+            Vec3d diff = living.getPos().subtract(center);
+            double dist = diff.length();
+            if (dist > 0.01) {
+                Vec3d push = diff.normalize().multiply(0.35 + 0.1 * level).add(0, 0.45 + 0.08 * level, 0);
+                living.setVelocity(push);
+                living.velocityModified = true;
+            }
+        }
+
+        world.playSound(null, center.x, center.y, center.z, SoundEvents.BLOCK_GLASS_BREAK, SoundCategory.PLAYERS, 1.2f, 0.6f);
+        world.playSound(null, center.x, center.y, center.z, SoundEvents.ENTITY_PLAYER_ATTACK_KNOCKBACK, SoundCategory.PLAYERS, 1.0f, 1.2f);
     }
 
     private boolean isBoss(LivingEntity entity) {
@@ -326,6 +375,11 @@ public class FrostwakePickItem extends PickaxeItem implements GeoItem {
         tooltip.add(Text.literal("Right-click to unleash Frostburst").formatted(Formatting.BLUE));
         tooltip.add(Text.literal("Cooldown: " + (BASE_COOLDOWN_TICKS / 20) + "s (Snowy: " + (SNOWY_COOLDOWN_TICKS / 20) + "s)").formatted(Formatting.GRAY));
         tooltip.add(Text.literal("Passive: Chills enemies on hit").formatted(Formatting.LIGHT_PURPLE));
+        int spikeLevel = com.elemental.enchantment.ModEnchantments.getSpikeShockwaveLevel(stack);
+        if (spikeLevel > 0) {
+            int r = com.elemental.enchantment.ModEnchantments.getSpikeShockwaveMaxRadius(spikeLevel);
+            tooltip.add(Text.literal("  ✦ Spike Shockwave Active: " + r + "-block rings + Knockback").formatted(Formatting.AQUA));
+        }
     }
 
     @Override

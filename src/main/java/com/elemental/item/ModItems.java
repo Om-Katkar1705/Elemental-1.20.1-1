@@ -132,6 +132,7 @@ public class ModItems {
         ItemGroupEvents.modifyEntriesEvent(ItemGroups.FUNCTIONAL).register(entries -> {
             entries.add(ModBlocks.WEAPONER);
             entries.add(ModBlocks.EVERLIVING_ALTAR);
+            entries.add(ModBlocks.COLOSSUS_ALTAR);
         });
     }
 

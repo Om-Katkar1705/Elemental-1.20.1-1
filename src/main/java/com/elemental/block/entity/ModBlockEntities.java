@@ -24,6 +24,12 @@ public class ModBlockEntities {
             FabricBlockEntityTypeBuilder.create(EverlivingAltarBlockEntity::new, ModBlocks.EVERLIVING_ALTAR).build()
     );
 
+    public static final BlockEntityType<ColossusAltarBlockEntity> COLOSSUS_ALTAR_BLOCK_ENTITY = Registry.register(
+            Registries.BLOCK_ENTITY_TYPE,
+            new Identifier(Elemental.MOD_ID, "colossus_altar"),
+            FabricBlockEntityTypeBuilder.create(ColossusAltarBlockEntity::new, ModBlocks.COLOSSUS_ALTAR).build()
+    );
+
     public static void registerBlockEntities() {
         Elemental.LOGGER.info("Registering Block Entities for " + Elemental.MOD_ID);
     }

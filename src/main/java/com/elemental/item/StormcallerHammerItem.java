@@ -532,5 +532,10 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
         tooltip.add(Text.literal("► Hold [Right Click]: Charged Lightning Strike").formatted(Formatting.YELLOW));
         tooltip.add(Text.literal("  - Min Charge: 1 Strike | Full Charge: 15–20 Strikes").formatted(Formatting.GRAY));
         tooltip.add(Text.literal("  - 15s Cooldown applies after use").formatted(Formatting.GRAY));
+        int descentLevel = com.elemental.enchantment.ModEnchantments.getThunderousDescentLevel(stack);
+        if (descentLevel > 0) {
+            String chanceStr = descentLevel >= 3 ? "100% Guaranteed" : Math.round(com.elemental.enchantment.ModEnchantments.getThunderousDescentChance(descentLevel) * 100) + "% Chance";
+            tooltip.add(Text.literal("  ✦ Thunderous Descent: " + chanceStr + " Height-Multiplied Strike").formatted(Formatting.GOLD));
+        }
     }
 }

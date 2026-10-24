@@ -23,6 +23,7 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
@@ -115,8 +116,32 @@ public class AshenRiftScheduler {
         }
     }
 
+    public static class MeteoriteStrike {
+        final RegistryKey<World> worldKey;
+        final UUID casterUuid;
+        final Vec3d targetPos;
+        final float damage;
+        final int level;
+        int delayTicks = 14;
+
+        public MeteoriteStrike(RegistryKey<World> worldKey, UUID casterUuid, Vec3d targetPos, float damage, int level) {
+            this.worldKey = worldKey;
+            this.casterUuid = casterUuid;
+            this.targetPos = targetPos;
+            this.damage = damage;
+            this.level = level;
+        }
+    }
+
     private static final List<RiftCollapseSession> ACTIVE_SESSIONS = new ArrayList<>();
     private static final List<RiftTeleportTask> ACTIVE_TELEPORTS = new ArrayList<>();
+    private static final List<MeteoriteStrike> ACTIVE_METEORITES = new ArrayList<>();
+
+    public static void scheduleMeteoriteStrike(ServerWorld world, ServerPlayerEntity caster, Vec3d targetPos, float damage, int level) {
+        if (world == null || targetPos == null) return;
+        UUID uuid = caster != null ? caster.getUuid() : null;
+        ACTIVE_METEORITES.add(new MeteoriteStrike(world.getRegistryKey(), uuid, targetPos, damage, level));
+    }
 
     public static void register() {
         ServerTickEvents.END_SERVER_TICK.register(AshenRiftScheduler::tick);
@@ -203,6 +228,7 @@ public class AshenRiftScheduler {
     private static void tick(MinecraftServer server) {
         tickCollapses(server);
         tickTeleports(server);
+        tickMeteorites(server);
 
         // Periodically purge expired fall immunities to prevent map memory leak
         if (++cleanupTicks >= 100) {
@@ -211,6 +237,61 @@ public class AshenRiftScheduler {
             if (overworld != null) {
                 long now = overworld.getTime();
                 FALL_IMMUNITY_MAP.entrySet().removeIf(entry -> now > entry.getValue());
+            }
+        }
+    }
+
+    private static void tickMeteorites(MinecraftServer server) {
+        if (ACTIVE_METEORITES.isEmpty()) return;
+
+        Iterator<MeteoriteStrike> it = ACTIVE_METEORITES.iterator();
+        while (it.hasNext()) {
+            MeteoriteStrike strike = it.next();
+            ServerWorld world = server.getWorld(strike.worldKey);
+            if (world == null) {
+                it.remove();
+                continue;
+            }
+
+            strike.delayTicks--;
+
+            // Sky descent trail
+            double currentY = strike.targetPos.y + Math.max(0, strike.delayTicks * 2.0);
+            world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, strike.targetPos.x, currentY, strike.targetPos.z,
+                    10, 0.4, 0.6, 0.4, 0.05);
+            world.spawnParticles(ParticleTypes.LAVA, strike.targetPos.x, currentY, strike.targetPos.z,
+                    5, 0.3, 0.4, 0.3, 0.02);
+            world.spawnParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE, strike.targetPos.x, currentY, strike.targetPos.z,
+                    4, 0.2, 0.5, 0.2, 0.02);
+
+            if (strike.delayTicks <= 0) {
+                // Cataclysmic detonation on impact
+                world.spawnParticles(ParticleTypes.EXPLOSION_EMITTER, strike.targetPos.x, strike.targetPos.y + 0.5, strike.targetPos.z, 2, 0, 0, 0, 0);
+                world.spawnParticles(ParticleTypes.LAVA, strike.targetPos.x, strike.targetPos.y + 0.5, strike.targetPos.z, 40, 2.0, 1.0, 2.0, 0.2);
+                world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, strike.targetPos.x, strike.targetPos.y + 0.5, strike.targetPos.z, 50, 2.5, 1.2, 2.5, 0.1);
+
+                world.playSound(null, strike.targetPos.x, strike.targetPos.y, strike.targetPos.z,
+                        SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.PLAYERS, 1.5f, 0.7f);
+                world.playSound(null, strike.targetPos.x, strike.targetPos.y, strike.targetPos.z,
+                        SoundEvents.ENTITY_DRAGON_FIREBALL_EXPLODE, SoundCategory.PLAYERS, 1.3f, 0.8f);
+
+                double blastRadius = 3.0 + strike.level * 0.8;
+                double radiusSq = blastRadius * blastRadius;
+                Box hitBox = new Box(strike.targetPos.x - blastRadius, strike.targetPos.y - 3.0, strike.targetPos.z - blastRadius,
+                        strike.targetPos.x + blastRadius, strike.targetPos.y + 4.0, strike.targetPos.z + blastRadius);
+
+                ServerPlayerEntity caster = strike.casterUuid != null ? server.getPlayerManager().getPlayer(strike.casterUuid) : null;
+                for (LivingEntity mob : world.getEntitiesByClass(LivingEntity.class, hitBox,
+                        e -> e.isAlive() && !e.isSpectator() && e.squaredDistanceTo(strike.targetPos) <= radiusSq && (caster == null || (e != caster && !caster.isTeammate(e))))) {
+                    mob.damage(caster != null ? world.getDamageSources().playerAttack(caster) : world.getDamageSources().generic(), strike.damage);
+                    mob.setOnFireFor(5 + strike.level * 2);
+
+                    Vec3d push = mob.getPos().subtract(strike.targetPos).normalize().multiply(0.6 + 0.15 * strike.level).add(0, 0.35, 0);
+                    mob.addVelocity(push.x, push.y, push.z);
+                    mob.velocityModified = true;
+                }
+
+                it.remove();
             }
         }
     }

@@ -46,10 +46,12 @@ public class Elemental implements ModInitializer {
 		ModScreenHandlers.registerScreenHandlers();
 		WeaponerRecipes.init();
 		ModItems.registerModItems();
+		com.elemental.enchantment.ModEnchantments.registerModEnchantments();
 		ModItemGroup.registerItemGroups();
 		ModEntities.registerModEntities();
 		SunforgedHeatHandler.register();
 		RootboundScheduler.register();
+		com.elemental.network.RootboundNetworking.registerServerReceivers();
 		TidebreakerNetworking.registerServerReceivers();
 		StormcallerNetworking.registerServerReceivers();
 		StormcallerLightningScheduler.register();

@@ -82,15 +82,43 @@ public class RootboundScheduler {
         }
     }
 
+    public static class TimberBastionWall {
+        final RegistryKey<World> worldKey;
+        final java.util.Map<BlockPos, BlockState> originalBlocks;
+        final int maxDuration;
+        int elapsedTicks = 0;
+
+        public TimberBastionWall(RegistryKey<World> worldKey, java.util.Map<BlockPos, BlockState> originalBlocks, int maxDuration) {
+            this.worldKey = worldKey;
+            this.originalBlocks = originalBlocks;
+            this.maxDuration = maxDuration;
+        }
+    }
+
     private static final List<ThornCageZone> ACTIVE_CAGES = new ArrayList<>();
     private static final List<HealingRootZone> ACTIVE_ROOTS = new ArrayList<>();
+    private static final List<TimberBastionWall> ACTIVE_WALLS = new ArrayList<>();
 
     public static void register() {
         ServerTickEvents.END_SERVER_TICK.register(RootboundScheduler::tick);
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            for (TimberBastionWall wall : ACTIVE_WALLS) {
+                ServerWorld world = server.getWorld(wall.worldKey);
+                if (world != null) {
+                    for (java.util.Map.Entry<BlockPos, BlockState> entry : wall.originalBlocks.entrySet()) {
+                        world.setBlockState(entry.getKey(), entry.getValue());
+                    }
+                }
+            }
+            ACTIVE_WALLS.clear();
             ACTIVE_CAGES.clear();
             ACTIVE_ROOTS.clear();
         });
+    }
+
+    public static void scheduleTimberWall(ServerWorld world, java.util.Map<BlockPos, BlockState> originalBlocks, int durationTicks) {
+        if (world == null || originalBlocks == null || originalBlocks.isEmpty()) return;
+        ACTIVE_WALLS.add(new TimberBastionWall(world.getRegistryKey(), originalBlocks, durationTicks));
     }
 
     public static void scheduleThornCage(ServerWorld world, ServerPlayerEntity caster, Vec3d center, double radius, int duration, int interval, float damagePerTick) {
@@ -107,6 +135,7 @@ public class RootboundScheduler {
     private static void tick(MinecraftServer server) {
         tickCages(server);
         tickRoots(server);
+        tickWalls(server);
     }
 
     private static void tickCages(MinecraftServer server) {
@@ -215,6 +244,39 @@ public class RootboundScheduler {
 
             if (zone.elapsedTicks >= zone.maxDuration) {
                 iterator.remove();
+            }
+        }
+    }
+
+    private static void tickWalls(MinecraftServer server) {
+        if (ACTIVE_WALLS.isEmpty()) return;
+
+        Iterator<TimberBastionWall> it = ACTIVE_WALLS.iterator();
+        while (it.hasNext()) {
+            TimberBastionWall wall = it.next();
+            ServerWorld world = server.getWorld(wall.worldKey);
+            if (world == null) {
+                it.remove();
+                continue;
+            }
+
+            wall.elapsedTicks++;
+            if (wall.elapsedTicks >= wall.maxDuration) {
+                BlockPos firstPos = null;
+                for (java.util.Map.Entry<BlockPos, BlockState> entry : wall.originalBlocks.entrySet()) {
+                    BlockPos pos = entry.getKey();
+                    if (firstPos == null) firstPos = pos;
+                    if (world.isChunkLoaded(pos.getX() >> 4, pos.getZ() >> 4)) {
+                        world.setBlockState(pos, entry.getValue());
+                        world.spawnParticles(new net.minecraft.particle.BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.OAK_LOG.getDefaultState()),
+                                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, 4, 0.2, 0.2, 0.2, 0.05);
+                    }
+                }
+                if (firstPos != null) {
+                    world.playSound(null, firstPos.getX(), firstPos.getY(), firstPos.getZ(),
+                            SoundEvents.BLOCK_WOOD_BREAK, SoundCategory.BLOCKS, 1.0f, 0.8f);
+                }
+                it.remove();
             }
         }
     }

@@ -4,6 +4,8 @@
   "container.elemental.weaponer": "Weaponer",
   "block.elemental.everliving_altar": "Everliving Altar",
   "item.elemental.everliving_altar": "Everliving Altar",
+  "block.elemental.colossus_altar": "Colossus Altar",
+  "item.elemental.colossus_altar": "Colossus Altar",
   "item.elemental.stencil": "Unpowered Stencil",
   "tooltip.elemental.weaponer.stencil_slot": "Insert Stencil or Element Core",
   "tooltip.elemental.weaponer.element_slot": "Insert Element or Catalyst Block",
@@ -148,5 +150,20 @@
   "subtitles.elemental.seismic_colossus_throw": "Seismic Colossus throws stone",
   "subtitles.elemental.seismic_colossus_hurt": "Seismic Colossus groans",
   "subtitles.elemental.seismic_colossus_death": "Seismic Colossus collapses",
-  "subtitles.elemental.hammer_spark": "Stormcaller Hammer sparks"
+  "subtitles.elemental.hammer_spark": "Stormcaller Hammer sparks",
+
+  "enchantment.elemental.solar_blast": "Solar Blast",
+  "enchantment.elemental.solar_blast.desc": "Solar Arc strikes occasionally intensify into an explosive Solar Blast with amplified damage and multi-target detonation.",
+  "enchantment.elemental.dawns_siphon": "Dawn's Siphon",
+  "enchantment.elemental.dawns_siphon.desc": "Striking enemies in sunlight or at high heat infuses blows with solar fire, mends blade durability, and grants temporary fire resistance.",
+  "enchantment.elemental.spike_shockwave": "Spike Shockwave",
+  "enchantment.elemental.spike_shockwave.desc": "Glacial Shockwave bursts into concentric rings of erupting ice spikes that launch mobs into the air while preserving deep frost.",
+  "enchantment.elemental.timber_bastion": "Timber Bastion",
+  "enchantment.elemental.timber_bastion.desc": "Pressing [R] summons a temporary organic log wall to shield against attacks, with a chance to bestow Regeneration.",
+  "enchantment.elemental.tidal_ram": "Tidal Ram",
+  "enchantment.elemental.tidal_ram.desc": "Tidebreaker Dash crashes violently through mobs in your path, dealing heavy hydro-kinetic damage and shoving them aside.",
+  "enchantment.elemental.thunderous_descent": "Thunderous Descent",
+  "enchantment.elemental.thunderous_descent.desc": "Multiplies melee hammer damage based on falling height, with higher levels guaranteeing devastating aerial slam attacks.",
+  "enchantment.elemental.cataclysmic_rift": "Cataclysmic Rift",
+  "enchantment.elemental.cataclysmic_rift.desc": "Rift Collapse has a chance to summon a blazing falling meteorite down onto the collapsed ground for catastrophic blast damage."
 }

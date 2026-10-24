@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:block/cube",
+  "textures": {
+    "down": "elemental:block/colossus_altar_bottom",
+    "up": "elemental:block/colossus_altar_top",
+    "north": "elemental:block/colossus_altar_side",
+    "south": "elemental:block/colossus_altar_side",
+    "east": "elemental:block/colossus_altar_side",
+    "west": "elemental:block/colossus_altar_side",
+    "particle": "elemental:block/colossus_altar_top"
+  }
+}

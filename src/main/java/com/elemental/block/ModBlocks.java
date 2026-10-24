@@ -30,6 +30,15 @@ public class ModBlocks {
                     .requiresTool()
             ));
 
+    public static final Block COLOSSUS_ALTAR = registerBlock("colossus_altar",
+            new ColossusAltarBlock(FabricBlockSettings.create()
+                    .mapColor(MapColor.STONE_GRAY)
+                    .strength(5.0f, 1200.0f)
+                    .sounds(BlockSoundGroup.DEEPSLATE)
+                    .luminance(state -> 10)
+                    .requiresTool()
+            ));
+
     private static Block registerBlock(String name, Block block) {
         registerBlockItem(name, block);
         return Registry.register(Registries.BLOCK, new Identifier(Elemental.MOD_ID, name), block);

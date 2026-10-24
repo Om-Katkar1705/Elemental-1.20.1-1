@@ -7,6 +7,8 @@ import net.minecraft.client.item.TooltipContext;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityGroup;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.effect.StatusEffectInstance;
+import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.player.PlayerEntity;
 import software.bernie.geckolib.constant.DataTickets;
 import net.minecraft.item.ItemStack;
@@ -191,6 +193,31 @@ public class SunforgedScimitarItem extends SwordItem implements GeoItem {
             int heat = getHeatLevel(stack);
             if (heat >= HEAT_DAMAGE_THRESHOLD) {
                 target.damage(attacker.getDamageSources().onFire(), HEAT_BONUS_DAMAGE);
+            }
+
+            // Dawn's Siphon Enchantment: Siphons solar heat into bonus fire damage, durability mending, and fire immunity
+            int siphonLevel = com.elemental.enchantment.ModEnchantments.getDawnsSiphonLevel(stack);
+            if (siphonLevel > 0) {
+                boolean inSun = world.isDay() && !world.isRaining() && world.isSkyVisible(attacker.getBlockPos());
+                if (inSun || heat >= 50) {
+                    target.damage(attacker.getDamageSources().onFire(), 1.0f * siphonLevel);
+                    target.setOnFireFor(siphonLevel + 1);
+
+                    // Shield attacker with brief Fire Resistance
+                    attacker.addStatusEffect(new StatusEffectInstance(StatusEffects.FIRE_RESISTANCE, siphonLevel * 30, 0, false, false, true));
+
+                    // Durability siphon chance
+                    float repairChance = com.elemental.enchantment.ModEnchantments.getDawnsSiphonRepairChance(siphonLevel);
+                    if (world.getRandom().nextFloat() < repairChance && stack.getDamage() > 0) {
+                        int restore = siphonLevel >= 4 ? 2 : 1;
+                        stack.setDamage(Math.max(0, stack.getDamage() - restore));
+                        serverWorld.spawnParticles(ParticleTypes.WAX_OFF, attacker.getX(), attacker.getY() + 1.0, attacker.getZ(), 6, 0.2, 0.3, 0.2, 0.05);
+                        world.playSound(null, attacker.getX(), attacker.getY(), attacker.getZ(), SoundEvents.BLOCK_AMETHYST_BLOCK_CHIME, SoundCategory.PLAYERS, 0.6f, 1.8f);
+                    }
+
+                    // Siphon trail particles
+                    serverWorld.spawnParticles(ParticleTypes.FLAME, target.getX(), target.getY() + 0.8, target.getZ(), 8, 0.2, 0.2, 0.2, 0.04);
+                }
             }
         }
         return true;
@@ -378,5 +405,15 @@ public class SunforgedScimitarItem extends SwordItem implements GeoItem {
         }
         tooltip.add(Text.literal("► Hold [Right Click]: Solar Arc Flame Strike").formatted(Formatting.GOLD));
         tooltip.add(Text.literal("  - Unleashes a piercing solar arc").formatted(Formatting.GRAY));
+        int blastLevel = com.elemental.enchantment.ModEnchantments.getSolarBlastLevel(stack);
+        if (blastLevel > 0) {
+            int pct = Math.round(com.elemental.enchantment.ModEnchantments.getSolarBlastProcChance(blastLevel) * 100);
+            tooltip.add(Text.literal("  ✦ Solar Blast Active: " + pct + "% chance to detonate (" + blastLevel + "x power)").formatted(Formatting.GOLD));
+        }
+        int siphonLevel = com.elemental.enchantment.ModEnchantments.getDawnsSiphonLevel(stack);
+        if (siphonLevel > 0) {
+            int repairPct = Math.round(com.elemental.enchantment.ModEnchantments.getDawnsSiphonRepairChance(siphonLevel) * 100);
+            tooltip.add(Text.literal("  ✦ Dawn's Siphon Active: +" + siphonLevel + ".0 Fire Dmg | " + repairPct + "% Durability Siphon").formatted(Formatting.YELLOW));
+        }
     }
 }

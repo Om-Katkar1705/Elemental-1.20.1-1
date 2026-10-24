@@ -292,6 +292,9 @@ public class ElementalClient implements ClientModInitializer {
 				} else if (main.isOf(ModItems.ASHEN_RIFT_BLADE) || off.isOf(ModItems.ASHEN_RIFT_BLADE)) {
 					PacketByteBuf buf = PacketByteBufs.create();
 					ClientPlayNetworking.send(com.elemental.network.AshenRiftNetworking.RIFT_COLLAPSE_PACKET_ID, buf);
+				} else if (main.isOf(ModItems.ROOTBOUND_AXE) || off.isOf(ModItems.ROOTBOUND_AXE)) {
+					PacketByteBuf buf = PacketByteBufs.create();
+					ClientPlayNetworking.send(com.elemental.network.RootboundNetworking.TIMBER_BASTION_PACKET_ID, buf);
 				}
 			}
 

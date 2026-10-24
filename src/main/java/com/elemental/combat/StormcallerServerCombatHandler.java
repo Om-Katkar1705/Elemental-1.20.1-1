@@ -199,6 +199,26 @@ public class StormcallerServerCombatHandler {
                     boolean onCooldown = StormcallerHammerItem.isCoolingDown(world, stack);
                     float damage = onCooldown ? 5.0f : 10.0f;
 
+                    // Thunderous Descent Enchantment: Multiplies damage by falling height
+                    int descentLevel = com.elemental.enchantment.ModEnchantments.getThunderousDescentLevel(stack);
+                    if (descentLevel > 0) {
+                        float procChance = com.elemental.enchantment.ModEnchantments.getThunderousDescentChance(descentLevel);
+                        if (player.getRandom().nextFloat() < procChance) {
+                            float fall = Math.max(0.0f, player.fallDistance);
+                            if (fall > 0.5f) {
+                                float multiplier = 1.0f + Math.min(16.0f, fall) * (0.35f * descentLevel);
+                                damage *= multiplier;
+
+                                world.playSound(null, target.getX(), target.getY(), target.getZ(),
+                                        SoundEvents.ENTITY_LIGHTNING_BOLT_THUNDER, SoundCategory.PLAYERS, 1.2f, 1.1f);
+                                world.spawnParticles(ParticleTypes.EXPLOSION, target.getX(), target.getY() + 1.0, target.getZ(),
+                                        1, 0, 0, 0, 0);
+
+                                player.fallDistance = 0.0f;
+                            }
+                        }
+                    }
+
                     target.damage(world.getDamageSources().playerAttack(player), damage);
 
                     // Heavy hammer knockback

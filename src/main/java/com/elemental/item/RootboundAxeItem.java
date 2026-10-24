@@ -388,6 +388,80 @@ public class RootboundAxeItem extends AxeItem implements GeoItem {
         tooltip.add(Text.literal("Roots are destroyed by fire").formatted(Formatting.GOLD));
         tooltip.add(Text.literal("Cooldown: " + (BASE_COOLDOWN_TICKS / 20) + "s (Forest/Jungle: " + (FOREST_COOLDOWN_TICKS / 20) + "s)")
                 .formatted(Formatting.DARK_GRAY));
+
+        int bastionLevel = com.elemental.enchantment.ModEnchantments.getTimberBastionLevel(stack);
+        if (bastionLevel > 0) {
+            float durationSec = com.elemental.enchantment.ModEnchantments.getTimberBastionDurationTicks(bastionLevel) / 20.0f;
+            int regenPct = Math.round(com.elemental.enchantment.ModEnchantments.getTimberBastionRegenChance(bastionLevel) * 100);
+            tooltip.add(Text.literal("  ✦ Timber Bastion [R]: " + durationSec + "s Wall | " + regenPct + "% Regen Chance").formatted(Formatting.GREEN));
+        }
+    }
+
+    public static void performTimberBastion(net.minecraft.server.network.ServerPlayerEntity player) {
+        if (player == null || !player.isAlive() || player.isSpectator()) return;
+
+        ItemStack stack = null;
+        if (player.getMainHandStack().getItem() instanceof RootboundAxeItem) {
+            stack = player.getMainHandStack();
+        } else if (player.getOffHandStack().getItem() instanceof RootboundAxeItem) {
+            stack = player.getOffHandStack();
+        }
+
+        if (stack == null) return;
+
+        int bastionLevel = com.elemental.enchantment.ModEnchantments.getTimberBastionLevel(stack);
+        if (bastionLevel <= 0) {
+            player.sendMessage(Text.literal("§7✦ Your Rootbound Axe requires the Timber Bastion enchantment to summon a log wall.").formatted(Formatting.GRAY), true);
+            return;
+        }
+
+        ServerWorld world = player.getServerWorld();
+        if (player.getItemCooldownManager().isCoolingDown(stack.getItem())) {
+            player.sendMessage(Text.literal("§c✦ Timber Bastion is on cooldown!").formatted(Formatting.RED), true);
+            return;
+        }
+
+        Vec3d look = player.getRotationVec(1.0f);
+        Vec3d horizontalLook = new Vec3d(look.x, 0, look.z).normalize();
+        Vec3d right = new Vec3d(-horizontalLook.z, 0, horizontalLook.x).normalize();
+
+        Vec3d wallCenter = player.getPos().add(horizontalLook.multiply(1.8));
+        BlockPos baseCenterPos = new BlockPos((int) Math.floor(wallCenter.x), (int) Math.floor(wallCenter.y), (int) Math.floor(wallCenter.z));
+
+        java.util.Map<BlockPos, BlockState> originalBlocks = new java.util.HashMap<>();
+        for (int w = -1; w <= 2; w++) {
+            BlockPos colPos = baseCenterPos.add((int) Math.round(right.x * w), 0, (int) Math.round(right.z * w));
+            for (int h = 0; h < 3; h++) {
+                BlockPos targetPos = colPos.up(h);
+                if (world.isChunkLoaded(targetPos.getX() >> 4, targetPos.getZ() >> 4)) {
+                    BlockState current = world.getBlockState(targetPos);
+                    if (current.isAir() || current.isReplaceable() || current.isIn(net.minecraft.registry.tag.BlockTags.FLOWERS) || current.isIn(net.minecraft.registry.tag.BlockTags.FIRE)) {
+                        originalBlocks.put(targetPos, current);
+                        world.setBlockState(targetPos, Blocks.OAK_LOG.getDefaultState());
+                        world.spawnParticles(new net.minecraft.particle.BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.OAK_LOG.getDefaultState()),
+                                targetPos.getX() + 0.5, targetPos.getY() + 0.5, targetPos.getZ() + 0.5, 3, 0.2, 0.2, 0.2, 0.05);
+                    }
+                }
+            }
+        }
+
+        int durationTicks = com.elemental.enchantment.ModEnchantments.getTimberBastionDurationTicks(bastionLevel);
+        RootboundScheduler.scheduleTimberWall(world, originalBlocks, durationTicks);
+
+        float regenChance = com.elemental.enchantment.ModEnchantments.getTimberBastionRegenChance(bastionLevel);
+        if (world.getRandom().nextFloat() < regenChance) {
+            int regenDuration = bastionLevel >= 3 ? 100 : 80;
+            int regenAmp = bastionLevel >= 3 ? 1 : 0;
+            player.addStatusEffect(new StatusEffectInstance(StatusEffects.REGENERATION, regenDuration, regenAmp, false, false, true));
+            world.spawnParticles(ParticleTypes.HAPPY_VILLAGER, player.getX(), player.getY() + 1.0, player.getZ(), 15, 0.4, 0.5, 0.4, 0.05);
+            player.sendMessage(Text.literal("§a✦ Timber Bastion granted Nature's Vitality!").formatted(Formatting.GREEN), true);
+        }
+
+        world.playSound(null, wallCenter.x, wallCenter.y, wallCenter.z, SoundEvents.BLOCK_WOOD_PLACE, SoundCategory.PLAYERS, 1.2f, 0.8f);
+        world.playSound(null, wallCenter.x, wallCenter.y, wallCenter.z, SoundEvents.ENTITY_ZOMBIE_BREAK_WOODEN_DOOR, SoundCategory.PLAYERS, 0.5f, 1.4f);
+
+        player.getItemCooldownManager().set(stack.getItem(), 240);
+        stack.damage(2, player, p -> p.sendToolBreakStatus(Hand.MAIN_HAND));
     }
 
     @Override

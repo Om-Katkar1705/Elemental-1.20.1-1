@@ -395,6 +395,19 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
         // 2s, and refill after 5s
         AshenRiftScheduler.startRiftCollapse(world, player, targets);
 
+        // Cataclysmic Rift Enchantment: Chance to summon a falling meteorite onto the collapsed ground
+        int cataclysmLevel = com.elemental.enchantment.ModEnchantments.getCataclysmicRiftLevel(stack);
+        if (cataclysmLevel > 0 && !targets.isEmpty()) {
+            float chance = com.elemental.enchantment.ModEnchantments.getCataclysmicRiftChance(cataclysmLevel);
+            if (player.getRandom().nextFloat() < chance) {
+                LivingEntity primeTarget = targets.get(0);
+                Vec3d impactPos = primeTarget.getPos();
+                float damage = com.elemental.enchantment.ModEnchantments.getCataclysmicRiftDamage(cataclysmLevel);
+                AshenRiftScheduler.scheduleMeteoriteStrike(world, player, impactPos, damage, cataclysmLevel);
+                player.sendMessage(Text.literal("§4☄ A Cataclysmic Meteorite plunges from the sky!").formatted(Formatting.RED, Formatting.BOLD), true);
+            }
+        }
+
         // Trigger GeckoLib collapse animation
         if (stack.getItem() instanceof AshenRiftBladeItem bladeItem) {
             bladeItem.triggerAnim(player, GeoItem.getOrAssignId(stack, world), "controller", "collapse");
@@ -659,6 +672,12 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
             } else {
                 tooltip.add(Text.literal("§a✦ Rift Teleport: Ready").formatted(Formatting.GREEN));
             }
+        }
+
+        int cataclysmLevel = com.elemental.enchantment.ModEnchantments.getCataclysmicRiftLevel(stack);
+        if (cataclysmLevel > 0) {
+            int chance = Math.round(com.elemental.enchantment.ModEnchantments.getCataclysmicRiftChance(cataclysmLevel) * 100);
+            tooltip.add(Text.literal("  ✦ Cataclysmic Rift Active: " + chance + "% Meteorite Strike on Collapse").formatted(Formatting.DARK_RED));
         }
     }
 }

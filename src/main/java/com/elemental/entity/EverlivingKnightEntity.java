@@ -94,8 +94,8 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
     public static int STAGGER_DURATION = 100; // 5 seconds vulnerability after all cores break
     public static int ENRAGE_COUNTDOWN_TICKS = 600; // 30 seconds
 
-    // Arena boundary (10 block radius center fighting zone)
-    public static double ARENA_RADIUS = 10.0;
+    // Arena boundary (25 block radius fighting zone covering colosseum arena)
+    public static double ARENA_RADIUS = 25.0;
 
     // ==================== ATTACK ENUMS ====================
     public enum AttackType {

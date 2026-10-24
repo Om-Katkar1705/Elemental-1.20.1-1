@@ -33,14 +33,13 @@ import java.util.Optional;
  * Loads and places structures exclusively from .nbt StructureTemplates:
  * - elemental:aerons_camp
  * - elemental:crashed_skyforge_ship
- * - elemental:desert_sanctuary
+ * - elemental:seismic_golem_arena
  */
 public class NbtStructureManager {
 
     public static final Identifier AERONS_CAMP_ID = new Identifier(Elemental.MOD_ID, "aerons_camp");
     public static final Identifier SKYFORGE_SHIP_ID = new Identifier(Elemental.MOD_ID, "crashed_skyforge_ship");
-    public static final Identifier DESERT_SANCTUARY_ID = new Identifier(Elemental.MOD_ID, "desert_sanctuary");
-    public static final Identifier FINAL_ARENA_ID = new Identifier(Elemental.MOD_ID, "final_arena");
+    public static final Identifier SEISMIC_GOLEM_ARENA_ID = new Identifier(Elemental.MOD_ID, "seismic_golem_arena");
 
     /**
      * Generic loader and placer for NBT structure templates.
@@ -754,7 +753,7 @@ public class NbtStructureManager {
     }
 
     // ==========================================
-    // 3. Desert Sanctuary
+    // 3. Desert Expedition Location
     // ==========================================
 
     public static BlockPos findOrGenerateDesertSanctuary(ServerWorld world, BlockPos nearPos) {
@@ -794,33 +793,9 @@ public class NbtStructureManager {
         }
 
         BlockPos bestSurface = findSafeDesertSite(world, desertCenter);
-        BlockPos placePos = bestSurface.add(-8, 0, -8);
-
-        // Foundation & clearing
-        int radius = 8;
-        int surfaceY = bestSurface.getY();
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dz = -radius; dz <= radius; dz++) {
-                BlockPos colPos = new BlockPos(bestSurface.getX() + dx, surfaceY, bestSurface.getZ() + dz);
-                for (int fillY = surfaceY - 4; fillY < surfaceY; fillY++) {
-                    BlockPos underPos = new BlockPos(colPos.getX(), fillY, colPos.getZ());
-                    if (world.getBlockState(underPos).isAir() || isLiquidOrWater(world, underPos)) {
-                        world.setBlockState(underPos, Blocks.SANDSTONE.getDefaultState());
-                    }
-                }
-                for (int airY = surfaceY; airY <= surfaceY + 12; airY++) {
-                    BlockPos airPos = new BlockPos(colPos.getX(), airY, colPos.getZ());
-                    world.setBlockState(airPos, Blocks.AIR.getDefaultState());
-                }
-            }
-        }
-
-        // Place directly from desert_sanctuary.nbt
-        placeNbtStructure(world, DESERT_SANCTUARY_ID, placePos);
-
         saveData.setDesertLocation(bestSurface);
         saveData.markDirty();
-        Elemental.LOGGER.info("Desert Sanctuary initialized from NBT in desert: {}", bestSurface);
+        Elemental.LOGGER.info("Desert location marked at: {}", bestSurface);
         return bestSurface;
     }
 

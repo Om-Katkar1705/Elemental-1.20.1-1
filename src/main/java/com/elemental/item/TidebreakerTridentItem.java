@@ -34,6 +34,7 @@ import net.minecraft.util.Hand;
 import net.minecraft.util.TypedActionResult;
 import net.minecraft.util.UseAction;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
@@ -483,6 +484,34 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
         world.playSound(null, player.getX(), player.getY(), player.getZ(),
                 SoundEvents.ITEM_TRIDENT_RIPTIDE_2, SoundCategory.PLAYERS, 0.9f, 1.4f);
 
+        // Tidal Ram Enchantment: Damages mobs getting in the way of the dash
+        int ramLevel = com.elemental.enchantment.ModEnchantments.getTidalRamLevel(stack);
+        if (ramLevel > 0) {
+            float ramDamage = com.elemental.enchantment.ModEnchantments.getTidalRamDamage(ramLevel);
+            Vec3d start = player.getPos();
+            Vec3d end = start.add(dashVec.multiply(2.5));
+            Box pathBox = new Box(start, end).expand(1.8, 1.5, 1.8);
+
+            List<LivingEntity> hitMobs = world.getEntitiesByClass(LivingEntity.class, pathBox,
+                    e -> e != player && e.isAlive() && !e.isSpectator());
+
+            for (LivingEntity mob : hitMobs) {
+                if (player.isTeammate(mob)) continue;
+
+                mob.damage(world.getDamageSources().playerAttack(player), ramDamage);
+                Vec3d push = look.multiply(0.8 + 0.2 * ramLevel).add(0, 0.35, 0);
+                mob.addVelocity(push.x, push.y, push.z);
+                mob.velocityModified = true;
+
+                world.spawnParticles(ParticleTypes.SPLASH, mob.getX(), mob.getY() + 0.5, mob.getZ(),
+                        25, 0.4, 0.4, 0.4, 0.2);
+            }
+            if (!hitMobs.isEmpty()) {
+                world.playSound(null, player.getX(), player.getY(), player.getZ(),
+                        SoundEvents.ITEM_TRIDENT_HIT, SoundCategory.PLAYERS, 1.2f, 1.0f);
+            }
+        }
+
         // Record cooldown and consume durability
         applyDashCooldown(world, stack, DASH_COOLDOWN_TICKS);
         Hand finalHand = hand;
@@ -631,5 +660,10 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
         tooltip.add(Text.literal("Throw: Water Bubble Levitation on entity impact (3s CD)")
                 .formatted(Formatting.LIGHT_PURPLE));
         tooltip.add(Text.literal("Empowered in Oceans (+20%) and Rivers (+10%)").formatted(Formatting.GRAY));
+        int ramLevel = com.elemental.enchantment.ModEnchantments.getTidalRamLevel(stack);
+        if (ramLevel > 0) {
+            float dmg = com.elemental.enchantment.ModEnchantments.getTidalRamDamage(ramLevel);
+            tooltip.add(Text.literal("  ✦ Tidal Ram Active: " + dmg + " Ram Damage on Dash").formatted(Formatting.AQUA));
+        }
     }
 }
