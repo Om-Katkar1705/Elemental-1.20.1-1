@@ -88,6 +88,8 @@ public class ModItems {
             new Item(new FabricItemSettings()));
     public static final Item AEROGEL_CORE = registerItem("aerogel_core",
             new Item(new FabricItemSettings()));
+    public static final Item UPGRADE_KEY = registerItem("upgrade_key",
+            new UpgradeKeyItem(new FabricItemSettings().maxCount(16).rarity(Rarity.RARE)));
     public static final Item ELEMENTAL_JETPACK = registerItem("elemental_jetpack",
             new ElementalJetpackItem(new FabricItemSettings().maxDamage(480).rarity(Rarity.RARE)));
 

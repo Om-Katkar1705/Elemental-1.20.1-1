@@ -38,6 +38,7 @@ import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.core.animation.AnimationController;
 import software.bernie.geckolib.core.animation.RawAnimation;
+import software.bernie.geckolib.core.object.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
 import java.util.EnumSet;
@@ -137,7 +138,6 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
     private static final RawAnimation WALK_ANIM = RawAnimation.begin().thenLoop("walk");
     private static final RawAnimation RUN_ANIM = RawAnimation.begin().thenLoop("run");
     private static final RawAnimation STAGGER_LOOP = RawAnimation.begin().thenLoop("stagger");
-    private static final RawAnimation DEATH_ANIM = RawAnimation.begin().thenPlayAndHold("death");
     private static final RawAnimation CORE_EXPOSED_ANIM = RawAnimation.begin().thenLoop("core_exposed");
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
@@ -233,7 +233,7 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
         controllers.add(new AnimationController<>(this, "controller", 4, state -> {
             if (this.isDead()) {
-                return state.setAndContinue(DEATH_ANIM);
+                return PlayState.STOP;
             }
             if (this.isStaggered()) {
                 return state.setAndContinue(STAGGER_LOOP);
@@ -263,7 +263,6 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
         .triggerableAnim("phase_two", RawAnimation.begin().thenPlay("phase_two"))
         .triggerableAnim("phase_three", RawAnimation.begin().thenPlay("phase_three"))
         .triggerableAnim("enrage", RawAnimation.begin().thenPlay("enrage"))
-        .triggerableAnim("death", RawAnimation.begin().thenPlay("death"))
         .triggerableAnim("frostburst_reaction", RawAnimation.begin().thenPlay("frostburst_reaction"))
         .triggerableAnim("thorn_cage_reaction", RawAnimation.begin().thenPlay("thorn_cage_reaction"))
         .triggerableAnim("solar_arc_reaction", RawAnimation.begin().thenPlay("solar_arc_reaction")));
@@ -893,9 +892,12 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
             return;
         }
 
-        triggerAnimation("death");
         this.bossBar.clearPlayers();
         super.onDeath(source);
+
+        if (!this.getWorld().isClient()) {
+            this.dropItem(com.elemental.item.ModItems.UPGRADE_KEY);
+        }
 
         if (!this.getWorld().isClient() && this.getWorld().getServer() != null) {
             for (net.minecraft.server.network.ServerPlayerEntity player : this.getWorld().getServer().getPlayerManager().getPlayerList()) {
@@ -913,42 +915,92 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
             com.elemental.quest.QuestSaveData.getServerState(this.getWorld().getServer()).markDirty();
             com.elemental.quest.QuestManager.syncToAll(this.getWorld().getServer());
         }
+
+        spawnDarkParticleShockwave();
     }
 
     @Override
     protected void updatePostDeath() {
         this.deathTime++;
-        if (this.getWorld() instanceof ServerWorld world) {
-            // Rapid spinning vortex particles during death spin (0 - 50 ticks = 2.5s)
-            if (this.deathTime < 50) {
-                double angle = (this.deathTime * 0.9);
-                double r = 1.6;
-                world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME,
-                        this.getX() + Math.cos(angle) * r, this.getY() + 1.2, this.getZ() + Math.sin(angle) * r,
-                        4, 0.05, 0.1, 0.05, 0.02);
-                world.spawnParticles(ParticleTypes.FLAME,
-                        this.getX() - Math.cos(angle) * r, this.getY() + 1.2, this.getZ() - Math.sin(angle) * r,
-                        4, 0.05, 0.1, 0.05, 0.02);
-                if (this.deathTime % 3 == 0) {
-                    world.playSound(null, this.getX(), this.getY(), this.getZ(),
-                            SoundEvents.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.HOSTILE, 1.2f, 1.2f + (this.deathTime * 0.02f));
+        if (this.deathTime == 1) {
+            spawnDarkParticleShockwave();
+        }
+        if (this.deathTime >= 3) {
+            this.remove(RemovalReason.KILLED);
+        }
+    }
+
+    private boolean darkShockwaveSpawned = false;
+
+    private void spawnDarkParticleShockwave() {
+        if (this.darkShockwaveSpawned) {
+            return;
+        }
+        this.darkShockwaveSpawned = true;
+
+        if (!(this.getWorld() instanceof ServerWorld world)) {
+            return;
+        }
+
+        double originX = this.getX();
+        double originY = this.getY() + 0.6;
+        double originZ = this.getZ();
+
+        // 1. Core sonic boom and dark flash at epicenter
+        world.spawnParticles(ParticleTypes.SONIC_BOOM, originX, originY + 0.5, originZ, 1, 0, 0, 0, 0);
+        world.spawnParticles(ParticleTypes.FLASH, originX, originY + 0.5, originZ, 2, 0.1, 0.1, 0.1, 0.0);
+        world.spawnParticles(ParticleTypes.EXPLOSION_EMITTER, originX, originY + 0.5, originZ, 2, 0, 0, 0, 0);
+
+        // 2. Dense central dark burst (squid ink, dark large smoke, and sculk souls)
+        world.spawnParticles(ParticleTypes.SQUID_INK, originX, originY, originZ, 100, 0.8, 1.0, 0.8, 0.18);
+        world.spawnParticles(ParticleTypes.LARGE_SMOKE, originX, originY, originZ, 80, 1.0, 1.2, 1.0, 0.12);
+        world.spawnParticles(ParticleTypes.SCULK_SOUL, originX, originY, originZ, 50, 0.6, 1.0, 0.6, 0.08);
+
+        // 3. Expanding concentric rings of dark particles (Shockwave rings)
+        for (double r = 1.2; r <= 7.0; r += 0.85) {
+            int points = (int) (r * 12);
+            for (int i = 0; i < points; i++) {
+                double angle = (2.0 * Math.PI * i) / points;
+                double dirX = Math.cos(angle);
+                double dirZ = Math.sin(angle);
+                double px = originX + dirX * r;
+                double pz = originZ + dirZ * r;
+
+                // Outward expanding dark ink & smoke
+                world.spawnParticles(ParticleTypes.SQUID_INK, px, originY + 0.1, pz, 1, dirX * 0.3, 0.02, dirZ * 0.3, 0.15);
+                world.spawnParticles(ParticleTypes.SMOKE, px, originY + 0.2, pz, 1, dirX * 0.18, 0.04, dirZ * 0.18, 0.06);
+
+                if (i % 2 == 0) {
+                    world.spawnParticles(ParticleTypes.SCULK_SOUL, px, originY + 0.25, pz, 1, 0, 0.08, 0, 0.02);
                 }
-            } else if (this.deathTime == 50) {
-                // THE BLAST!
-                world.spawnParticles(ParticleTypes.EXPLOSION_EMITTER, this.getX(), this.getY() + 1.2, this.getZ(), 4, 0, 0, 0, 0);
-                world.spawnParticles(ParticleTypes.FLASH, this.getX(), this.getY() + 1.2, this.getZ(), 3, 0.1, 0.1, 0.1, 0.0);
-                world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, this.getX(), this.getY() + 1.2, this.getZ(), 100, 2.0, 1.5, 2.0, 0.3);
-                world.spawnParticles(ParticleTypes.FLAME, this.getX(), this.getY() + 1.2, this.getZ(), 100, 2.0, 1.5, 2.0, 0.3);
-                world.playSound(null, this.getX(), this.getY(), this.getZ(),
-                        SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.HOSTILE, 3.0f, 0.8f);
-                world.playSound(null, this.getX(), this.getY(), this.getZ(),
-                        SoundEvents.ITEM_TOTEM_USE, SoundCategory.HOSTILE, 2.0f, 0.6f);
+                if (i % 3 == 0) {
+                    world.spawnParticles(ParticleTypes.WITCH, px, originY + 0.35, pz, 1, dirX * 0.12, 0.05, dirZ * 0.12, 0.02);
+                }
             }
         }
 
-        if (this.deathTime >= 55) {
-            this.remove(RemovalReason.KILLED);
+        // 4. Kinetic shockwave knockback pushing entities away from the blast
+        Box blastBox = this.getBoundingBox().expand(7.5);
+        List<LivingEntity> nearby = world.getNonSpectatingEntities(LivingEntity.class, blastBox);
+        for (LivingEntity entity : nearby) {
+            if (entity != this && !(entity instanceof EverlivingKnightEntity)) {
+                double dx = entity.getX() - originX;
+                double dz = entity.getZ() - originZ;
+                double dist = Math.sqrt(dx * dx + dz * dz);
+                if (dist > 0.05 && dist <= 7.5) {
+                    double power = (1.0 - (dist / 7.5)) * 1.3;
+                    entity.takeKnockback(power, -dx, -dz);
+                }
+            }
         }
+
+        // 5. Booming dark shockwave soundscape
+        world.playSound(null, originX, originY, originZ,
+                SoundEvents.ENTITY_WARDEN_SONIC_BOOM, SoundCategory.HOSTILE, 2.2f, 0.75f);
+        world.playSound(null, originX, originY, originZ,
+                SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.HOSTILE, 2.5f, 0.5f);
+        world.playSound(null, originX, originY, originZ,
+                SoundEvents.ENTITY_WITHER_DEATH, SoundCategory.HOSTILE, 1.5f, 0.8f);
     }
 
     @Override

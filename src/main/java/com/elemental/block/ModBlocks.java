@@ -39,6 +39,15 @@ public class ModBlocks {
                     .requiresTool()
             ));
 
+    public static final Block ELEMENTAL_ANVIL = registerBlock("elemental_anvil",
+            new ElementalAnvilBlock(FabricBlockSettings.create()
+                    .mapColor(MapColor.IRON_GRAY)
+                    .strength(5.0f, 1200.0f)
+                    .sounds(BlockSoundGroup.ANVIL)
+                    .nonOpaque()
+                    .requiresTool()
+            ));
+
     private static Block registerBlock(String name, Block block) {
         registerBlockItem(name, block);
         return Registry.register(Registries.BLOCK, new Identifier(Elemental.MOD_ID, name), block);

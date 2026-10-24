@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=south": {
+      "model": "elemental:block/elemental_anvil"
+    },
+    "facing=west": {
+      "model": "elemental:block/elemental_anvil",
+      "y": 90
+    },
+    "facing=north": {
+      "model": "elemental:block/elemental_anvil",
+      "y": 180
+    },
+    "facing=east": {
+      "model": "elemental:block/elemental_anvil",
+      "y": 270
+    }
+  }
+}

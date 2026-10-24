@@ -273,5 +273,11 @@
   "enchantment.elemental.thunderous_descent": "Thunderous Descent",
   "enchantment.elemental.thunderous_descent.desc": "Multiplies melee hammer damage based on falling height, with higher levels guaranteeing devastating aerial slam attacks.",
   "enchantment.elemental.cataclysmic_rift": "Cataclysmic Rift",
-  "enchantment.elemental.cataclysmic_rift.desc": "Rift Collapse has a chance to summon a blazing falling meteorite down onto the collapsed ground for catastrophic blast damage."
+  "enchantment.elemental.cataclysmic_rift.desc": "Rift Collapse has a chance to summon a blazing falling meteorite down onto the collapsed ground for catastrophic blast damage.",
+
+  "block.elemental.elemental_anvil": "Elemental Anvil",
+  "item.elemental.upgrade_key": "Upgrade Key",
+  "container.elemental.elemental_anvil": "Elemental Anvil",
+  "message.elemental.anvil_transformed": "✦ The Anvil surges with primal energy and transforms into an Elemental Anvil! ✦",
+  "message.elemental.anvil_restricted": "Custom enchantments can only be infused using an Elemental Anvil!"
 }

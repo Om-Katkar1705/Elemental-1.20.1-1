@@ -34,6 +34,8 @@ public class ModItemGroup {
                         entries.add(ModBlocks.WEAPONER);
                         entries.add(ModBlocks.EVERLIVING_ALTAR);
                         entries.add(ModBlocks.COLOSSUS_ALTAR);
+                        entries.add(ModBlocks.ELEMENTAL_ANVIL);
+                        entries.add(ModItems.UPGRADE_KEY);
                         entries.add(ModItems.SUNFORGED_SCIMITAR);
                         entries.add(ModItems.FROSTWAKE_PICK);
                         entries.add(ModItems.ROOTBOUND_AXE);

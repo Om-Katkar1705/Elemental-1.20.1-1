@@ -52,6 +52,23 @@ public class ModEnchantments {
         Registry.register(Registries.ENCHANTMENT, new Identifier(Elemental.MOD_ID, "cataclysmic_rift"), CATACLYSMIC_RIFT);
     }
 
+    public static boolean isCustomEnchantment(Enchantment enchantment) {
+        if (enchantment == null) return false;
+        Identifier id = Registries.ENCHANTMENT.getId(enchantment);
+        return id != null && id.getNamespace().equals(Elemental.MOD_ID);
+    }
+
+    public static boolean hasCustomEnchantment(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return false;
+        var enchants = EnchantmentHelper.get(stack);
+        for (Enchantment e : enchants.keySet()) {
+            if (isCustomEnchantment(e)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // ==========================================
     // HELPERS: Sunforged Scimitar
     // ==========================================

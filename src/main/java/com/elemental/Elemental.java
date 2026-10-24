@@ -65,6 +65,19 @@ public class Elemental implements ModInitializer {
 			ElementalQuestCommand.register(dispatcher);
 		});
 
+		// Allow Upgrade Key to transform anvils immediately on right-click even without sneaking
+		net.fabricmc.fabric.api.event.player.UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
+			net.minecraft.item.ItemStack stack = player.getStackInHand(hand);
+			if (stack.isOf(ModItems.UPGRADE_KEY)) {
+				net.minecraft.util.math.BlockPos pos = hitResult.getBlockPos();
+				net.minecraft.block.BlockState state = world.getBlockState(pos);
+				if (state.isIn(net.minecraft.registry.tag.BlockTags.ANVIL) && !state.isOf(ModBlocks.ELEMENTAL_ANVIL)) {
+					return com.elemental.item.UpgradeKeyItem.transformAnvil(world, pos, state, player, stack);
+				}
+			}
+			return net.minecraft.util.ActionResult.PASS;
+		});
+
 		// Right-click inspection and sync for Blueprint Maps
 		net.fabricmc.fabric.api.event.player.UseItemCallback.EVENT.register((player, world, hand) -> {
 			net.minecraft.item.ItemStack stack = player.getStackInHand(hand);

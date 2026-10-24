@@ -10,7 +10,8 @@
 		"SlotAccessor",
 		"MapStateMixin",
 		"FilledMapItemMixin",
-		"EntityTrackerEntryMixin"
+		"EntityTrackerEntryMixin",
+		"AnvilScreenHandlerMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
