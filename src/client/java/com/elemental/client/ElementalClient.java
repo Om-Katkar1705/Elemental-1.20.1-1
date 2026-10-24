@@ -48,6 +48,7 @@ import net.minecraft.entity.EntityType;
 public class ElementalClient implements ClientModInitializer {
 	private static KeyBinding dashKey;
 	private static KeyBinding toggleJetpackKey;
+	private static KeyBinding weaponDetailKey;
 	private static int groundWarmupTicks = 0;
 	private static boolean wasJumpPressedLastTick = false;
 	private static boolean isTakeoffSpooling = false;
@@ -171,6 +172,9 @@ public class ElementalClient implements ClientModInitializer {
 		// Register Chronicle Guide entity renderer (Aeron, the Last Skywright)
 		EntityRendererRegistry.register(ModEntities.CHRONICLE_GUIDE, com.elemental.client.renderer.ChronicleGuideRenderer::new);
 
+		// Register Elemental Wizard entity renderer (Eldrin, Scholar of the Primal Spheres)
+		EntityRendererRegistry.register(ModEntities.ELEMENTAL_WIZARD, com.elemental.client.renderer.ElementalWizardRenderer::new);
+
 		// Register GeckoLib animated renderer for Rocky (Project Hail Mary alien companion)
 		EntityRendererRegistry.register(ModEntities.ROCKY, RockyRenderer::new);
 
@@ -230,6 +234,22 @@ public class ElementalClient implements ClientModInitializer {
 				"category.elemental"
 		));
 
+		// Register Weapon Detail Arsenal menu keybinding (K key)
+		weaponDetailKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+				"key.elemental.weapon_detail",
+				InputUtil.Type.KEYSYM,
+				GLFW.GLFW_KEY_K,
+				"category.elemental"
+		));
+
+		// Register Open Weapon Detail GUI packet receiver
+		ClientPlayNetworking.registerGlobalReceiver(com.elemental.network.QuestNetworking.OPEN_WEAPON_DETAIL_PACKET_ID, (client, handler, buf, responseSender) -> {
+			String weaponId = buf.readString();
+			client.execute(() -> {
+				client.setScreen(new com.elemental.client.screen.WeaponDetailScreen(weaponId));
+			});
+		});
+
 		// Register Quest Sync Client Receiver
 		ClientPlayNetworking.registerGlobalReceiver(com.elemental.network.QuestNetworking.QUEST_SYNC_PACKET_ID, (client, handler, buf, responseSender) -> {
 			int stateId = buf.readInt();
@@ -279,6 +299,10 @@ public class ElementalClient implements ClientModInitializer {
 
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
 			if (client.player == null) return;
+
+			while (weaponDetailKey.wasPressed()) {
+				client.setScreen(new com.elemental.client.screen.WeaponDetailScreen());
+			}
 
 			// Weapon R ability (Tidebreaker dash or Stormcaller thunderclap)
 			while (dashKey.wasPressed()) {

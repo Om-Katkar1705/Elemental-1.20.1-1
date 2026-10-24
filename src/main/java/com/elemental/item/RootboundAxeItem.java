@@ -379,22 +379,9 @@ public class RootboundAxeItem extends AxeItem implements GeoItem {
     @Override
     public void appendTooltip(ItemStack stack, @Nullable World world, List<Text> tooltip, TooltipContext context) {
         super.appendTooltip(stack, world, tooltip, context);
-
-        tooltip.add(Text.literal("Wide sweep attack").formatted(Formatting.GRAY));
-        tooltip.add(Text.literal("Chance to create healing roots (stronger in forests and jungles)")
-                .formatted(Formatting.GREEN));
-        tooltip.add(Text.literal("Active: Thorn cage - damages and slows enemies")
-                .formatted(Formatting.RED));
-        tooltip.add(Text.literal("Roots are destroyed by fire").formatted(Formatting.GOLD));
-        tooltip.add(Text.literal("Cooldown: " + (BASE_COOLDOWN_TICKS / 20) + "s (Forest/Jungle: " + (FOREST_COOLDOWN_TICKS / 20) + "s)")
-                .formatted(Formatting.DARK_GRAY));
-
-        int bastionLevel = com.elemental.enchantment.ModEnchantments.getTimberBastionLevel(stack);
-        if (bastionLevel > 0) {
-            float durationSec = com.elemental.enchantment.ModEnchantments.getTimberBastionDurationTicks(bastionLevel) / 20.0f;
-            int regenPct = Math.round(com.elemental.enchantment.ModEnchantments.getTimberBastionRegenChance(bastionLevel) * 100);
-            tooltip.add(Text.literal("  ✦ Timber Bastion [R]: " + durationSec + "s Wall | " + regenPct + "% Regen Chance").formatted(Formatting.GREEN));
-        }
+        tooltip.add(Text.literal("§a► [Right-Click] §fThorn Cage"));
+        tooltip.add(Text.literal("§2► [R] §fTimber Bastion"));
+        tooltip.add(Text.literal("§8[Open Weapon Detail Menu for Lore & Stats]").formatted(Formatting.DARK_GRAY));
     }
 
     public static void performTimberBastion(net.minecraft.server.network.ServerPlayerEntity player) {

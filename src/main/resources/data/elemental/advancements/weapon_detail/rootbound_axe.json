@@ -1,0 +1,30 @@
+{
+  "parent": "elemental:weapon_detail/frostwake_pick",
+  "display": {
+    "icon": {
+      "item": "elemental:rootbound_axe"
+    },
+    "title": {
+      "text": "Rootbound Axe"
+    },
+    "description": {
+      "text": "[Right-Click] Thorn Cage traps and bleeds enemies. [R] Timber Bastion raises protective walls with healing roots."
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "has_axe": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": ["elemental:rootbound_axe"]
+          }
+        ]
+      }
+    }
+  }
+}

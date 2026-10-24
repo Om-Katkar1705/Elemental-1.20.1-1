@@ -21,7 +21,7 @@ public class DialogueManager {
 
     public record DialogueEntry(Text text, SoundEvent sound, float pitch, int delayTicks, Consumer<ServerPlayerEntity> onDisplay) {
         public DialogueEntry(Text text, SoundEvent sound, float pitch) {
-            this(text, sound, pitch, 30, null);
+            this(text, sound, pitch, 75, null);
         }
 
         public DialogueEntry(Text text, SoundEvent sound, float pitch, int delayTicks) {
@@ -29,7 +29,7 @@ public class DialogueManager {
         }
 
         public DialogueEntry(Text text, SoundEvent sound, float pitch, Consumer<ServerPlayerEntity> onDisplay) {
-            this(text, sound, pitch, 30, onDisplay);
+            this(text, sound, pitch, 75, onDisplay);
         }
     }
 
@@ -121,7 +121,7 @@ public class DialogueManager {
                 }
 
                 conv.currentIndex++;
-                conv.timerTicks = line.delayTicks() > 0 ? line.delayTicks() : 30;
+                conv.timerTicks = line.delayTicks() > 0 ? line.delayTicks() : 75;
             } else {
                 if (conv.onComplete != null) {
                     conv.onComplete.run();

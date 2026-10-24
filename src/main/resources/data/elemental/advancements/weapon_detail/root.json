@@ -1,0 +1,37 @@
+{
+  "display": {
+    "icon": {
+      "item": "elemental:sunforged_scimitar"
+    },
+    "title": {
+      "text": "Weapon Detail"
+    },
+    "description": {
+      "text": "The Elemental Weapon Codex: Master the arts, abilities, and attacks of the six forged arms."
+    },
+    "background": "minecraft:textures/gui/advancements/backgrounds/adventure.png",
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "crafted_any_weapon": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "elemental:sunforged_scimitar",
+              "elemental:frostwake_pick",
+              "elemental:rootbound_axe",
+              "elemental:tidebreaker_trident",
+              "elemental:stormcaller_hammer",
+              "elemental:ashen_rift_blade"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

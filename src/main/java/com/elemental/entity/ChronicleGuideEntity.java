@@ -115,13 +115,16 @@ public class ChronicleGuideEntity extends PathAwareEntity {
             if (!questData.hasCompletedPhase1Dialogue()) {
                 startPhase1Conversation(serverPlayer, false);
             }
-            // Phase 2: After the ship (completed discovery & gathered blueprints collectively)
-            else if ((state == QuestState.RETURN_TO_AERON || state == QuestState.CRAFT_JETPACK || BlueprintMaps.hasAllBlueprintsCombined(serverPlayer.server.getPlayerManager().getPlayerList()))
-                    && !questData.hasClaimedJetpack()) {
+            // Phase 2: After the ship - deliver 4 recipe maps to Aeron
+            else if (state == QuestState.RETURN_TO_AERON || (state.getId() < QuestState.CRAFT_PNEUMATIC_PISTON.getId() && BlueprintMaps.hasAllBlueprintsCombined(serverPlayer.server.getPlayerManager().getPlayerList()))) {
                 startPhase2Conversation(serverPlayer);
             }
+            // During Jetpack Crafting Tasks (Tasks 1-4)
+            else if (state == QuestState.CRAFT_PNEUMATIC_PISTON || state == QuestState.CRAFT_AEROGEL_CORE || state == QuestState.CRAFT_ELEMENT_CORE || state == QuestState.CRAFT_JETPACK) {
+                startJetpackTaskReminderConversation(serverPlayer, state);
+            }
             // After Phase 2 or Jetpack already claimed: Desert expedition reminders & questions
-            else if (questData.hasClaimedJetpack() || state == QuestState.DESERT_EXPEDITION || state == QuestState.QUEST_COMPLETE) {
+            else if (questData.hasClaimedJetpack() || state.getId() >= QuestState.DESERT_EXPEDITION.getId()) {
                 if (!hasItemOrWorn(serverPlayer, ModItems.ELEMENTAL_JETPACK)) {
                     ItemStack jetpack = new ItemStack(ModItems.ELEMENTAL_JETPACK, 1);
                     if (!serverPlayer.getInventory().insertStack(jetpack)) {
@@ -267,12 +270,19 @@ public class ChronicleGuideEntity extends PathAwareEntity {
         String name = player.getName().getString();
         List<DialogueManager.DialogueEntry> lines = new ArrayList<>();
 
-        PlayerQuestData qData = QuestManager.getPlayerData(player);
-        boolean alreadyHas = qData.hasClaimedJetpack() || hasItemOrWorn(player, ModItems.ELEMENTAL_JETPACK);
+        // Add skip prompt hint
+        MutableText skipHint = Text.literal(" §8[")
+                .append(Text.translatable("dialogue.elemental.choice.skip_btn"))
+                .append("]")
+                .styled(style -> style
+                        .withColor(Formatting.GRAY)
+                        .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/elementalskip"))
+                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.translatable("dialogue.elemental.choice.skip")))
+                );
 
-        // 1. Player: I found some blueprints in the wreckage.
+        // 1. Player: I found the 4 recipe maps in the wreckage.
         lines.add(new DialogueManager.DialogueEntry(
-                Text.literal("§b<" + name + "> §a").append(Text.translatable("dialogue.elemental.player.phase2_1")),
+                Text.literal("§b<" + name + "> §a").append(Text.translatable("dialogue.elemental.player.phase2_1")).append(skipHint),
                 SoundEvents.UI_BUTTON_CLICK.value(), 1.3f
         ));
 
@@ -280,7 +290,7 @@ public class ChronicleGuideEntity extends PathAwareEntity {
         lines.add(new DialogueManager.DialogueEntry(
                 Text.literal("§6[Aeron] §a").append(Text.translatable("dialogue.elemental.aeron.phase2_2")),
                 ModSounds.NPC_DIALOGUE, 1.1f,
-                30,
+                75,
                 p -> {
                     int removed = BlueprintMaps.removeAllBlueprintMapsFromAll(p.server.getPlayerManager().getPlayerList());
                     if (removed > 0) {
@@ -298,113 +308,56 @@ public class ChronicleGuideEntity extends PathAwareEntity {
                 SoundEvents.UI_BUTTON_CLICK.value(), 1.3f
         ));
 
-        // 4. Aeron: I think I can. Wait here. (2.0 second pause with crafting animation & sound cue)
+        // 4. Aeron: I can decode the artificer schematics, but you will need to forge the components yourself. As an Element-Smith, you must master each part!
         lines.add(new DialogueManager.DialogueEntry(
-                Text.literal("§6[Aeron] §e").append(Text.translatable("dialogue.elemental.aeron.phase2_4")),
-                ModSounds.NPC_DIALOGUE, 1.0f,
-                40, // 40 ticks = 2.0 seconds pause
-                p -> {
-                    ChronicleGuideEntity guide = findNearestGuide(p, 16.0);
-                    if (guide != null) {
-                        guide.swingHand(Hand.MAIN_HAND);
-                        if (p.getWorld() instanceof ServerWorld serverWorld) {
-                            serverWorld.playSound(null, guide.getX(), guide.getY(), guide.getZ(),
-                                    SoundEvents.BLOCK_ANVIL_USE, SoundCategory.NEUTRAL, 0.7f, 1.3f);
-                            serverWorld.spawnParticles(ParticleTypes.CRIT, guide.getX(), guide.getY() + 1.0, guide.getZ(), 10, 0.25, 0.25, 0.25, 0.05);
-                            serverWorld.spawnParticles(ParticleTypes.SMOKE, guide.getX(), guide.getY() + 1.0, guide.getZ(), 6, 0.2, 0.2, 0.2, 0.02);
-                        }
-                    }
-                }
-        ));
-
-        // 5. Aeron: Ready…? (Short beat, then grant Jetpack)
-        lines.add(new DialogueManager.DialogueEntry(
-                Text.literal("§6[Aeron] §b").append(Text.translatable("dialogue.elemental.aeron.phase2_5")),
-                ModSounds.NPC_DIALOGUE, 1.1f,
-                25,
-                p -> {
-                    BlueprintMaps.removeAllBlueprintMapsFromAll(p.server.getPlayerManager().getPlayerList());
-                    PlayerQuestData data = QuestManager.getPlayerData(p);
-                    if (!data.hasClaimedJetpack()) {
-                        data.setClaimedJetpack(true);
-                        for (ServerPlayerEntity sp : p.server.getPlayerManager().getPlayerList()) {
-                            unlockJetpackRecipes(sp);
-                            if (!hasItemOrWorn(sp, ModItems.ELEMENTAL_JETPACK)) {
-                                ItemStack jetpack = new ItemStack(ModItems.ELEMENTAL_JETPACK, 1);
-                                if (!sp.getInventory().insertStack(jetpack)) {
-                                    sp.dropItem(jetpack, false);
-                                }
-                                sp.sendMessage(Text.translatable("message.elemental.jetpack_received").formatted(Formatting.GREEN, Formatting.BOLD), false);
-                                sp.playSound(SoundEvents.ITEM_ARMOR_EQUIP_NETHERITE, SoundCategory.PLAYERS, 1.0f, 1.0f);
-                            }
-                        }
-                        QuestSaveData.getServerState(p.server).markDirty();
-                        QuestManager.syncToAll(p.server);
-                    }
-                }
-        ));
-
-        // 6. Aeron: There! A little rough around the edges...
-        Text line6Text = alreadyHas
-                ? Text.translatable("dialogue.elemental.aeron.phase2_6_already_owned")
-                : Text.translatable("dialogue.elemental.aeron.phase2_6");
-        lines.add(new DialogueManager.DialogueEntry(
-                Text.literal("§6[Aeron] §e").append(line6Text),
+                Text.literal("§6[Aeron] §e").append(Text.translatable("dialogue.elemental.aeron.phase2_4_tasks_intro")),
                 ModSounds.NPC_DIALOGUE, 1.05f
         ));
 
-        // 7. Player: Where should I go now?
+        // 5. Aeron: Task 1: Craft a Pneumatic Piston! It provides the high compression needed for thrust. I've decoded the recipe for you!
         lines.add(new DialogueManager.DialogueEntry(
-                Text.literal("§b<" + name + "> §f").append(Text.translatable("dialogue.elemental.player.phase2_7")),
-                SoundEvents.UI_BUTTON_CLICK.value(), 1.3f
-        ));
-
-        // 8. Aeron: The desert. The first element is hidden among its old settlements and ruins. Let the jetpack guide you, but stay alert. The sands remember what happened.
-        lines.add(new DialogueManager.DialogueEntry(
-                Text.literal("§6[Aeron] §6").append(Text.translatable("dialogue.elemental.aeron.phase2_8")),
-                ModSounds.NPC_DIALOGUE, 1.0f
-        ));
-
-        // 9. Player: Then I’m going.
-        lines.add(new DialogueManager.DialogueEntry(
-                Text.literal("§b<" + name + "> §f").append(Text.translatable("dialogue.elemental.player.phase2_9")),
-                SoundEvents.UI_BUTTON_CLICK.value(), 1.3f
-        ));
-
-        // 10. Aeron: Go, Element-Smith. The world is waiting to be mended.
-        lines.add(new DialogueManager.DialogueEntry(
-                Text.literal("§6[Aeron] §d§l").append(Text.translatable("dialogue.elemental.aeron.phase2_10")),
-                ModSounds.NPC_DIALOGUE, 1.2f
+                Text.literal("§6[Aeron] §b").append(Text.translatable("dialogue.elemental.aeron.phase2_5_task1")),
+                ModSounds.NPC_DIALOGUE, 1.1f,
+                75,
+                p -> {
+                    for (ServerPlayerEntity sp : p.server.getPlayerManager().getPlayerList()) {
+                        unlockJetpackRecipes(sp);
+                        ElementalWizardEntity.unlockElementCoreRecipes(sp);
+                        sp.playSound(ModSounds.QUEST_ACCEPTED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+                    }
+                }
         ));
 
         DialogueManager.startConversation(player, lines, () -> {
             BlueprintMaps.removeAllBlueprintMapsFromAll(player.server.getPlayerManager().getPlayerList());
-            PlayerQuestData data = QuestManager.getPlayerData(player);
-            // Ensure jetpack claimed and recipes unlocked even if skipped
-            if (!data.hasClaimedJetpack()) {
-                data.setClaimedJetpack(true);
-                for (ServerPlayerEntity sp : player.server.getPlayerManager().getPlayerList()) {
-                    unlockJetpackRecipes(sp);
-                    if (!hasItemOrWorn(sp, ModItems.ELEMENTAL_JETPACK)) {
-                        ItemStack jetpack = new ItemStack(ModItems.ELEMENTAL_JETPACK, 1);
-                        if (!sp.getInventory().insertStack(jetpack)) {
-                            sp.dropItem(jetpack, false);
-                        }
-                        sp.sendMessage(Text.translatable("message.elemental.jetpack_received").formatted(Formatting.GREEN, Formatting.BOLD), false);
-                        sp.playSound(SoundEvents.ITEM_ARMOR_EQUIP_NETHERITE, SoundCategory.PLAYERS, 1.0f, 1.0f);
-                    }
-                }
-            }
-
-            BlockPos desertPos = com.elemental.world.NbtStructureManager.findOrGenerateDesertSanctuary(player.getServerWorld(), player.getBlockPos());
-            data.setTargetWaypoint(desertPos);
-            QuestManager.setQuestState(player, QuestState.DESERT_EXPEDITION);
-            player.server.getPlayerManager().broadcast(Text.translatable("message.elemental.desert_coords", desertPos.getX(), desertPos.getZ()).formatted(Formatting.GOLD, Formatting.BOLD), false);
             for (ServerPlayerEntity sp : player.server.getPlayerManager().getPlayerList()) {
-                sp.playSound(ModSounds.QUEST_COMPLETED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+                unlockJetpackRecipes(sp);
+                ElementalWizardEntity.unlockElementCoreRecipes(sp);
+                sp.playSound(ModSounds.QUEST_ACCEPTED, SoundCategory.PLAYERS, 1.0f, 1.0f);
             }
+            QuestManager.setQuestState(player, QuestState.CRAFT_PNEUMATIC_PISTON);
             showDialogueChoices(player);
         });
+    }
+
+    public static void startJetpackTaskReminderConversation(ServerPlayerEntity player, QuestState state) {
+        playNpcSoundAll(player.server);
+        switch (state) {
+            case CRAFT_PNEUMATIC_PISTON -> {
+                player.sendMessage(Text.literal("§6[Aeron] §e").append(Text.translatable("dialogue.elemental.aeron.remind_task1")), false);
+            }
+            case CRAFT_AEROGEL_CORE -> {
+                player.sendMessage(Text.literal("§6[Aeron] §e").append(Text.translatable("dialogue.elemental.aeron.remind_task2")), false);
+            }
+            case CRAFT_ELEMENT_CORE -> {
+                player.sendMessage(Text.literal("§6[Aeron] §e").append(Text.translatable("dialogue.elemental.aeron.remind_task3")), false);
+            }
+            case CRAFT_JETPACK -> {
+                player.sendMessage(Text.literal("§6[Aeron] §e").append(Text.translatable("dialogue.elemental.aeron.remind_task4")), false);
+            }
+            default -> {}
+        }
+        showDialogueChoices(player);
     }
 
     public static void showDialogueChoices(ServerPlayerEntity player) {

@@ -398,22 +398,7 @@ public class SunforgedScimitarItem extends SwordItem implements GeoItem {
     @Override
     public void appendTooltip(ItemStack stack, @Nullable World world, List<Text> tooltip, TooltipContext context) {
         super.appendTooltip(stack, world, tooltip, context);
-        tooltip.add(Text.literal("Heat Level: " + getHeatLevel(stack) + " / " + MAX_HEAT).formatted(Formatting.RED));
-        int coreLevel = getSolarCoreLevel(stack);
-        if (coreLevel > 0) {
-            tooltip.add(Text.literal("Solar Core Level: " + coreLevel).formatted(Formatting.GOLD));
-        }
-        tooltip.add(Text.literal("► Hold [Right Click]: Solar Arc Flame Strike").formatted(Formatting.GOLD));
-        tooltip.add(Text.literal("  - Unleashes a piercing solar arc").formatted(Formatting.GRAY));
-        int blastLevel = com.elemental.enchantment.ModEnchantments.getSolarBlastLevel(stack);
-        if (blastLevel > 0) {
-            int pct = Math.round(com.elemental.enchantment.ModEnchantments.getSolarBlastProcChance(blastLevel) * 100);
-            tooltip.add(Text.literal("  ✦ Solar Blast Active: " + pct + "% chance to detonate (" + blastLevel + "x power)").formatted(Formatting.GOLD));
-        }
-        int siphonLevel = com.elemental.enchantment.ModEnchantments.getDawnsSiphonLevel(stack);
-        if (siphonLevel > 0) {
-            int repairPct = Math.round(com.elemental.enchantment.ModEnchantments.getDawnsSiphonRepairChance(siphonLevel) * 100);
-            tooltip.add(Text.literal("  ✦ Dawn's Siphon Active: +" + siphonLevel + ".0 Fire Dmg | " + repairPct + "% Durability Siphon").formatted(Formatting.YELLOW));
-        }
+        tooltip.add(Text.literal("§6► [Right-Click] §fSolar Arc Flame Strike"));
+        tooltip.add(Text.literal("§8[Open Weapon Detail Menu for Lore & Stats]").formatted(Formatting.DARK_GRAY));
     }
 }

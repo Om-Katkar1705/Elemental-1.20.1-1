@@ -364,22 +364,9 @@ public class FrostwakePickItem extends PickaxeItem implements GeoItem {
     @Override
     public void appendTooltip(ItemStack stack, @Nullable World world, List<Text> tooltip, TooltipContext context) {
         super.appendTooltip(stack, world, tooltip, context);
-
-        if (hasGlacialCore(stack)) {
-            tooltip.add(Text.literal("Upgraded: Glacial Core Installed").formatted(Formatting.AQUA));
-            tooltip.add(Text.literal("Frostburst Radius: " + UPGRADED_RADIUS + " blocks").formatted(Formatting.GRAY));
-        } else {
-            tooltip.add(Text.literal("Frostburst Radius: " + BASE_RADIUS + " blocks").formatted(Formatting.GRAY));
-        }
-
-        tooltip.add(Text.literal("Right-click to unleash Frostburst").formatted(Formatting.BLUE));
-        tooltip.add(Text.literal("Cooldown: " + (BASE_COOLDOWN_TICKS / 20) + "s (Snowy: " + (SNOWY_COOLDOWN_TICKS / 20) + "s)").formatted(Formatting.GRAY));
-        tooltip.add(Text.literal("Passive: Chills enemies on hit").formatted(Formatting.LIGHT_PURPLE));
-        int spikeLevel = com.elemental.enchantment.ModEnchantments.getSpikeShockwaveLevel(stack);
-        if (spikeLevel > 0) {
-            int r = com.elemental.enchantment.ModEnchantments.getSpikeShockwaveMaxRadius(spikeLevel);
-            tooltip.add(Text.literal("  ✦ Spike Shockwave Active: " + r + "-block rings + Knockback").formatted(Formatting.AQUA));
-        }
+        tooltip.add(Text.literal("§b► [Right-Click] §fFrostburst"));
+        tooltip.add(Text.literal("§d► [Passive] §fGlacial Chill"));
+        tooltip.add(Text.literal("§8[Open Weapon Detail Menu for Lore & Stats]").formatted(Formatting.DARK_GRAY));
     }
 
     @Override

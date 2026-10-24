@@ -651,33 +651,8 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
     @Override
     public void appendTooltip(ItemStack stack, @Nullable World world, List<Text> tooltip, TooltipContext context) {
         super.appendTooltip(stack, world, tooltip, context);
-        tooltip.add(Text.literal("§7A dark blade forged from shattered spatial rifts."));
-        tooltip.add(Text.literal("§6[R] Rift Collapse: §7Rebounds mobs, digs rifts, spawns lava, then refills.")
-                .formatted(Formatting.GOLD));
-        tooltip.add(Text.literal(
-                "§d[Hold Right-Click] Rift Teleport: §7Fall into a rift and emerge 5 blocks above targeted block.")
-                .formatted(Formatting.LIGHT_PURPLE));
-
-        if (world != null) {
-            if (isCollapseCoolingDown(world, stack)) {
-                int rem = getCollapseRemainingSeconds(world, stack);
-                tooltip.add(Text.literal("§c✦ Rift Collapse Cooldown: " + rem + "s").formatted(Formatting.RED));
-            } else {
-                tooltip.add(Text.literal("§a✦ Rift Collapse: Ready").formatted(Formatting.GREEN));
-            }
-
-            if (isTeleportCoolingDown(world, stack)) {
-                int rem = getTeleportRemainingSeconds(world, stack);
-                tooltip.add(Text.literal("§c✦ Rift Teleport Cooldown: " + rem + "s").formatted(Formatting.RED));
-            } else {
-                tooltip.add(Text.literal("§a✦ Rift Teleport: Ready").formatted(Formatting.GREEN));
-            }
-        }
-
-        int cataclysmLevel = com.elemental.enchantment.ModEnchantments.getCataclysmicRiftLevel(stack);
-        if (cataclysmLevel > 0) {
-            int chance = Math.round(com.elemental.enchantment.ModEnchantments.getCataclysmicRiftChance(cataclysmLevel) * 100);
-            tooltip.add(Text.literal("  ✦ Cataclysmic Rift Active: " + chance + "% Meteorite Strike on Collapse").formatted(Formatting.DARK_RED));
-        }
+        tooltip.add(Text.literal("§6► [R] §fRift Collapse"));
+        tooltip.add(Text.literal("§d► [Hold Right-Click] §fRift Teleport"));
+        tooltip.add(Text.literal("§8[Open Weapon Detail Menu for Lore & Stats]").formatted(Formatting.DARK_GRAY));
     }
 }

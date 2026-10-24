@@ -1,0 +1,30 @@
+{
+  "parent": "elemental:weapon_detail/sunforged_scimitar",
+  "display": {
+    "icon": {
+      "item": "elemental:frostwake_pick"
+    },
+    "title": {
+      "text": "Frostwake Pick"
+    },
+    "description": {
+      "text": "[Right-Click] Frostburst shockwave freezes terrain. [Passive] Glacial Chill slows and shatters foes on melee hit."
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "has_pick": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": ["elemental:frostwake_pick"]
+          }
+        ]
+      }
+    }
+  }
+}

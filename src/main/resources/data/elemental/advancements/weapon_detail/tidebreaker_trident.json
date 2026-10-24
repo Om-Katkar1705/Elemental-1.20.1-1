@@ -1,0 +1,30 @@
+{
+  "parent": "elemental:weapon_detail/rootbound_axe",
+  "display": {
+    "icon": {
+      "item": "elemental:tidebreaker_trident"
+    },
+    "title": {
+      "text": "Tidebreaker Trident"
+    },
+    "description": {
+      "text": "[Right-Click] Water Bubble Throw traps and levitates foes. [R] Tidebreaker Dash thrusts forward through enemies."
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "has_trident": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": ["elemental:tidebreaker_trident"]
+          }
+        ]
+      }
+    }
+  }
+}

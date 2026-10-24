@@ -17,10 +17,14 @@ public class QuestSaveData extends PersistentState {
     public static final String IDENTIFIER = "elemental_quests";
 
     private boolean guideSpawned = false;
+    private boolean wizardSpawned = false;
     private boolean tentGenerated = false;
     private BlockPos aeronsTentLocation = null;
     private BlockPos skyforgeAirshipLocation = null;
     private BlockPos desertLocation = null;
+    private BlockPos snowBiomeLocation = null;
+    private BlockPos forestBiomeLocation = null;
+    private BlockPos everlivingArenaLocation = null;
     // Collective Quest Progress (Shared across all players on the server)
     private QuestState collectiveState = QuestState.CRAFT_STONE_TOOLS;
     private int collectiveBlueprintsFound = 0;
@@ -87,6 +91,15 @@ public class QuestSaveData extends PersistentState {
         this.markDirty();
     }
 
+    public boolean isWizardSpawned() {
+        return wizardSpawned;
+    }
+
+    public void setWizardSpawned(boolean wizardSpawned) {
+        this.wizardSpawned = wizardSpawned;
+        this.markDirty();
+    }
+
     public boolean isTentGenerated() {
         return tentGenerated;
     }
@@ -123,6 +136,33 @@ public class QuestSaveData extends PersistentState {
         this.markDirty();
     }
 
+    public BlockPos getSnowBiomeLocation() {
+        return snowBiomeLocation;
+    }
+
+    public void setSnowBiomeLocation(BlockPos location) {
+        this.snowBiomeLocation = location;
+        this.markDirty();
+    }
+
+    public BlockPos getForestBiomeLocation() {
+        return forestBiomeLocation;
+    }
+
+    public void setForestBiomeLocation(BlockPos location) {
+        this.forestBiomeLocation = location;
+        this.markDirty();
+    }
+
+    public BlockPos getEverlivingArenaLocation() {
+        return everlivingArenaLocation;
+    }
+
+    public void setEverlivingArenaLocation(BlockPos location) {
+        this.everlivingArenaLocation = location;
+        this.markDirty();
+    }
+
     public PlayerQuestData getPlayerData(UUID uuid) {
         return playerDataMap.computeIfAbsent(uuid, id -> {
             PlayerQuestData data = new PlayerQuestData(id, this);
@@ -134,6 +174,7 @@ public class QuestSaveData extends PersistentState {
     public static QuestSaveData fromNbt(NbtCompound nbt) {
         QuestSaveData data = new QuestSaveData();
         data.guideSpawned = nbt.getBoolean("GuideSpawned");
+        data.wizardSpawned = nbt.getBoolean("WizardSpawned");
         data.tentGenerated = nbt.getBoolean("TentGenerated");
 
         if (nbt.contains("CollectiveState")) {
@@ -180,6 +221,30 @@ public class QuestSaveData extends PersistentState {
             );
         }
 
+        if (nbt.contains("SnowX") && nbt.contains("SnowY") && nbt.contains("SnowZ")) {
+            data.snowBiomeLocation = new BlockPos(
+                    nbt.getInt("SnowX"),
+                    nbt.getInt("SnowY"),
+                    nbt.getInt("SnowZ")
+            );
+        }
+
+        if (nbt.contains("ForestX") && nbt.contains("ForestY") && nbt.contains("ForestZ")) {
+            data.forestBiomeLocation = new BlockPos(
+                    nbt.getInt("ForestX"),
+                    nbt.getInt("ForestY"),
+                    nbt.getInt("ForestZ")
+            );
+        }
+
+        if (nbt.contains("EverlivingX") && nbt.contains("EverlivingY") && nbt.contains("EverlivingZ")) {
+            data.everlivingArenaLocation = new BlockPos(
+                    nbt.getInt("EverlivingX"),
+                    nbt.getInt("EverlivingY"),
+                    nbt.getInt("EverlivingZ")
+            );
+        }
+
         if (nbt.contains("Players", NbtElement.LIST_TYPE)) {
             NbtList list = nbt.getList("Players", NbtElement.COMPOUND_TYPE);
             for (int i = 0; i < list.size(); i++) {
@@ -207,6 +272,7 @@ public class QuestSaveData extends PersistentState {
     @Override
     public NbtCompound writeNbt(NbtCompound nbt) {
         nbt.putBoolean("GuideSpawned", this.guideSpawned);
+        nbt.putBoolean("WizardSpawned", this.wizardSpawned);
         nbt.putBoolean("TentGenerated", this.tentGenerated);
 
         nbt.putInt("CollectiveState", this.collectiveState.getId());
@@ -235,6 +301,24 @@ public class QuestSaveData extends PersistentState {
             nbt.putInt("DesertX", this.desertLocation.getX());
             nbt.putInt("DesertY", this.desertLocation.getY());
             nbt.putInt("DesertZ", this.desertLocation.getZ());
+        }
+
+        if (this.snowBiomeLocation != null) {
+            nbt.putInt("SnowX", this.snowBiomeLocation.getX());
+            nbt.putInt("SnowY", this.snowBiomeLocation.getY());
+            nbt.putInt("SnowZ", this.snowBiomeLocation.getZ());
+        }
+
+        if (this.forestBiomeLocation != null) {
+            nbt.putInt("ForestX", this.forestBiomeLocation.getX());
+            nbt.putInt("ForestY", this.forestBiomeLocation.getY());
+            nbt.putInt("ForestZ", this.forestBiomeLocation.getZ());
+        }
+
+        if (this.everlivingArenaLocation != null) {
+            nbt.putInt("EverlivingX", this.everlivingArenaLocation.getX());
+            nbt.putInt("EverlivingY", this.everlivingArenaLocation.getY());
+            nbt.putInt("EverlivingZ", this.everlivingArenaLocation.getZ());
         }
 
         NbtList list = new NbtList();

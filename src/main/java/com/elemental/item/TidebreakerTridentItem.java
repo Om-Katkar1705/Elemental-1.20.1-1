@@ -636,34 +636,8 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
     @Override
     public void appendTooltip(ItemStack stack, @Nullable World world, List<Text> tooltip, TooltipContext context) {
         super.appendTooltip(stack, world, tooltip, context);
-        tooltip.add(Text.literal("Passive: +25% Attack Speed underwater").formatted(Formatting.AQUA));
-        tooltip.add(Text.literal("Tool: Accelerated underwater mining").formatted(Formatting.DARK_AQUA));
-
-        if (world != null) {
-            if (isDashCoolingDown(world, stack)) {
-                int rem = getRemainingDashSeconds(world, stack);
-                tooltip.add(Text.literal("§c✦ Tidebreaker Dash Cooldown: " + rem + "s").formatted(Formatting.RED));
-            } else {
-                tooltip.add(Text.literal("§a✦ Tidebreaker Dash: Ready").formatted(Formatting.GREEN));
-            }
-
-            if (isThrowCoolingDown(world, stack)) {
-                int rem = getRemainingThrowSeconds(world, stack);
-                tooltip.add(Text.literal("§c✦ Trident Throw Cooldown: " + rem + "s").formatted(Formatting.RED));
-            } else {
-                tooltip.add(Text.literal("§a✦ Trident Throw: Ready").formatted(Formatting.GREEN));
-            }
-        }
-
-        tooltip.add(Text.literal("Active [R]: Tidebreaker Dash (4s CD; requires water within 10 blocks, 2s on fail)")
-                .formatted(Formatting.BLUE));
-        tooltip.add(Text.literal("Throw: Water Bubble Levitation on entity impact (3s CD)")
-                .formatted(Formatting.LIGHT_PURPLE));
-        tooltip.add(Text.literal("Empowered in Oceans (+20%) and Rivers (+10%)").formatted(Formatting.GRAY));
-        int ramLevel = com.elemental.enchantment.ModEnchantments.getTidalRamLevel(stack);
-        if (ramLevel > 0) {
-            float dmg = com.elemental.enchantment.ModEnchantments.getTidalRamDamage(ramLevel);
-            tooltip.add(Text.literal("  ✦ Tidal Ram Active: " + dmg + " Ram Damage on Dash").formatted(Formatting.AQUA));
-        }
+        tooltip.add(Text.literal("§9► [Right-Click] §fWater Bubble Throw"));
+        tooltip.add(Text.literal("§b► [R] §fTidebreaker Dash"));
+        tooltip.add(Text.literal("§8[Open Weapon Detail Menu for Lore & Stats]").formatted(Formatting.DARK_GRAY));
     }
 }

@@ -3,13 +3,18 @@ package com.elemental.world;
 import com.elemental.Elemental;
 import com.elemental.config.ElementalConfig;
 import com.elemental.entity.ChronicleGuideEntity;
+import com.elemental.entity.ElementalWizardEntity;
 import com.elemental.entity.ModEntities;
 import com.elemental.quest.QuestSaveData;
 import com.elemental.item.BlueprintMaps;
+import net.minecraft.registry.RegistryKeys;
+import net.minecraft.world.gen.structure.StructureKeys;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.block.StairsBlock;
 import net.minecraft.block.entity.ChestBlockEntity;
+import net.minecraft.particle.ParticleTypes;
 import net.minecraft.registry.tag.BiomeTags;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -40,6 +45,7 @@ public class NbtStructureManager {
     public static final Identifier AERONS_CAMP_ID = new Identifier(Elemental.MOD_ID, "aerons_camp");
     public static final Identifier SKYFORGE_SHIP_ID = new Identifier(Elemental.MOD_ID, "crashed_skyforge_ship");
     public static final Identifier SEISMIC_GOLEM_ARENA_ID = new Identifier(Elemental.MOD_ID, "seismic_golem_arena");
+    public static final Identifier EVERLIVING_ARENA_ID = new Identifier(Elemental.MOD_ID, "everliving_knight_arena");
 
     /**
      * Generic loader and placer for NBT structure templates.
@@ -753,39 +759,66 @@ public class NbtStructureManager {
     }
 
     // ==========================================
-    // 3. Desert Expedition Location
+    // 3. Desert Expedition Location & Wizard Setup
     // ==========================================
 
     public static BlockPos findOrGenerateDesertSanctuary(ServerWorld world, BlockPos nearPos) {
         QuestSaveData saveData = QuestSaveData.getServerState(world.getServer());
         BlockPos existing = saveData.getDesertLocation();
         if (existing != null) {
+            ensureWizardAtVillage(world, existing, saveData);
             return existing;
         }
 
         BlockPos desertCenter = null;
+        // 1. Try locating a vanilla Desert Village first
         try {
-            var pair = world.locateBiome(
-                    entry -> entry.matchesKey(BiomeKeys.DESERT),
-                    nearPos,
-                    6400,
-                    32,
-                    64);
-            if (pair != null) {
-                desertCenter = pair.getFirst();
-            } else {
-                var badlandsPair = world.locateBiome(
-                        entry -> entry.isIn(BiomeTags.IS_BADLANDS),
+            var structureRegistry = world.getRegistryManager().get(RegistryKeys.STRUCTURE);
+            var villageEntry = structureRegistry.getEntry(StructureKeys.VILLAGE_DESERT);
+            if (villageEntry.isPresent()) {
+                var result = world.getChunkManager().getChunkGenerator().locateStructure(
+                        world,
+                        net.minecraft.registry.entry.RegistryEntryList.of(villageEntry.get()),
+                        nearPos,
+                        100,
+                        false
+                );
+                if (result != null) {
+                    BlockPos villagePos = result.getFirst();
+                    BlockPos ground = findTrueGroundSurface(world, villagePos.getX(), villagePos.getZ());
+                    desertCenter = ground != null ? ground : villagePos;
+                    Elemental.LOGGER.info("Located vanilla Desert Village at: {}", desertCenter);
+                }
+            }
+        } catch (Exception e) {
+            Elemental.LOGGER.warn("Could not locate desert village structure: ", e);
+        }
+
+        // 2. Fallback to Desert or Badlands Biome
+        if (desertCenter == null) {
+            try {
+                var pair = world.locateBiome(
+                        entry -> entry.matchesKey(BiomeKeys.DESERT),
                         nearPos,
                         6400,
                         32,
                         64);
-                if (badlandsPair != null) {
-                    desertCenter = badlandsPair.getFirst();
+                if (pair != null) {
+                    desertCenter = pair.getFirst();
+                } else {
+                    var badlandsPair = world.locateBiome(
+                            entry -> entry.isIn(BiomeTags.IS_BADLANDS),
+                            nearPos,
+                            6400,
+                            32,
+                            64);
+                    if (badlandsPair != null) {
+                        desertCenter = badlandsPair.getFirst();
+                    }
                 }
+            } catch (Exception e) {
+                Elemental.LOGGER.error("Failed to locate desert biome: ", e);
             }
-        } catch (Exception e) {
-            Elemental.LOGGER.error("Failed to locate desert biome: ", e);
         }
 
         if (desertCenter == null) {
@@ -795,8 +828,485 @@ public class NbtStructureManager {
         BlockPos bestSurface = findSafeDesertSite(world, desertCenter);
         saveData.setDesertLocation(bestSurface);
         saveData.markDirty();
-        Elemental.LOGGER.info("Desert location marked at: {}", bestSurface);
+        Elemental.LOGGER.info("Desert Village location marked at: {}", bestSurface);
+
+        ensureWizardAtVillage(world, bestSurface, saveData);
         return bestSurface;
+    }
+
+    public static void ensureWizardAtVillage(ServerWorld world, BlockPos villagePos, QuestSaveData saveData) {
+        if (villagePos == null) return;
+
+        List<ElementalWizardEntity> existingWizards = world.getEntitiesByClass(
+                ElementalWizardEntity.class,
+                new net.minecraft.util.math.Box(villagePos).expand(48.0),
+                e -> true);
+
+        if (existingWizards.isEmpty()) {
+            if (!saveData.isWizardSpawned()) {
+                spawnWizard(world, villagePos);
+                saveData.setWizardSpawned(true);
+                saveData.markDirty();
+            }
+        } else {
+            ElementalWizardEntity wizard = existingWizards.get(0);
+            BlockPos currentPos = wizard.getBlockPos();
+            if (!world.getBlockState(currentPos).isAir()) {
+                world.setBlockState(villagePos, Blocks.AIR.getDefaultState());
+                world.setBlockState(villagePos.up(), Blocks.AIR.getDefaultState());
+                wizard.refreshPositionAndAngles(villagePos.getX() + 0.5, villagePos.getY(), villagePos.getZ() + 0.5, 0.0f, 0.0f);
+            }
+            if (existingWizards.size() > 1) {
+                for (int i = 1; i < existingWizards.size(); i++) {
+                    existingWizards.get(i).discard();
+                }
+            }
+        }
+    }
+
+    private static void spawnWizard(ServerWorld world, BlockPos safeVillagePos) {
+        BlockPos npcPos = safeVillagePos;
+        world.setBlockState(npcPos, Blocks.AIR.getDefaultState());
+        world.setBlockState(npcPos.up(), Blocks.AIR.getDefaultState());
+        world.setBlockState(npcPos.up(2), Blocks.AIR.getDefaultState());
+
+        ElementalWizardEntity wizard = ModEntities.ELEMENTAL_WIZARD.create(world);
+        if (wizard != null) {
+            wizard.refreshPositionAndAngles(npcPos.getX() + 0.5, npcPos.getY(), npcPos.getZ() + 0.5, 0.0f, 0.0f);
+            wizard.setHomePos(safeVillagePos);
+            wizard.setPersistent();
+            world.spawnEntity(wizard);
+        }
+    }
+
+    public static ElementalWizardEntity teleportWizardToPlayer(ServerWorld world, ServerPlayerEntity player) {
+        double yawRad = Math.toRadians(player.getYaw());
+        int targetX = (int) Math.round(player.getX() - Math.sin(yawRad) * 2.5);
+        int targetZ = (int) Math.round(player.getZ() + Math.cos(yawRad) * 2.5);
+        BlockPos surface = findTrueGroundSurface(world, targetX, targetZ);
+        BlockPos telePos = surface != null ? surface : player.getBlockPos().add(1, 0, 1);
+
+        world.setBlockState(telePos, Blocks.AIR.getDefaultState());
+        world.setBlockState(telePos.up(), Blocks.AIR.getDefaultState());
+
+        List<ElementalWizardEntity> wizards = world.getEntitiesByClass(
+                ElementalWizardEntity.class,
+                new net.minecraft.util.math.Box(player.getBlockPos()).expand(10000.0),
+                e -> true);
+
+        ElementalWizardEntity wizard;
+        if (!wizards.isEmpty()) {
+            wizard = wizards.get(0);
+            wizard.teleport(world, telePos.getX() + 0.5, telePos.getY(), telePos.getZ() + 0.5, java.util.Collections.emptySet(), player.getYaw() + 180.0f, 0.0f);
+        } else {
+            wizard = ModEntities.ELEMENTAL_WIZARD.create(world);
+            if (wizard != null) {
+                wizard.refreshPositionAndAngles(telePos.getX() + 0.5, telePos.getY(), telePos.getZ() + 0.5, player.getYaw() + 180.0f, 0.0f);
+                wizard.setPersistent();
+                world.spawnEntity(wizard);
+            }
+        }
+
+        if (wizard != null) {
+            wizard.setHomePos(telePos);
+            world.spawnParticles(ParticleTypes.PORTAL, telePos.getX() + 0.5, telePos.getY() + 1.0, telePos.getZ() + 0.5, 40, 0.5, 1.0, 0.5, 0.1);
+            world.spawnParticles(ParticleTypes.ENCHANT, telePos.getX() + 0.5, telePos.getY() + 1.0, telePos.getZ() + 0.5, 30, 0.4, 0.8, 0.4, 0.2);
+            world.spawnParticles(ParticleTypes.FLASH, telePos.getX() + 0.5, telePos.getY() + 1.0, telePos.getZ() + 0.5, 2, 0.1, 0.1, 0.1, 0.0);
+            world.playSound(null, telePos.getX(), telePos.getY(), telePos.getZ(),
+                    net.minecraft.sound.SoundEvents.ENTITY_ENDERMAN_TELEPORT, net.minecraft.sound.SoundCategory.NEUTRAL, 1.0f, 0.9f);
+        }
+
+        return wizard;
+    }
+
+    public static BlockPos findNearestSnowBiome(ServerWorld world, BlockPos nearPos) {
+        QuestSaveData saveData = QuestSaveData.getServerState(world.getServer());
+        BlockPos existing = saveData.getSnowBiomeLocation();
+        if (existing != null) {
+            return existing;
+        }
+
+        BlockPos center = null;
+        try {
+            var pair = world.locateBiome(
+                    entry -> entry.matchesKey(BiomeKeys.SNOWY_PLAINS)
+                            || entry.matchesKey(BiomeKeys.SNOWY_SLOPES)
+                            || entry.matchesKey(BiomeKeys.FROZEN_PEAKS)
+                            || entry.matchesKey(BiomeKeys.JAGGED_PEAKS)
+                            || entry.matchesKey(BiomeKeys.SNOWY_TAIGA)
+                            || entry.matchesKey(BiomeKeys.ICE_SPIKES)
+                            || entry.matchesKey(BiomeKeys.GROVE),
+                    nearPos,
+                    6400,
+                    32,
+                    64
+            );
+            if (pair != null) {
+                center = pair.getFirst();
+            }
+        } catch (Exception e) {
+            Elemental.LOGGER.error("Failed to locate snow biome: ", e);
+        }
+
+        if (center == null) {
+            center = nearPos.add(800, 0, 800);
+        }
+
+        BlockPos ground = findTrueGroundSurface(world, center.getX(), center.getZ());
+        BlockPos result = ground != null ? ground : center;
+        saveData.setSnowBiomeLocation(result);
+        saveData.markDirty();
+        return result;
+    }
+
+    public static BlockPos findNearestForestBiome(ServerWorld world, BlockPos nearPos) {
+        QuestSaveData saveData = QuestSaveData.getServerState(world.getServer());
+        BlockPos existing = saveData.getForestBiomeLocation();
+        if (existing != null) {
+            return existing;
+        }
+
+        BlockPos center = null;
+        try {
+            var darkForestPair = world.locateBiome(
+                    entry -> entry.matchesKey(BiomeKeys.DARK_FOREST),
+                    nearPos,
+                    6400,
+                    32,
+                    64
+            );
+            if (darkForestPair != null) {
+                center = darkForestPair.getFirst();
+            } else {
+                var forestPair = world.locateBiome(
+                        entry -> entry.isIn(BiomeTags.IS_FOREST) || entry.matchesKey(BiomeKeys.OLD_GROWTH_BIRCH_FOREST),
+                        nearPos,
+                        6400,
+                        32,
+                        64
+                );
+                if (forestPair != null) {
+                    center = forestPair.getFirst();
+                }
+            }
+        } catch (Exception e) {
+            Elemental.LOGGER.error("Failed to locate forest biome: ", e);
+        }
+
+        if (center == null) {
+            center = nearPos.add(800, 0, -800);
+        }
+
+        BlockPos ground = findTrueGroundSurface(world, center.getX(), center.getZ());
+        BlockPos result = ground != null ? ground : center;
+        saveData.setForestBiomeLocation(result);
+        saveData.markDirty();
+        return result;
+    }
+
+    public static BlockPos findOrGenerateEverlivingArena(ServerWorld world, BlockPos nearPos) {
+        QuestSaveData saveData = QuestSaveData.getServerState(world.getServer());
+        BlockPos existing = saveData.getEverlivingArenaLocation();
+        if (existing != null) {
+            return existing;
+        }
+
+        BlockPos arenaCenter = findLargePlainAreaForArena(world, nearPos);
+        generateEverlivingArenaAt(world, arenaCenter);
+
+        saveData.setEverlivingArenaLocation(arenaCenter);
+        saveData.markDirty();
+        Elemental.LOGGER.info("Everliving Knight Arena generated properly on plain with stepped boundary at: {}", arenaCenter);
+        return arenaCenter;
+    }
+
+    public static BlockPos findLargePlainAreaForArena(ServerWorld world, BlockPos nearPos) {
+        final int halfX = 35;
+        final int halfZ = 36;
+
+        BlockPos bestCandidate = null;
+        int bestScore = Integer.MIN_VALUE;
+
+        // 1. Locate nearby large plains/meadow/savanna biome
+        BlockPos plainsBiomePos = null;
+        try {
+            var pair = world.locateBiome(
+                    entry -> entry.matchesKey(BiomeKeys.PLAINS)
+                            || entry.matchesKey(BiomeKeys.SUNFLOWER_PLAINS)
+                            || entry.matchesKey(BiomeKeys.MEADOW)
+                            || entry.matchesKey(BiomeKeys.SAVANNA),
+                    nearPos,
+                    1600,
+                    32,
+                    64
+            );
+            if (pair != null) {
+                plainsBiomePos = pair.getFirst();
+            }
+        } catch (Exception e) {
+            Elemental.LOGGER.error("Failed to locate plains biome for arena: ", e);
+        }
+
+        List<BlockPos> candidatePoints = new java.util.ArrayList<>();
+
+        // Search around located plains biome in a grid
+        if (plainsBiomePos != null) {
+            for (int dx = -160; dx <= 160; dx += 32) {
+                for (int dz = -160; dz <= 160; dz += 32) {
+                    candidatePoints.add(new BlockPos(plainsBiomePos.getX() + dx, 0, plainsBiomePos.getZ() + dz));
+                }
+            }
+        }
+
+        // Also test concentric rings around nearPos (from 280 to 700 blocks out)
+        int[] radii = new int[] { 320, 400, 480, 560, 640 };
+        for (int r : radii) {
+            for (int angleDeg = 0; angleDeg < 360; angleDeg += 30) {
+                double rad = Math.toRadians(angleDeg);
+                int testX = nearPos.getX() + (int) (r * Math.cos(rad));
+                int testZ = nearPos.getZ() + (int) (r * Math.sin(rad));
+                candidatePoints.add(new BlockPos(testX, 0, testZ));
+            }
+        }
+
+        for (BlockPos cand : candidatePoints) {
+            BlockPos groundCenter = findTrueGroundSurface(world, cand.getX(), cand.getZ());
+            if (groundCenter == null) continue;
+
+            int cx = groundCenter.getX();
+            int cz = groundCenter.getZ();
+
+            // Evaluate the 69x72 footprint using 49 sample points
+            int minH = Integer.MAX_VALUE;
+            int maxH = Integer.MIN_VALUE;
+            int sumH = 0;
+            int count = 0;
+            boolean valid = true;
+
+            for (int sx = -halfX; sx <= halfX; sx += 11) {
+                for (int sz = -halfZ; sz <= halfZ; sz += 12) {
+                    int sampleX = cx + sx;
+                    int sampleZ = cz + sz;
+                    world.getChunk(sampleX >> 4, sampleZ >> 4);
+                    int sampleY = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, sampleX, sampleZ);
+                    BlockPos p = new BlockPos(sampleX, sampleY, sampleZ);
+
+                    if (isLiquidOrWater(world, p) || isLiquidOrWater(world, p.down()) || isWaterBiome(world, p)) {
+                        valid = false;
+                        break;
+                    }
+
+                    if (sampleY < minH) minH = sampleY;
+                    if (sampleY > maxH) maxH = sampleY;
+                    sumH += sampleY;
+                    count++;
+                }
+                if (!valid) break;
+            }
+
+            if (!valid || count == 0) continue;
+
+            int diff = maxH - minH;
+            if (diff > 8) continue;
+
+            int avgH = sumH / count;
+            int variance = 0;
+            for (int sx = -halfX; sx <= halfX; sx += 11) {
+                for (int sz = -halfZ; sz <= halfZ; sz += 12) {
+                    int sampleY = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, cx + sx, cz + sz);
+                    variance += Math.abs(sampleY - avgH);
+                }
+            }
+
+            var biome = world.getBiome(groundCenter);
+            boolean isPlains = biome.matchesKey(BiomeKeys.PLAINS)
+                    || biome.matchesKey(BiomeKeys.SUNFLOWER_PLAINS)
+                    || biome.matchesKey(BiomeKeys.MEADOW)
+                    || biome.matchesKey(BiomeKeys.SAVANNA);
+
+            double dist = Math.sqrt(groundCenter.getSquaredDistance(nearPos));
+
+            int score = 6000 - (diff * 500) - (variance * 20);
+            if (isPlains) {
+                score += 3000;
+            }
+            score -= (int) (Math.abs(dist - 420) * 2);
+
+            if (diff <= 2 && isPlains && dist >= 300 && dist <= 650) {
+                return groundCenter;
+            }
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestCandidate = groundCenter;
+            }
+        }
+
+        if (bestCandidate != null) {
+            return bestCandidate;
+        }
+
+        BlockPos fallback = findTrueGroundSurface(world, nearPos.getX() + 380, nearPos.getZ() + 320);
+        return fallback != null ? fallback : nearPos.add(380, 0, 320);
+    }
+
+    public static void generateEverlivingArenaAt(ServerWorld world, BlockPos arenaCenter) {
+        final int sizeX = 69;
+        final int sizeY = 29;
+        final int sizeZ = 72;
+        final int altarOffsetX = 35;
+        final int altarOffsetY = 2; // Floor is at local Y = 2
+        final int altarOffsetZ = 36;
+
+        // 1. Calculate the median ground height across the 69x72 area
+        List<Integer> groundHeights = new java.util.ArrayList<>();
+        int startX = arenaCenter.getX() - altarOffsetX;
+        int startZ = arenaCenter.getZ() - altarOffsetZ;
+
+        for (int x = startX; x < startX + sizeX; x += 4) {
+            for (int z = startZ; z < startZ + sizeZ; z += 4) {
+                world.getChunk(x >> 4, z >> 4);
+                int ty = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, x, z);
+                groundHeights.add(ty);
+            }
+        }
+        java.util.Collections.sort(groundHeights);
+        int floorY = groundHeights.isEmpty() ? arenaCenter.getY() : groundHeights.get(groundHeights.size() / 2);
+
+        int originX = startX;
+        int originY = floorY - altarOffsetY;
+        int originZ = startZ;
+        BlockPos originPos = new BlockPos(originX, originY, originZ);
+
+        // Pre-load all chunks needed for the arena + boundary (69x72 + 6 blocks border)
+        for (int cx = (originX - 8) >> 4; cx <= (originX + sizeX + 8) >> 4; cx++) {
+            for (int cz = (originZ - 8) >> 4; cz <= (originZ + sizeZ + 8) >> 4; cz++) {
+                world.getChunk(cx, cz);
+            }
+        }
+
+        // 2. Foundation: fill underneath the arena structure down to natural ground so it NEVER floats
+        for (int x = originX; x < originX + sizeX; x++) {
+            for (int z = originZ; z < originZ + sizeZ; z++) {
+                int naturalY = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, x, z);
+                if (naturalY < originY) {
+                    for (int y = originY - 1; y >= naturalY - 2; y--) {
+                        BlockPos fillPos = new BlockPos(x, y, z);
+                        if (y >= originY - 2) {
+                            world.setBlockState(fillPos, Blocks.POLISHED_DEEPSLATE.getDefaultState(), Block.NOTIFY_LISTENERS);
+                        } else {
+                            world.setBlockState(fillPos, Blocks.DEEPSLATE.getDefaultState(), Block.NOTIFY_LISTENERS);
+                        }
+                    }
+                }
+
+                // If natural ground is above the arena floor, clear obstructive terrain inside the coliseum
+                if (naturalY > originY + 2) {
+                    for (int y = originY + 3; y <= Math.min(naturalY + 1, originY + sizeY - 1); y++) {
+                        BlockPos clearPos = new BlockPos(x, y, z);
+                        if (!world.getBlockState(clearPos).isAir()) {
+                            world.setBlockState(clearPos, Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Place the NBT structure
+        placeNbtStructure(world, EVERLIVING_ARENA_ID, originPos);
+
+        // 4. Connect the blocks to arena and create a steps boundary as if it's normal!
+        buildArenaSteppedBoundary(world, originPos, floorY, sizeX, sizeZ);
+    }
+
+    public static void buildArenaSteppedBoundary(ServerWorld world, BlockPos originPos, int floorY, int sizeX, int sizeZ) {
+        int minX = originPos.getX();
+        int maxX = originPos.getX() + sizeX - 1;
+        int minZ = originPos.getZ();
+        int maxZ = originPos.getZ() + sizeZ - 1;
+
+        int stepRings = 5;
+
+        for (int x = minX - stepRings; x <= maxX + stepRings; x++) {
+            for (int z = minZ - stepRings; z <= maxZ + stepRings; z++) {
+                int dx = (x < minX) ? (minX - x) : ((x > maxX) ? (x - maxX) : 0);
+                int dz = (z < minZ) ? (minZ - z) : ((z > maxZ) ? (z - maxZ) : 0);
+                int dist = Math.max(dx, dz);
+                if (dist < 1 || dist > stepRings) continue;
+
+                int naturalY = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, x, z);
+
+                if (naturalY < floorY) {
+                    // Outer terrain is lower: step down from floorY to natural terrain
+                    int targetStepY = Math.max(naturalY, floorY - dist);
+
+                    // Solid foundation below the step
+                    for (int y = targetStepY - 1; y >= naturalY - 2; y--) {
+                        BlockPos fillPos = new BlockPos(x, y, z);
+                        if (y >= targetStepY - 2) {
+                            world.setBlockState(fillPos, Blocks.POLISHED_BLACKSTONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+                        } else {
+                            world.setBlockState(fillPos, Blocks.COBBLESTONE.getDefaultState(), Block.NOTIFY_LISTENERS);
+                        }
+                    }
+
+                    // Stepped surface
+                    BlockPos stepPos = new BlockPos(x, targetStepY, z);
+                    if (targetStepY > naturalY) {
+                        BlockState stairState;
+                        if (dx > dz) {
+                            Direction facing = (x < minX) ? Direction.WEST : Direction.EAST;
+                            stairState = Blocks.POLISHED_BLACKSTONE_BRICK_STAIRS.getDefaultState().with(StairsBlock.FACING, facing);
+                        } else if (dz > dx) {
+                            Direction facing = (z < minZ) ? Direction.NORTH : Direction.SOUTH;
+                            stairState = Blocks.POLISHED_BLACKSTONE_BRICK_STAIRS.getDefaultState().with(StairsBlock.FACING, facing);
+                        } else {
+                            stairState = Blocks.POLISHED_BLACKSTONE_BRICK_SLAB.getDefaultState();
+                        }
+                        world.setBlockState(stepPos, stairState, Block.NOTIFY_LISTENERS);
+                    } else {
+                        // Level with natural ground: blend into grass
+                        world.setBlockState(stepPos, Blocks.GRASS_BLOCK.getDefaultState(), Block.NOTIFY_LISTENERS);
+                        world.setBlockState(stepPos.down(), Blocks.DIRT.getDefaultState(), Block.NOTIFY_LISTENERS);
+                    }
+
+                    // Clear air above step
+                    for (int y = targetStepY + 1; y <= floorY + 4; y++) {
+                        BlockPos clearPos = new BlockPos(x, y, z);
+                        if (!world.getBlockState(clearPos).isAir()) {
+                            world.setBlockState(clearPos, Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+                        }
+                    }
+                } else if (naturalY > floorY) {
+                    // Outer terrain is higher: step down towards the arena
+                    int targetStepY = Math.min(naturalY, floorY + dist);
+
+                    BlockPos stepPos = new BlockPos(x, targetStepY, z);
+                    if (dist <= 2) {
+                        world.setBlockState(stepPos, Blocks.POLISHED_BLACKSTONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+                    } else {
+                        world.setBlockState(stepPos, Blocks.GRASS_BLOCK.getDefaultState(), Block.NOTIFY_LISTENERS);
+                        world.setBlockState(stepPos.down(), Blocks.DIRT.getDefaultState(), Block.NOTIFY_LISTENERS);
+                    }
+
+                    // Clear terrain above the terrace
+                    for (int y = targetStepY + 1; y <= naturalY + 2; y++) {
+                        BlockPos clearPos = new BlockPos(x, y, z);
+                        if (!world.getBlockState(clearPos).isAir()) {
+                            world.setBlockState(clearPos, Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+                        }
+                    }
+                } else {
+                    // Exactly level with floorY
+                    BlockPos borderPos = new BlockPos(x, floorY, z);
+                    if (dist == 1) {
+                        world.setBlockState(borderPos, Blocks.POLISHED_BLACKSTONE_BRICK_SLAB.getDefaultState(), Block.NOTIFY_LISTENERS);
+                    } else {
+                        world.setBlockState(borderPos, Blocks.GRASS_BLOCK.getDefaultState(), Block.NOTIFY_LISTENERS);
+                    }
+                }
+            }
+        }
     }
 
     // ==========================================

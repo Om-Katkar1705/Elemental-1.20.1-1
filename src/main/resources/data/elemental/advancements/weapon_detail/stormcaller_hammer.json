@@ -1,0 +1,30 @@
+{
+  "parent": "elemental:weapon_detail/tidebreaker_trident",
+  "display": {
+    "icon": {
+      "item": "elemental:stormcaller_hammer"
+    },
+    "title": {
+      "text": "Stormcaller Hammer"
+    },
+    "description": {
+      "text": "[Hold Right-Click] Calls devastating Thunderstorms. [R] Thunderclap ground-slam releases 4m launching shockwaves."
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "has_hammer": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": ["elemental:stormcaller_hammer"]
+          }
+        ]
+      }
+    }
+  }
+}

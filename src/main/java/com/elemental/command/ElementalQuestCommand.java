@@ -38,10 +38,11 @@ public class ElementalQuestCommand {
                                     QuestSaveData saveData = QuestSaveData.getServerState(player.server);
                                     saveData.setGuideSpawned(false);
                                     saveData.setTentGenerated(false);
+                                    saveData.setEverlivingArenaLocation(null);
                                     saveData.markDirty();
                                     QuestManager.syncToAll(player.server);
 
-                                    ctx.getSource().sendFeedback(() -> Text.literal("§aReset quest state, dialogue phase, and Aeron camp for " + player.getName().getString()), true);
+                                    ctx.getSource().sendFeedback(() -> Text.literal("§aReset quest state, dialogue phase, Aeron camp, and arena for " + player.getName().getString()), true);
                                     return 1;
                                 })))
                 .then(CommandManager.literal("advance")
@@ -115,9 +116,74 @@ public class ElementalQuestCommand {
                             ctx.getSource().sendError(Text.literal("§cFailed to create guide entity."));
                             return 0;
                         }))
+                .then(CommandManager.literal("spawn_wizard")
+                        .executes(ctx -> {
+                            ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+                            BlockPos safePos = NbtStructureManager.findSafeSurface(player.getServerWorld(), player.getBlockPos().add(2, 0, 1));
+                            com.elemental.entity.ElementalWizardEntity wizard = ModEntities.ELEMENTAL_WIZARD.create(player.getServerWorld());
+                            if (wizard != null) {
+                                wizard.refreshPositionAndAngles(safePos.getX() + 0.5, safePos.getY(), safePos.getZ() + 0.5, player.getYaw() + 180.0f, 0.0f);
+                                wizard.setHomePos(safePos);
+                                wizard.setPersistent();
+                                player.getServerWorld().spawnEntity(wizard);
+                                ctx.getSource().sendFeedback(() -> Text.literal("§aSpawned Eldrin, the Elemental Wizard at safe position!"), true);
+                                return 1;
+                            }
+                            ctx.getSource().sendError(Text.literal("§cFailed to create wizard entity."));
+                            return 0;
+                        }))
+                .then(CommandManager.literal("arena")
+                        .executes(ctx -> {
+                            ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+                            QuestSaveData saveData = QuestSaveData.getServerState(player.server);
+                            BlockPos arena = saveData.getEverlivingArenaLocation();
+                            if (arena == null) {
+                                arena = NbtStructureManager.findOrGenerateEverlivingArena(player.getServerWorld(), player.getBlockPos());
+                            }
+                            final BlockPos target = arena;
+                            ctx.getSource().sendFeedback(() -> Text.literal("§6Everliving Knight Arena located at: §e" + (target != null ? target.toShortString() : "unknown")), true);
+                            return 1;
+                        })
+                        .then(CommandManager.literal("tp")
+                                .executes(ctx -> {
+                                    ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+                                    QuestSaveData saveData = QuestSaveData.getServerState(player.server);
+                                    BlockPos arena = saveData.getEverlivingArenaLocation();
+                                    if (arena == null) {
+                                        arena = NbtStructureManager.findOrGenerateEverlivingArena(player.getServerWorld(), player.getBlockPos());
+                                    }
+                                    if (arena != null) {
+                                        player.teleport(player.getServerWorld(), arena.getX() + 0.5, arena.getY() + 1.0, arena.getZ() + 0.5, player.getYaw(), player.getPitch());
+                                        ctx.getSource().sendFeedback(() -> Text.literal("§aTeleported to Everliving Knight Arena!"), true);
+                                        return 1;
+                                    } else {
+                                        ctx.getSource().sendError(Text.literal("§cCould not locate or generate arena."));
+                                        return 0;
+                                    }
+                                }))
+                        .then(CommandManager.literal("regenerate")
+                                .executes(ctx -> {
+                                    ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+                                    QuestSaveData saveData = QuestSaveData.getServerState(player.server);
+                                    saveData.setEverlivingArenaLocation(null);
+                                    saveData.markDirty();
+                                    BlockPos arena = NbtStructureManager.findOrGenerateEverlivingArena(player.getServerWorld(), player.getBlockPos());
+                                    if (arena != null) {
+                                        PlayerQuestData data = QuestManager.getPlayerData(player);
+                                        if (data.getState() == QuestState.LOCATE_EVERLIVING_ARENA) {
+                                            data.setTargetWaypoint(arena);
+                                            QuestManager.syncToAll(player.server);
+                                        }
+                                        ctx.getSource().sendFeedback(() -> Text.literal("§aRegenerated Everliving Knight Arena on flat plain with stepped boundaries at §e" + arena.toShortString()), true);
+                                        return 1;
+                                    } else {
+                                        ctx.getSource().sendError(Text.literal("§cFailed to generate arena."));
+                                        return 0;
+                                    }
+                                })))
         );
 
-        // Player dialogue choice click handler (no OP permission required)
+        // Player dialogue choice click handler for Aeron (no OP permission required)
         dispatcher.register(CommandManager.literal("elementalask")
                 .then(CommandManager.argument("topic", StringArgumentType.word())
                         .executes(ctx -> {
@@ -125,6 +191,17 @@ public class ElementalQuestCommand {
                             String topic = StringArgumentType.getString(ctx, "topic");
                             return ChronicleGuideEntity.handleDialogueChoice(player, topic);
                         }))
+        );
+
+        // Player dialogue choice click handler for Elemental Wizard (no OP permission required)
+        dispatcher.register(CommandManager.literal("elementalwizard")
+                .then(CommandManager.literal("ask")
+                        .then(CommandManager.argument("topic", StringArgumentType.word())
+                                .executes(ctx -> {
+                                    ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+                                    String topic = StringArgumentType.getString(ctx, "topic");
+                                    return com.elemental.entity.ElementalWizardEntity.handleDialogueChoice(player, topic);
+                                })))
         );
 
         // Player dialogue skip button click handler (no OP permission required)

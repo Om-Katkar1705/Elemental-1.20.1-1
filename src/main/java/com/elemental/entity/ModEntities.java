@@ -60,6 +60,16 @@ public class ModEntities {
                     .build()
     );
 
+    public static final EntityType<ElementalWizardEntity> ELEMENTAL_WIZARD = Registry.register(
+            Registries.ENTITY_TYPE,
+            Elemental.id("elemental_wizard"),
+            FabricEntityTypeBuilder.<ElementalWizardEntity>create(SpawnGroup.CREATURE, ElementalWizardEntity::new)
+                    .dimensions(EntityDimensions.fixed(0.6f, 1.8f))
+                    .trackRangeBlocks(64)
+                    .trackedUpdateRate(3)
+                    .build()
+    );
+
     public static final EntityType<RockyEntity> ROCKY = Registry.register(
             Registries.ENTITY_TYPE,
             Elemental.id("rocky"),
@@ -114,6 +124,7 @@ public class ModEntities {
         Elemental.LOGGER.info("Registering mod entities for " + Elemental.MOD_ID);
         FabricDefaultAttributeRegistry.register(EVERLIVING_KNIGHT, EverlivingKnightEntity.createKnightAttributes());
         FabricDefaultAttributeRegistry.register(CHRONICLE_GUIDE, ChronicleGuideEntity.createGuideAttributes());
+        FabricDefaultAttributeRegistry.register(ELEMENTAL_WIZARD, ElementalWizardEntity.createWizardAttributes());
         FabricDefaultAttributeRegistry.register(ROCKY, RockyEntity.createRockyAttributes());
         FabricDefaultAttributeRegistry.register(SEISMIC_COLOSSUS, SeismicColossusEntity.createColossusAttributes());
         FabricDefaultAttributeRegistry.register(COLOSSUS_MINI, ColossusMiniEntity.createMiniAttributes());

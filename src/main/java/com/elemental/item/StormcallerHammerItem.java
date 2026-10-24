@@ -513,29 +513,8 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
     @Override
     public void appendTooltip(ItemStack stack, @Nullable World world, List<Text> tooltip, TooltipContext context) {
         super.appendTooltip(stack, world, tooltip, context);
-        if (world != null) {
-            if (isThunderclapCoolingDown(world, stack)) {
-                int rem = getRemainingThunderclapSeconds(world, stack);
-                tooltip.add(Text.literal("§c⚡ Thunderclap Cooldown: " + rem + "s").formatted(Formatting.RED));
-            } else {
-                tooltip.add(Text.literal("§a⚡ Thunderclap: Ready").formatted(Formatting.GREEN));
-            }
-
-            if (isThunderstormCoolingDown(world, stack)) {
-                int rem = getRemainingThunderstormSeconds(world, stack);
-                tooltip.add(Text.literal("§c⚡ Thunderstorm Cooldown: " + rem + "s").formatted(Formatting.RED));
-            } else {
-                tooltip.add(Text.literal("§a⚡ Thunderstorm: Ready").formatted(Formatting.GREEN));
-            }
-        }
-        tooltip.add(Text.literal("► Press [R]: Thunderclap (4m shockwave launch)").formatted(Formatting.AQUA));
-        tooltip.add(Text.literal("► Hold [Right Click]: Charged Lightning Strike").formatted(Formatting.YELLOW));
-        tooltip.add(Text.literal("  - Min Charge: 1 Strike | Full Charge: 15–20 Strikes").formatted(Formatting.GRAY));
-        tooltip.add(Text.literal("  - 15s Cooldown applies after use").formatted(Formatting.GRAY));
-        int descentLevel = com.elemental.enchantment.ModEnchantments.getThunderousDescentLevel(stack);
-        if (descentLevel > 0) {
-            String chanceStr = descentLevel >= 3 ? "100% Guaranteed" : Math.round(com.elemental.enchantment.ModEnchantments.getThunderousDescentChance(descentLevel) * 100) + "% Chance";
-            tooltip.add(Text.literal("  ✦ Thunderous Descent: " + chanceStr + " Height-Multiplied Strike").formatted(Formatting.GOLD));
-        }
+        tooltip.add(Text.literal("§e► [Hold Right-Click] §fThunderstorm"));
+        tooltip.add(Text.literal("§b► [R] §fThunderclap"));
+        tooltip.add(Text.literal("§8[Open Weapon Detail Menu for Lore & Stats]").formatted(Formatting.DARK_GRAY));
     }
 }

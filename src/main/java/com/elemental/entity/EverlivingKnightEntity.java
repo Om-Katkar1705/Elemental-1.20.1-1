@@ -896,6 +896,23 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
         triggerAnimation("death");
         this.bossBar.clearPlayers();
         super.onDeath(source);
+
+        if (!this.getWorld().isClient() && this.getWorld().getServer() != null) {
+            for (net.minecraft.server.network.ServerPlayerEntity player : this.getWorld().getServer().getPlayerManager().getPlayerList()) {
+                com.elemental.quest.PlayerQuestData data = com.elemental.quest.QuestManager.getPlayerData(player);
+                if (data.getState() == com.elemental.quest.QuestState.DEFEAT_EVERLIVING_KNIGHT || data.getState() == com.elemental.quest.QuestState.LOCATE_EVERLIVING_ARENA) {
+                    data.setState(com.elemental.quest.QuestState.QUEST_COMPLETE);
+                    com.elemental.quest.QuestManager.updateWaypointForState(player, data);
+                }
+            }
+            this.getWorld().getServer().getPlayerManager().broadcast(net.minecraft.text.Text.translatable("quest.elemental.everliving_knight_defeated").formatted(net.minecraft.util.Formatting.GOLD, net.minecraft.util.Formatting.BOLD), false);
+            this.getWorld().getServer().getPlayerManager().broadcast(net.minecraft.text.Text.translatable("quest.elemental.quest_complete").formatted(net.minecraft.util.Formatting.GREEN, net.minecraft.util.Formatting.BOLD), false);
+            for (net.minecraft.server.network.ServerPlayerEntity p : this.getWorld().getServer().getPlayerManager().getPlayerList()) {
+                p.playSound(com.elemental.sound.ModSounds.QUEST_COMPLETED, net.minecraft.sound.SoundCategory.PLAYERS, 1.0f, 1.0f);
+            }
+            com.elemental.quest.QuestSaveData.getServerState(this.getWorld().getServer()).markDirty();
+            com.elemental.quest.QuestManager.syncToAll(this.getWorld().getServer());
+        }
     }
 
     @Override

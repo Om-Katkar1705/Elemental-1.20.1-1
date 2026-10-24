@@ -1,0 +1,30 @@
+{
+  "parent": "elemental:weapon_detail/stormcaller_hammer",
+  "display": {
+    "icon": {
+      "item": "elemental:ashen_rift_blade"
+    },
+    "title": {
+      "text": "Ashen Rift Blade"
+    },
+    "description": {
+      "text": "[R] Rift Collapse tears reality to dig rifts and spawn magma. [Hold Right-Click] Rift Teleport shifts through space."
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "has_blade": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": ["elemental:ashen_rift_blade"]
+          }
+        ]
+      }
+    }
+  }
+}

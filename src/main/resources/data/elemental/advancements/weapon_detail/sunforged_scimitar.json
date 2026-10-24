@@ -1,0 +1,30 @@
+{
+  "parent": "elemental:weapon_detail/root",
+  "display": {
+    "icon": {
+      "item": "elemental:sunforged_scimitar"
+    },
+    "title": {
+      "text": "Sunforged Scimitar"
+    },
+    "description": {
+      "text": "[Right-Click] Solar Arc Flame Strike: Piercing solar wave cutting through lines of enemies with radiant fire."
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "has_scimitar": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": ["elemental:sunforged_scimitar"]
+          }
+        ]
+      }
+    }
+  }
+}

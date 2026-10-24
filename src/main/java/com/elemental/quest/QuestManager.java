@@ -1,7 +1,9 @@
 package com.elemental.quest;
 
+import java.util.List;
 import com.elemental.Elemental;
 import com.elemental.item.BlueprintMaps;
+import com.elemental.item.ModItems;
 import com.elemental.network.QuestNetworking;
 import com.elemental.sound.ModSounds;
 import com.elemental.world.NbtStructureManager;
@@ -40,7 +42,7 @@ public class QuestManager {
             case CRAFT_STONE_TOOLS -> {
                 data.setTargetWaypoint(null);
             }
-            case FIND_AERON, RETURN_TO_AERON, CRAFT_JETPACK -> {
+            case FIND_AERON, RETURN_TO_AERON, CRAFT_PNEUMATIC_PISTON, CRAFT_AEROGEL_CORE, CRAFT_ELEMENT_CORE, CRAFT_JETPACK -> {
                 BlockPos campPos = saveData.getAeronsTentLocation();
                 data.setTargetWaypoint(campPos != null ? campPos : player.getBlockPos());
             }
@@ -48,15 +50,61 @@ public class QuestManager {
                 BlockPos airshipPos = NbtStructureManager.findOrGenerateAirship(world, player.getBlockPos());
                 data.setTargetWaypoint(airshipPos);
             }
-            case DESERT_EXPEDITION -> {
+            case DESERT_EXPEDITION, TALK_TO_WIZARD, CRAFT_WEAPONER, CRAFT_DRY_HEAT_ELEMENT, FORGE_SUNFORGED_SCIMITAR -> {
                 BlockPos desertPos = saveData.getDesertLocation();
                 if (desertPos == null) {
                     desertPos = NbtStructureManager.findOrGenerateDesertSanctuary(world, player.getBlockPos());
                 }
                 data.setTargetWaypoint(desertPos);
             }
+            case CRAFT_SNOW_ELEMENT, FORGE_FROSTWAKE_PICK -> {
+                BlockPos snowPos = saveData.getSnowBiomeLocation();
+                if (snowPos == null) {
+                    snowPos = NbtStructureManager.findNearestSnowBiome(world, player.getBlockPos());
+                }
+                data.setTargetWaypoint(snowPos);
+            }
+            case CRAFT_TREE_ELEMENT, FORGE_ROOTBOUND_AXE -> {
+                BlockPos forestPos = saveData.getForestBiomeLocation();
+                if (forestPos == null) {
+                    forestPos = NbtStructureManager.findNearestForestBiome(world, player.getBlockPos());
+                }
+                data.setTargetWaypoint(forestPos);
+            }
+            case LOCATE_EVERLIVING_ARENA, DEFEAT_EVERLIVING_KNIGHT -> {
+                BlockPos arenaPos = saveData.getEverlivingArenaLocation();
+                if (arenaPos == null) {
+                    arenaPos = NbtStructureManager.findOrGenerateEverlivingArena(world, player.getBlockPos());
+                }
+                data.setTargetWaypoint(arenaPos);
+            }
             case QUEST_COMPLETE -> {
                 data.setTargetWaypoint(null);
+            }
+        }
+    }
+
+    public static void handleSelectWeaponQuest(ServerPlayerEntity player, String weaponId) {
+        if ("frostwake_pick".equalsIgnoreCase(weaponId)) {
+            setQuestState(player, QuestState.CRAFT_SNOW_ELEMENT);
+            player.sendMessage(Text.translatable("quest.elemental.frostwake_pick_assigned").formatted(Formatting.AQUA, Formatting.BOLD), false);
+            for (ServerPlayerEntity p : player.server.getPlayerManager().getPlayerList()) {
+                p.playSound(ModSounds.QUEST_ACCEPTED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+            }
+        } else if ("rootbound_axe".equalsIgnoreCase(weaponId)) {
+            setQuestState(player, QuestState.CRAFT_TREE_ELEMENT);
+            player.sendMessage(Text.translatable("quest.elemental.rootbound_axe_assigned").formatted(Formatting.GREEN, Formatting.BOLD), false);
+            for (ServerPlayerEntity p : player.server.getPlayerManager().getPlayerList()) {
+                p.playSound(ModSounds.QUEST_ACCEPTED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+            }
+        } else if ("sunforged_scimitar".equalsIgnoreCase(weaponId)) {
+            PlayerQuestData data = getPlayerData(player);
+            if (data.getState().getId() < QuestState.CRAFT_DRY_HEAT_ELEMENT.getId()) {
+                setQuestState(player, QuestState.CRAFT_DRY_HEAT_ELEMENT);
+            }
+            player.sendMessage(Text.translatable("quest.elemental.sunforged_scimitar_assigned").formatted(Formatting.GOLD, Formatting.BOLD), false);
+            for (ServerPlayerEntity p : player.server.getPlayerManager().getPlayerList()) {
+                p.playSound(ModSounds.QUEST_ACCEPTED, SoundCategory.PLAYERS, 1.0f, 1.0f);
             }
         }
     }
@@ -114,7 +162,7 @@ public class QuestManager {
         }
 
         // Only count blueprints when actively in relevant quest phases
-        boolean needsBlueprintCheck = (state == QuestState.SALVAGE_MODULES || state == QuestState.LOCATE_SKYFORGE || state == QuestState.CRAFT_JETPACK)
+        boolean needsBlueprintCheck = (state == QuestState.SALVAGE_MODULES || state == QuestState.LOCATE_SKYFORGE)
                 || (state.getId() < QuestState.RETURN_TO_AERON.getId() && !data.hasClaimedJetpack() && data.getBlueprintsFound() < 4);
 
         int blueprintsCount = 0;
@@ -164,24 +212,214 @@ public class QuestManager {
             }
         }
 
-        // 4. Legacy CRAFT_JETPACK state transition: advance to RETURN_TO_AERON once all maps are held
-        if (state == QuestState.CRAFT_JETPACK && hasAllBlueprints) {
-            data.setState(QuestState.RETURN_TO_AERON);
-            updateWaypointForState(player, data);
-            syncToAll(player.server);
-            updated = true;
+        // 4. Jetpack Task 1: Check if player has crafted/obtained Pneumatic Piston
+        if (state == QuestState.CRAFT_PNEUMATIC_PISTON) {
+            if (hasItemOrWorn(player, ModItems.PNEUMATIC_PISTON)) {
+                data.setState(QuestState.CRAFT_AEROGEL_CORE);
+                updateWaypointForState(player, data);
+                player.server.getPlayerManager().broadcast(Text.translatable("quest.elemental.pneumatic_piston_crafted").formatted(Formatting.GOLD, Formatting.BOLD), false);
+                player.server.getPlayerManager().broadcast(Text.translatable("dialogue.elemental.aeron.task2_assigned").formatted(Formatting.YELLOW), false);
+                for (ServerPlayerEntity p : player.server.getPlayerManager().getPlayerList()) {
+                    p.playSound(ModSounds.OBJECTIVE_UPDATED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+                }
+                syncToAll(player.server);
+                updated = true;
+            }
         }
 
-        // 5. Proximity check for DESERT_EXPEDITION -> arrival at Desert Sanctuary collectively
-        if (state == QuestState.DESERT_EXPEDITION) {
-            BlockPos target = data.getTargetWaypoint();
-            if (target != null && player.squaredDistanceTo(target.getX(), target.getY(), target.getZ()) <= 32 * 32) {
-                data.setState(QuestState.QUEST_COMPLETE);
+        // Jetpack Task 2: Check if player has crafted/obtained Aerogel Core
+        if (state == QuestState.CRAFT_AEROGEL_CORE) {
+            if (hasItemOrWorn(player, ModItems.AEROGEL_CORE)) {
+                data.setState(QuestState.CRAFT_ELEMENT_CORE);
                 updateWaypointForState(player, data);
-                player.server.getPlayerManager().broadcast(Text.translatable("quest.elemental.desert_sanctuary_reached").formatted(Formatting.GOLD, Formatting.BOLD), false);
-                player.server.getPlayerManager().broadcast(Text.translatable("quest.elemental.quest_complete").formatted(Formatting.GREEN, Formatting.BOLD), false);
+                player.server.getPlayerManager().broadcast(Text.translatable("quest.elemental.aerogel_core_crafted").formatted(Formatting.AQUA, Formatting.BOLD), false);
+                // When 3rd task pops, Aeron tells player that element core is a commonly used resource, so make a handful of them
+                player.server.getPlayerManager().broadcast(Text.translatable("dialogue.elemental.aeron.task3_element_core_handful").formatted(Formatting.GOLD, Formatting.BOLD), false);
+                for (ServerPlayerEntity p : player.server.getPlayerManager().getPlayerList()) {
+                    p.playSound(ModSounds.OBJECTIVE_UPDATED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+                }
+                syncToAll(player.server);
+                updated = true;
+            }
+        }
+
+        // Jetpack Task 3: Check if player has crafted/obtained Element Core
+        if (state == QuestState.CRAFT_ELEMENT_CORE) {
+            if (hasItemOrWorn(player, ModItems.ELEMENT_CORE)) {
+                data.setState(QuestState.CRAFT_JETPACK);
+                updateWaypointForState(player, data);
+                player.server.getPlayerManager().broadcast(Text.translatable("quest.elemental.element_core_crafted").formatted(Formatting.GOLD, Formatting.BOLD), false);
+                player.server.getPlayerManager().broadcast(Text.translatable("dialogue.elemental.aeron.task4_assigned").formatted(Formatting.YELLOW), false);
+                for (ServerPlayerEntity p : player.server.getPlayerManager().getPlayerList()) {
+                    p.playSound(ModSounds.OBJECTIVE_UPDATED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+                }
+                syncToAll(player.server);
+                updated = true;
+            }
+        }
+
+        // Jetpack Task 4: Check if player has crafted/obtained Elemental Jetpack
+        if (state == QuestState.CRAFT_JETPACK) {
+            if (hasItemOrWorn(player, ModItems.ELEMENTAL_JETPACK)) {
+                data.setClaimedJetpack(true);
+                BlockPos desertPos = NbtStructureManager.findOrGenerateDesertSanctuary(player.getServerWorld(), player.getBlockPos());
+                data.setTargetWaypoint(desertPos);
+                data.setState(QuestState.DESERT_EXPEDITION);
+                player.server.getPlayerManager().broadcast(Text.translatable("quest.elemental.jetpack_assembled").formatted(Formatting.GREEN, Formatting.BOLD), false);
+                player.server.getPlayerManager().broadcast(Text.translatable("dialogue.elemental.aeron.jetpack_completed").formatted(Formatting.GOLD, Formatting.BOLD), false);
+                player.server.getPlayerManager().broadcast(Text.translatable("message.elemental.desert_coords", desertPos.getX(), desertPos.getZ()).formatted(Formatting.GOLD, Formatting.BOLD), false);
                 for (ServerPlayerEntity p : player.server.getPlayerManager().getPlayerList()) {
                     p.playSound(ModSounds.QUEST_COMPLETED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+                }
+                syncToAll(player.server);
+                updated = true;
+            }
+        }
+
+        // 5. Proximity check for DESERT_EXPEDITION -> arrival at Desert Village collectively
+        if (state == QuestState.DESERT_EXPEDITION) {
+            BlockPos target = data.getTargetWaypoint();
+            if (target != null && player.squaredDistanceTo(target.getX(), target.getY(), target.getZ()) <= 36 * 36) {
+                data.setState(QuestState.TALK_TO_WIZARD);
+                updateWaypointForState(player, data);
+                player.server.getPlayerManager().broadcast(Text.translatable("quest.elemental.desert_village_reached").formatted(Formatting.GOLD, Formatting.BOLD), false);
+                for (ServerPlayerEntity p : player.server.getPlayerManager().getPlayerList()) {
+                    p.playSound(ModSounds.QUEST_ACCEPTED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+                }
+                syncToAll(player.server);
+                updated = true;
+            }
+        }
+
+        // 6. Task 1: Check if player has crafted/obtained Weaponer
+        if (state == QuestState.CRAFT_WEAPONER) {
+            if (hasItemOrWorn(player, com.elemental.block.ModBlocks.WEAPONER.asItem())) {
+                data.setState(QuestState.CRAFT_DRY_HEAT_ELEMENT);
+                updateWaypointForState(player, data);
+                player.server.getPlayerManager().broadcast(Text.translatable("quest.elemental.weaponer_crafted").formatted(Formatting.GOLD, Formatting.BOLD), false);
+                for (ServerPlayerEntity p : player.server.getPlayerManager().getPlayerList()) {
+                    p.playSound(ModSounds.OBJECTIVE_UPDATED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+                }
+                syncToAll(player.server);
+                updated = true;
+            }
+        }
+
+        // 7. Task 2: Check if player has crafted/obtained Dry Heat Element
+        if (state == QuestState.CRAFT_DRY_HEAT_ELEMENT) {
+            if (hasItemOrWorn(player, com.elemental.item.ModItems.DRY_HEAT_ELEMENT)) {
+                data.setState(QuestState.FORGE_SUNFORGED_SCIMITAR);
+                updateWaypointForState(player, data);
+                player.server.getPlayerManager().broadcast(Text.translatable("quest.elemental.dry_heat_crafted").formatted(Formatting.GOLD, Formatting.BOLD), false);
+                for (ServerPlayerEntity p : player.server.getPlayerManager().getPlayerList()) {
+                    p.playSound(ModSounds.OBJECTIVE_UPDATED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+                }
+                syncToAll(player.server);
+                updated = true;
+            }
+        }
+
+        // 8. Task 3: Check if player has crafted/obtained Sunforged Scimitar
+        if (state == QuestState.FORGE_SUNFORGED_SCIMITAR) {
+            if (hasItemOrWorn(player, com.elemental.item.ModItems.SUNFORGED_SCIMITAR)) {
+                QuestNetworking.sendOpenWeaponDetail(player, "sunforged_scimitar");
+                data.setState(QuestState.CRAFT_SNOW_ELEMENT);
+                updateWaypointForState(player, data);
+                player.server.getPlayerManager().broadcast(Text.translatable("quest.elemental.sunforged_scimitar_crafted").formatted(Formatting.GOLD, Formatting.BOLD), false);
+                player.server.getPlayerManager().broadcast(Text.translatable("quest.elemental.sunforged_scimitar_next").formatted(Formatting.AQUA, Formatting.BOLD), false);
+                for (ServerPlayerEntity p : player.server.getPlayerManager().getPlayerList()) {
+                    p.playSound(ModSounds.OBJECTIVE_UPDATED, SoundCategory.PLAYERS, 1.0f, 1.1f);
+                }
+                syncToAll(player.server);
+                updated = true;
+            }
+        }
+
+        // 9. Craft Snow Element
+        if (state == QuestState.CRAFT_SNOW_ELEMENT) {
+            if (hasItemOrWorn(player, com.elemental.item.ModItems.SNOW_ELEMENT)) {
+                data.setState(QuestState.FORGE_FROSTWAKE_PICK);
+                updateWaypointForState(player, data);
+                player.server.getPlayerManager().broadcast(Text.translatable("quest.elemental.snow_element_crafted").formatted(Formatting.AQUA, Formatting.BOLD), false);
+                for (ServerPlayerEntity p : player.server.getPlayerManager().getPlayerList()) {
+                    p.playSound(ModSounds.OBJECTIVE_UPDATED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+                }
+                syncToAll(player.server);
+                updated = true;
+            }
+        }
+
+        // 10. Forge Frostwake Pick
+        if (state == QuestState.FORGE_FROSTWAKE_PICK) {
+            if (hasItemOrWorn(player, com.elemental.item.ModItems.FROSTWAKE_PICK)) {
+                QuestNetworking.sendOpenWeaponDetail(player, "frostwake_pick");
+                data.setState(QuestState.CRAFT_TREE_ELEMENT);
+                updateWaypointForState(player, data);
+                player.server.getPlayerManager().broadcast(Text.translatable("quest.elemental.frostwake_pick_crafted").formatted(Formatting.AQUA, Formatting.BOLD), false);
+                player.server.getPlayerManager().broadcast(Text.translatable("quest.elemental.frostwake_pick_next").formatted(Formatting.GREEN, Formatting.BOLD), false);
+                for (ServerPlayerEntity p : player.server.getPlayerManager().getPlayerList()) {
+                    p.playSound(ModSounds.OBJECTIVE_UPDATED, SoundCategory.PLAYERS, 1.0f, 1.1f);
+                }
+                syncToAll(player.server);
+                updated = true;
+            }
+        }
+
+        // 11. Craft Tree Element
+        if (state == QuestState.CRAFT_TREE_ELEMENT) {
+            if (hasItemOrWorn(player, com.elemental.item.ModItems.TREE_ELEMENT)) {
+                data.setState(QuestState.FORGE_ROOTBOUND_AXE);
+                updateWaypointForState(player, data);
+                player.server.getPlayerManager().broadcast(Text.translatable("quest.elemental.tree_element_crafted").formatted(Formatting.GREEN, Formatting.BOLD), false);
+                for (ServerPlayerEntity p : player.server.getPlayerManager().getPlayerList()) {
+                    p.playSound(ModSounds.OBJECTIVE_UPDATED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+                }
+                syncToAll(player.server);
+                updated = true;
+            }
+        }
+
+        // 12. Forge Rootbound Axe -> Wizard teleports to player, announces boss fight!
+        if (state == QuestState.FORGE_ROOTBOUND_AXE) {
+            if (hasItemOrWorn(player, com.elemental.item.ModItems.ROOTBOUND_AXE)) {
+                data.setState(QuestState.LOCATE_EVERLIVING_ARENA);
+                updateWaypointForState(player, data);
+                QuestNetworking.sendOpenWeaponDetail(player, "rootbound_axe");
+                player.server.getPlayerManager().broadcast(Text.translatable("quest.elemental.rootbound_axe_crafted").formatted(Formatting.GREEN, Formatting.BOLD), false);
+
+                // Teleport wizard directly to player!
+                com.elemental.entity.ElementalWizardEntity wizard = NbtStructureManager.teleportWizardToPlayer(player.getServerWorld(), player);
+                if (wizard != null) {
+                    com.elemental.entity.ElementalWizardEntity.startEverlivingBossDialogue(player);
+                }
+
+                // Clean up any duplicate wizard entities if multiple were spawned nearby
+                List<com.elemental.entity.ElementalWizardEntity> nearbyWizards = player.getServerWorld().getEntitiesByClass(
+                        com.elemental.entity.ElementalWizardEntity.class,
+                        new net.minecraft.util.math.Box(player.getBlockPos()).expand(32.0),
+                        e -> true);
+                if (nearbyWizards.size() > 1) {
+                    for (int i = 1; i < nearbyWizards.size(); i++) {
+                        nearbyWizards.get(i).discard();
+                    }
+                }
+
+                for (ServerPlayerEntity p : player.server.getPlayerManager().getPlayerList()) {
+                    p.playSound(ModSounds.QUEST_ACCEPTED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+                }
+                syncToAll(player.server);
+                updated = true;
+            }
+        }
+
+        // 13. Proximity to Everliving Arena -> Advance to DEFEAT_EVERLIVING_KNIGHT
+        if (state == QuestState.LOCATE_EVERLIVING_ARENA) {
+            BlockPos target = data.getTargetWaypoint();
+            if (target != null && player.squaredDistanceTo(target.getX(), target.getY(), target.getZ()) <= 32 * 32) {
+                data.setState(QuestState.DEFEAT_EVERLIVING_KNIGHT);
+                player.server.getPlayerManager().broadcast(Text.translatable("quest.elemental.everliving_arena_reached").formatted(Formatting.GOLD, Formatting.BOLD), false);
+                for (ServerPlayerEntity p : player.server.getPlayerManager().getPlayerList()) {
+                    p.playSound(ModSounds.OBJECTIVE_UPDATED, SoundCategory.PLAYERS, 1.0f, 1.0f);
                 }
                 syncToAll(player.server);
                 updated = true;
@@ -192,6 +430,12 @@ public class QuestManager {
         BlockPos campPos = QuestSaveData.getServerState(player.server).getAeronsTentLocation();
         if (campPos != null && player.squaredDistanceTo(campPos.getX(), campPos.getY(), campPos.getZ()) <= 64 * 64) {
             NbtStructureManager.ensureGuideAtCamp(player.getServerWorld(), campPos, QuestSaveData.getServerState(player.server));
+        }
+
+        // Ensure Desert Village has the Elemental Wizard when player is in proximity
+        BlockPos desertPos = QuestSaveData.getServerState(player.server).getDesertLocation();
+        if (desertPos != null && player.squaredDistanceTo(desertPos.getX(), desertPos.getY(), desertPos.getZ()) <= 64 * 64) {
+            NbtStructureManager.ensureWizardAtVillage(player.getServerWorld(), desertPos, QuestSaveData.getServerState(player.server));
         }
 
         if (updated) {

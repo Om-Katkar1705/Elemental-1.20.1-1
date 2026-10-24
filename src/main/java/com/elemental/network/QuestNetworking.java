@@ -18,8 +18,14 @@ public class QuestNetworking {
     public static final Identifier JETPACK_TOGGLE_PACKET_ID = Elemental.id("jetpack_toggle");
     public static final Identifier EXTRA_SLOT_SYNC_PACKET_ID = Elemental.id("extra_slot_sync");
     public static final Identifier PLAYER_FIST_BUMP_PACKET_ID = Elemental.id("player_fist_bump");
+    public static final Identifier OPEN_WEAPON_DETAIL_PACKET_ID = Elemental.id("open_weapon_detail");
+    public static final Identifier SELECT_WEAPON_QUEST_PACKET_ID = Elemental.id("select_weapon_quest");
 
     public static void registerServerReceivers() {
+        ServerPlayNetworking.registerGlobalReceiver(SELECT_WEAPON_QUEST_PACKET_ID, (server, player, handler, buf, responseSender) -> {
+            String weaponId = buf.readString();
+            server.execute(() -> com.elemental.quest.QuestManager.handleSelectWeaponQuest(player, weaponId));
+        });
         ServerPlayNetworking.registerGlobalReceiver(JETPACK_THRUST_PACKET_ID, (server, player, handler, buf, responseSender) -> {
             boolean hasForward = buf.isReadable() && buf.readBoolean();
             server.execute(() -> ElementalJetpackItem.performThrust(player, hasForward));
@@ -124,5 +130,11 @@ public class QuestNetworking {
             trackerBuf.writeInt(durationTicks);
             ServerPlayNetworking.send(tracker, PLAYER_FIST_BUMP_PACKET_ID, trackerBuf);
         }
+    }
+
+    public static void sendOpenWeaponDetail(ServerPlayerEntity player, String weaponId) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeString(weaponId != null ? weaponId : "sunforged_scimitar");
+        ServerPlayNetworking.send(player, OPEN_WEAPON_DETAIL_PACKET_ID, buf);
     }
 }
