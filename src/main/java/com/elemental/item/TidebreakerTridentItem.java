@@ -196,9 +196,6 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
             ItemStack stack = state.getData(DataTickets.ITEMSTACK);
             Entity entity = state.getData(DataTickets.ENTITY);
             if (stack != null && entity instanceof PlayerEntity player) {
-                long now = entity.getWorld().getTime();
-                long lastBubble = stack.hasNbt() ? stack.getNbt().getLong("LastBubbleTime") : 0;
-                boolean bubbleCd = (now - lastBubble < BUBBLE_COOLDOWN_TICKS);
                 if (player.getItemCooldownManager().isCoolingDown(this)
                         && isDashCoolingDown(entity.getWorld(), stack)) {
                     return state.setAndContinue(COOLDOWN_ANIM);

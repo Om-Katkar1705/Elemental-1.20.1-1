@@ -7,7 +7,6 @@ import com.elemental.network.QuestNetworking;
 import com.elemental.quest.DialogueManager;
 import com.elemental.quest.PlayerQuestData;
 import com.elemental.quest.QuestManager;
-import com.elemental.quest.QuestSaveData;
 import com.elemental.quest.QuestState;
 import com.elemental.sound.ModSounds;
 import net.minecraft.entity.EntityType;
@@ -23,7 +22,6 @@ import net.minecraft.particle.ParticleTypes;
 import net.minecraft.recipe.Recipe;
 import net.minecraft.registry.tag.DamageTypeTags;
 import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.ClickEvent;
@@ -422,18 +420,6 @@ public class ElementalWizardEntity extends PathAwareEntity {
 
     public static void showWizardKnowledgeChoices(ServerPlayerEntity player) {
         // Optional clickable choices removed as requested
-    }
-
-    private static MutableText buildChoiceLink(String key, String command) {
-        return Text.literal("[")
-                .append(Text.translatable(key))
-                .append("]")
-                .styled(style -> style
-                        .withColor(Formatting.AQUA)
-                        .withUnderline(true)
-                        .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, command))
-                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.translatable("dialogue.elemental.choice.click_to_ask")))
-                );
     }
 
     public static int handleDialogueChoice(ServerPlayerEntity player, String topic) {
