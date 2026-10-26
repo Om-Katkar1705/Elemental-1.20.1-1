@@ -12,6 +12,7 @@ import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.AxeItem;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.ItemUsageContext;
 import net.minecraft.item.ToolMaterial;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.registry.RegistryKeys;
@@ -21,6 +22,7 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
+import net.minecraft.util.ActionResult;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Hand;
 import net.minecraft.util.Identifier;
@@ -271,6 +273,21 @@ public class RootboundAxeItem extends AxeItem implements GeoItem {
                 5, 0.3, 0.3, 0.3, 0.02);
         world.spawnParticles(ParticleTypes.SMALL_FLAME, pos.x, pos.y + 0.5, pos.z,
                 3, 0.2, 0.2, 0.2, 0.01);
+    }
+
+    @Override
+    public ActionResult useOnBlock(ItemUsageContext context) {
+        World world = context.getWorld();
+        BlockPos pos = context.getBlockPos();
+        PlayerEntity player = context.getPlayer();
+        ItemStack stack = context.getStack();
+
+        if (!world.isClient() && world instanceof ServerWorld serverWorld && player != null) {
+            if (com.elemental.world.JungleDungeonManager.tryClearRootBarrier(serverWorld, player, pos, stack)) {
+                return ActionResult.SUCCESS;
+            }
+        }
+        return super.useOnBlock(context);
     }
 
     @Override

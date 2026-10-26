@@ -171,5 +171,91 @@
         "volume": 1.0
       }
     ]
+  },
+  "shrine_ambient": {
+    "subtitle": "subtitles.elemental.shrine_ambient",
+    "sounds": [
+      {
+        "name": "ambient/cave/cave14",
+        "pitch": 0.5,
+        "volume": 1.2
+      },
+      {
+        "name": "ambient/cave/cave1",
+        "pitch": 0.6,
+        "volume": 1.0
+      },
+      {
+        "name": "block/sculk/charge",
+        "pitch": 0.4,
+        "volume": 0.8
+      }
+    ]
+  },
+  "shrine_rustle": {
+    "subtitle": "subtitles.elemental.shrine_rustle",
+    "sounds": [
+      {
+        "name": "block/azalea_leaves/break",
+        "pitch": 0.8,
+        "volume": 1.0
+      },
+      {
+        "name": "block/hanging_roots/break",
+        "pitch": 0.7,
+        "volume": 1.2
+      },
+      {
+        "name": "mob/warden/sniff",
+        "pitch": 0.5,
+        "volume": 0.6
+      }
+    ]
+  },
+  "trap_decoy_click": {
+    "subtitle": "subtitles.elemental.trap_decoy_click",
+    "sounds": [
+      {
+        "name": "block/dispenser/dispense",
+        "pitch": 0.9,
+        "volume": 1.5
+      },
+      {
+        "name": "block/fire/extinguish",
+        "pitch": 1.4,
+        "volume": 0.8
+      }
+    ]
+  },
+  "trap_spore_burst": {
+    "subtitle": "subtitles.elemental.trap_spore_burst",
+    "sounds": [
+      {
+        "name": "entity/witch/ambient",
+        "pitch": 0.5,
+        "volume": 1.2
+      },
+      {
+        "name": "random/explode",
+        "pitch": 1.8,
+        "volume": 0.7
+      }
+    ]
+  },
+  "shrine_root_break": {
+    "subtitle": "subtitles.elemental.shrine_root_break",
+    "sounds": [
+      {
+        "name": "block/wood/break",
+        "pitch": 0.7,
+        "volume": 1.5
+      },
+      {
+        "name": "block/mangrove_roots/break",
+        "pitch": 0.8,
+        "volume": 1.2
+      }
+    ]
   }
 }
+

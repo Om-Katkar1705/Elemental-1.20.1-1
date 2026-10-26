@@ -24,6 +24,13 @@ public class ModSounds {
     public static final SoundEvent SEISMIC_COLOSSUS_DEATH = registerSound("seismic_colossus_death");
     public static final SoundEvent HAMMER_SPARK = registerSound("hammer_spark");
 
+    // Jungle Dungeon / Collapsed Shrine
+    public static final SoundEvent SHRINE_AMBIENT = registerSound("shrine_ambient");
+    public static final SoundEvent SHRINE_RUSTLE = registerSound("shrine_rustle");
+    public static final SoundEvent TRAP_DECOY_CLICK = registerSound("trap_decoy_click");
+    public static final SoundEvent TRAP_SPORE_BURST = registerSound("trap_spore_burst");
+    public static final SoundEvent SHRINE_ROOT_BREAK = registerSound("shrine_root_break");
+
     private static SoundEvent registerSound(String name) {
         Identifier id = Elemental.id(name);
         return Registry.register(Registries.SOUND_EVENT, id, SoundEvent.of(id));

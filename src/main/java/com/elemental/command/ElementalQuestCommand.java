@@ -181,6 +181,29 @@ public class ElementalQuestCommand {
                                         return 0;
                                     }
                                 })))
+                .then(CommandManager.literal("dungeon")
+                        .then(CommandManager.literal("shrine")
+                                .executes(ctx -> {
+                                    ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+                                    BlockPos shrinePos = com.elemental.world.JungleDungeonManager.findOrGenerateCollapsedShrine(player.getServerWorld(), player.getBlockPos());
+                                    ctx.getSource().sendFeedback(() -> Text.literal("§aCollapsed Shrine generated at: §e" + shrinePos.toShortString()), true);
+                                    return 1;
+                                })
+                                .then(CommandManager.literal("here")
+                                        .executes(ctx -> {
+                                            ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+                                            BlockPos shrinePos = com.elemental.world.CollapsedShrineGenerator.generate(player.getServerWorld(), player.getBlockPos());
+                                            ctx.getSource().sendFeedback(() -> Text.literal("§aGenerated 52x52 Collapsed Shrine centered at: §e" + shrinePos.toShortString()), true);
+                                            return 1;
+                                        }))
+                                .then(CommandManager.literal("tp")
+                                        .executes(ctx -> {
+                                            ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+                                            BlockPos shrinePos = com.elemental.world.JungleDungeonManager.findOrGenerateCollapsedShrine(player.getServerWorld(), player.getBlockPos());
+                                            player.teleport(player.getServerWorld(), shrinePos.getX() + 0.5, shrinePos.getY() + 1.0, shrinePos.getZ() + 0.5, player.getYaw(), player.getPitch());
+                                            ctx.getSource().sendFeedback(() -> Text.literal("§aTeleported into the Collapsed Shrine!"), true);
+                                            return 1;
+                                        }))))
         );
 
         // Player dialogue choice click handler for Aeron (no OP permission required)
