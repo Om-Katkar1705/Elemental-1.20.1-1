@@ -45,6 +45,7 @@ import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.core.animation.AnimationController;
 import software.bernie.geckolib.core.animation.RawAnimation;
+import software.bernie.geckolib.core.object.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
 import java.util.List;
@@ -195,11 +196,12 @@ public class TidebreakerTridentItem extends Item implements GeoItem {
         controllers.add(new AnimationController<>(this, "controller", 2, state -> {
             ItemStack stack = state.getData(DataTickets.ITEMSTACK);
             Entity entity = state.getData(DataTickets.ENTITY);
-            if (stack != null && entity instanceof PlayerEntity player) {
-                if (player.getItemCooldownManager().isCoolingDown(this)
-                        && isDashCoolingDown(entity.getWorld(), stack)) {
-                    return state.setAndContinue(COOLDOWN_ANIM);
-                }
+            if (stack == null || !(entity instanceof PlayerEntity player)) {
+                return PlayState.STOP;
+            }
+            if (player.getItemCooldownManager().isCoolingDown(this)
+                    && isDashCoolingDown(player.getWorld(), stack)) {
+                return state.setAndContinue(COOLDOWN_ANIM);
             }
             return state.setAndContinue(IDLE_ANIM);
         }).triggerableAnim("swing", SWING_ANIM)

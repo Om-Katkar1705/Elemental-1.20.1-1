@@ -44,6 +44,7 @@ import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.core.animation.AnimationController;
 import software.bernie.geckolib.core.animation.RawAnimation;
+import software.bernie.geckolib.core.object.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
 import java.util.Comparator;
@@ -117,11 +118,12 @@ public class AshenRiftBladeItem extends SwordItem implements GeoItem {
         controllers.add(new AnimationController<>(this, "controller", 4, state -> {
             ItemStack stack = state.getData(DataTickets.ITEMSTACK);
             Entity entity = state.getData(DataTickets.ENTITY);
-            if (stack != null && entity != null) {
-                if (isCollapseCoolingDown(entity.getWorld(), stack)
-                        || isTeleportCoolingDown(entity.getWorld(), stack)) {
-                    return state.setAndContinue(COOLDOWN_ANIM);
-                }
+            if (stack == null || !(entity instanceof PlayerEntity player)) {
+                return PlayState.STOP;
+            }
+            if (isCollapseCoolingDown(player.getWorld(), stack)
+                    || isTeleportCoolingDown(player.getWorld(), stack)) {
+                return state.setAndContinue(COOLDOWN_ANIM);
             }
             return state.setAndContinue(IDLE_ANIM);
         }).triggerableAnim("attack", ATTACK_ANIM)

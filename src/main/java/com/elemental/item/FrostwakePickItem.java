@@ -38,6 +38,7 @@ import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.core.animation.AnimationController;
 import software.bernie.geckolib.core.animation.RawAnimation;
+import software.bernie.geckolib.core.object.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
 import java.util.List;
 import java.util.function.Consumer;
@@ -116,10 +117,11 @@ public class FrostwakePickItem extends PickaxeItem implements GeoItem {
         controllers.add(new AnimationController<>(this, "controller", 0, state -> {
             ItemStack stack = state.getData(DataTickets.ITEMSTACK);
             Entity entity = state.getData(DataTickets.ENTITY);
-            if (stack != null && entity instanceof PlayerEntity player) {
-                if (player.getItemCooldownManager().isCoolingDown(this)) {
-                    return state.setAndContinue(COOLDOWN_ANIM);
-                }
+            if (stack == null || !(entity instanceof PlayerEntity player)) {
+                return PlayState.STOP;
+            }
+            if (player.getItemCooldownManager().isCoolingDown(this)) {
+                return state.setAndContinue(COOLDOWN_ANIM);
             }
             return state.setAndContinue(IDLE_ANIM);
         }).triggerableAnim("swing", SWING_ANIM)

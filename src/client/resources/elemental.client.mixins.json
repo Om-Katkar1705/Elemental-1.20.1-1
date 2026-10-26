@@ -9,7 +9,8 @@
 		"PlayerEntityRendererMixin",
 		"PlayerEntityModelMixin",
 		"CameraMixin",
-		"GameRendererMixin"
+		"GameRendererMixin",
+		"ItemRendererMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

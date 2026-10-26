@@ -38,6 +38,7 @@ import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.core.animation.AnimationController;
 import software.bernie.geckolib.core.animation.RawAnimation;
+import software.bernie.geckolib.core.object.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
 import java.util.List;
@@ -126,11 +127,12 @@ public class StormcallerHammerItem extends PickaxeItem implements GeoItem {
         controllers.add(new AnimationController<>(this, "controller", 4, state -> {
             ItemStack stack = state.getData(DataTickets.ITEMSTACK);
             Entity entity = state.getData(DataTickets.ENTITY);
-            if (stack != null && entity != null) {
-                if (isThunderclapCoolingDown(entity.getWorld(), stack)
-                        && isThunderstormCoolingDown(entity.getWorld(), stack)) {
-                    return state.setAndContinue(COOLDOWN_ANIM);
-                }
+            if (stack == null || !(entity instanceof PlayerEntity player)) {
+                return PlayState.STOP;
+            }
+            if (isThunderclapCoolingDown(player.getWorld(), stack)
+                    && isThunderstormCoolingDown(player.getWorld(), stack)) {
+                return state.setAndContinue(COOLDOWN_ANIM);
             }
             return state.setAndContinue(IDLE_ANIM);
         }).triggerableAnim("cooldown", COOLDOWN_ANIM)
