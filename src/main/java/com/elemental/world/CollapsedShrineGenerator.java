@@ -15,7 +15,9 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.potion.PotionUtil;
 import net.minecraft.potion.Potions;
+import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.state.property.BooleanProperty;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
@@ -64,25 +66,26 @@ public class CollapsedShrineGenerator {
 
         int centerX = surfaceCenter.getX();
         int centerZ = surfaceCenter.getZ();
-        int naturalY = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, centerX, centerZ);
+        int cz = centerZ - 10;
+        int naturalY = findBaselineGroundY(world, centerX, cz);
         if (naturalY < 62) naturalY = 64;
 
         // Subterranean floor Y level (deep underground below jungle surface)
         int floorY = naturalY - 18;
 
-        Elemental.LOGGER.info("Generating Collapsed Shrine with surface temple at Y={} and subterranean rooms at Y={}", naturalY, floorY);
+        Elemental.LOGGER.info("Generating Collapsed Shrine with 17-block surface temple at Y={} (crown Y={}) and subterranean rooms at Y={}", naturalY, naturalY + 17, floorY);
 
         List<BlockPos> fakeTraps = new ArrayList<>();
         List<BlockPos> oneHpTraps = new ArrayList<>();
         List<BlockPos> rootBarrierPositions = new ArrayList<>();
         BlockPos sealedChestPos;
 
-        // 1. Build the Surface Stepped Pyramid Temple (matching reference photo)
-        buildSurfaceTemple(world, centerX, naturalY, centerZ - 10, rand);
+        // 1. Build the Surface Stepped Pyramid Temple (17 blocks height above ground, matching reference photo)
+        buildSurfaceTemple(world, centerX, naturalY, cz, rand);
 
         // 2. Build the 4x4 Round Spiral Staircase connecting surface temple to subterranean dungeon
         int stairTopY = naturalY + 9;
-        buildRoundStaircase(world, centerX, centerZ - 10, stairTopY, floorY, rand);
+        buildRoundStaircase(world, centerX, cz, stairTopY, floorY, rand);
 
         // 3. Build Subterranean Complex: 5 Distinct 12x12x6 Rooms
         // Room 1: Sacred Sunken Fountain Sanctuary (Entry Room)
@@ -132,7 +135,7 @@ public class CollapsedShrineGenerator {
         BlockPos shrineCenter = new BlockPos(centerX, floorY + 3, centerZ);
         Box shrineBounds = new Box(
                 centerX - 42, floorY - 38, centerZ - 42,
-                centerX + 42, naturalY + 28, centerZ + 36
+                centerX + 42, naturalY + 22, centerZ + 36
         );
 
         JungleDungeonManager.registerShrine(
@@ -149,36 +152,105 @@ public class CollapsedShrineGenerator {
     /**
      * Builds the stepped Mayan-style pyramid temple with front elevated causeway,
      * decorative pillar monoliths, wide stairs, stepped tiers with pilasters,
-     * upper sanctuary house, and central grand staircase.
+     * upper sanctuary house, hanging vines, and central grand staircase.
+     * Total height above ground is 17 blocks (peak crown slab at naturalY + 17).
+     *
+     * Adapted with vanilla Jungle Temple mechanics:
+     * - Carves foliage/canopy clearance envelope for all tiers, causeway, and crown.
+     * - Downward foundation fill (downwards) ensuring the structure never hovers on slopes.
+     * - Overgrown exterior hanging vines matching ancient jungle pyramid aesthetics.
      */
     private static void buildSurfaceTemple(ServerWorld world, int cx, int naturalY, int cz, Random rand) {
-        // --- A. Elevated Causeway / Platform Ramp (South of the Pyramid) ---
+        // --- 0. Structure Dimensions & Envelope Parameters (17-Block Height) ---
+        int t1Y = naturalY + 1;             // Tier 1 Base: Y + 1 to Y + 4
+        int t2Y = t1Y + 4;                  // Tier 2 Mid: Y + 5 to Y + 8
+        int t3Y = t2Y + 4;                  // Tier 3 Sanctuary: Y + 9 to Y + 13
+        int r1Y = t3Y + 5;                  // Roof Layer 1: Y + 14
+        int r2Y = r1Y + 1;                  // Roof Layer 2: Y + 15
+        int r3Y = r2Y + 1;                  // Roof Cap & Crown: Y + 16 to Y + 17 (Peak height = 17 blocks above ground)
+
         int causewayZStart = cz + 7;
         int causewayZEnd = cz + 19;
+        int frontStairZ = causewayZEnd + 1;
         int causewayWidth = 10;
         int causewayY = naturalY + 2;
 
-        // Foundation down to natural ground to prevent floating
+        // --- 1. Clearance Envelope (Clearing Jungle Canopy, Leaves, and Logs) ---
+        // Causeway clearance: clear air along the walkway and monolith corridor
+        for (int x = cx - causewayWidth / 2; x <= cx + causewayWidth / 2; x++) {
+            for (int z = causewayZStart; z <= frontStairZ + 3; z++) {
+                for (int y = causewayY + 1; y <= causewayY + 5; y++) {
+                    world.setBlockState(new BlockPos(x, y, z), Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+                }
+            }
+        }
+
+        // Tier 1 terrace clearance (above Tier 1 ledge, outside Tier 2)
+        for (int x = cx - 10; x <= cx + 10; x++) {
+            for (int z = cz - 10; z <= cz + 6; z++) {
+                boolean inTier2 = (x >= cx - 8 && x <= cx + 8 && z >= cz - 8 && z <= cz + 4);
+                if (!inTier2) {
+                    for (int y = t1Y + 4; y <= t1Y + 7; y++) {
+                        world.setBlockState(new BlockPos(x, y, z), Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+                    }
+                }
+            }
+        }
+
+        // Tier 2 terrace clearance (above Tier 2 ledge, outside Tier 3)
+        for (int x = cx - 8; x <= cx + 8; x++) {
+            for (int z = cz - 8; z <= cz + 4; z++) {
+                boolean inTier3 = (x >= cx - 5 && x <= cx + 5 && z >= cz - 6 && z <= cz + 2);
+                if (!inTier3) {
+                    for (int y = t2Y + 4; y <= t2Y + 7; y++) {
+                        world.setBlockState(new BlockPos(x, y, z), Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+                    }
+                }
+            }
+        }
+
+        // Roof & Crown clearance (up to naturalY + 20 for unobstructed sky view)
+        for (int x = cx - 6; x <= cx + 6; x++) {
+            for (int z = cz - 7; z <= cz + 3; z++) {
+                for (int y = t3Y + 5; y <= naturalY + 20; y++) {
+                    world.setBlockState(new BlockPos(x, y, z), Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+                }
+            }
+        }
+
+        // --- 2. Foundations (Downward Terrain Adaptation like Vanilla Jungle Temple) ---
+        // Solid base foundation under pyramid down to solid ground
+        for (int x = cx - 11; x <= cx + 11; x++) {
+            for (int z = cz - 11; z <= cz + 7; z++) {
+                for (int y = naturalY - 4; y <= naturalY; y++) {
+                    world.setBlockState(new BlockPos(x, y, z), Blocks.DEEPSLATE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+                }
+                fillFoundationDownwards(world, new BlockPos(x, naturalY - 5, z), rand);
+            }
+        }
+
+        // Foundation and floor for Elevated Causeway
         for (int x = cx - causewayWidth / 2; x <= cx + causewayWidth / 2; x++) {
             for (int z = causewayZStart; z <= causewayZEnd; z++) {
-                for (int y = naturalY - 4; y < causewayY; y++) {
+                for (int y = naturalY - 2; y < causewayY; y++) {
                     world.setBlockState(new BlockPos(x, y, z), getAestheticFoundationBlock(rand), Block.NOTIFY_LISTENERS);
                 }
+                fillFoundationDownwards(world, new BlockPos(x, naturalY - 3, z), rand);
                 world.setBlockState(new BlockPos(x, causewayY, z), getAestheticFloorBlock(rand), Block.NOTIFY_LISTENERS);
             }
         }
 
         // Wide stone stairs at front of causeway leading up from ground
-        int frontStairZ = causewayZEnd + 1;
         for (int step = 0; step <= 2; step++) {
             int sy = causewayY - step;
             int sz = frontStairZ + step;
             for (int x = cx - 4; x <= cx + 4; x++) {
                 world.setBlockState(new BlockPos(x, sy, sz),
                         Blocks.MOSSY_STONE_BRICK_STAIRS.getDefaultState().with(StairsBlock.FACING, Direction.NORTH), Block.NOTIFY_LISTENERS);
-                for (int y = naturalY - 3; y < sy; y++) {
+                for (int y = naturalY - 1; y < sy; y++) {
                     world.setBlockState(new BlockPos(x, y, sz), Blocks.COBBLESTONE.getDefaultState(), Block.NOTIFY_LISTENERS);
                 }
+                fillFoundationDownwards(world, new BlockPos(x, naturalY - 2, sz), rand);
             }
         }
 
@@ -190,27 +262,22 @@ public class CollapsedShrineGenerator {
         buildStoneMonolith(world, new BlockPos(cx - 5, causewayY + 1, cz + 10), 5, rand);
         buildStoneMonolith(world, new BlockPos(cx + 5, causewayY + 1, cz + 10), 5, rand);
 
-        // --- B. Stepped Pyramid (Ziggurat) ---
-        // Solid base foundation down to ground
-        for (int x = cx - 11; x <= cx + 11; x++) {
-            for (int z = cz - 11; z <= cz + 7; z++) {
-                for (int y = naturalY - 5; y <= naturalY; y++) {
-                    world.setBlockState(new BlockPos(x, y, z), Blocks.DEEPSLATE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
-                }
-            }
-        }
-
-        // Tier 1: Base Tier (20x18 footprint, height 4 blocks)
-        int t1Y = naturalY + 1;
+        // --- 3. Stepped Pyramid (Ziggurat Tiers) ---
+        // Tier 1: Base Tier (20x18 footprint, height 4 blocks: naturalY + 1 to naturalY + 4)
         for (int x = cx - 10; x <= cx + 10; x++) {
             for (int z = cz - 10; z <= cz + 6; z++) {
                 for (int y = t1Y; y <= t1Y + 3; y++) {
                     boolean isEdge = (x == cx - 10 || x == cx + 10 || z == cz - 10 || z == cz + 6);
                     if (isEdge) {
-                        // Pilasters on sides
                         boolean isPilaster = (Math.abs(x - cx) % 3 == 0 || Math.abs(z - cz) % 3 == 0);
                         BlockState state = isPilaster ? Blocks.CHISELED_STONE_BRICKS.getDefaultState() : getAestheticWallBlock(rand);
                         world.setBlockState(new BlockPos(x, y, z), state, Block.NOTIFY_LISTENERS);
+
+                        // Jungle Temple hanging vines on exterior walls
+                        if (x == cx - 10) maybePlaceVines(world, new BlockPos(x, y, z), Direction.WEST, rand);
+                        if (x == cx + 10) maybePlaceVines(world, new BlockPos(x, y, z), Direction.EAST, rand);
+                        if (z == cz - 10) maybePlaceVines(world, new BlockPos(x, y, z), Direction.NORTH, rand);
+                        if (z == cz + 6)  maybePlaceVines(world, new BlockPos(x, y, z), Direction.SOUTH, rand);
                     } else {
                         world.setBlockState(new BlockPos(x, y, z), Blocks.MOSSY_COBBLESTONE.getDefaultState(), Block.NOTIFY_LISTENERS);
                     }
@@ -218,8 +285,7 @@ public class CollapsedShrineGenerator {
             }
         }
 
-        // Tier 2: Mid Tier (16x14 footprint, height 4 blocks)
-        int t2Y = t1Y + 4;
+        // Tier 2: Mid Tier (16x14 footprint, height 4 blocks: naturalY + 5 to naturalY + 8)
         for (int x = cx - 8; x <= cx + 8; x++) {
             for (int z = cz - 8; z <= cz + 4; z++) {
                 for (int y = t2Y; y <= t2Y + 3; y++) {
@@ -228,6 +294,12 @@ public class CollapsedShrineGenerator {
                         boolean isPilaster = (Math.abs(x - cx) % 3 == 0 || Math.abs(z - cz) % 3 == 0);
                         BlockState state = isPilaster ? Blocks.CHISELED_STONE_BRICKS.getDefaultState() : getAestheticWallBlock(rand);
                         world.setBlockState(new BlockPos(x, y, z), state, Block.NOTIFY_LISTENERS);
+
+                        // Jungle Temple hanging vines on exterior walls
+                        if (x == cx - 8) maybePlaceVines(world, new BlockPos(x, y, z), Direction.WEST, rand);
+                        if (x == cx + 8) maybePlaceVines(world, new BlockPos(x, y, z), Direction.EAST, rand);
+                        if (z == cz - 8) maybePlaceVines(world, new BlockPos(x, y, z), Direction.NORTH, rand);
+                        if (z == cz + 4) maybePlaceVines(world, new BlockPos(x, y, z), Direction.SOUTH, rand);
                     } else {
                         world.setBlockState(new BlockPos(x, y, z), Blocks.STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
                     }
@@ -235,11 +307,10 @@ public class CollapsedShrineGenerator {
             }
         }
 
-        // Tier 3: Upper Temple Sanctuary Chamber (10x10 footprint, height 5 blocks)
-        int t3Y = t2Y + 4; // naturalY + 9
+        // Tier 3: Upper Temple Sanctuary Chamber (10x10 footprint, height 5 blocks: naturalY + 9 to naturalY + 13)
         for (int x = cx - 5; x <= cx + 5; x++) {
             for (int z = cz - 6; z <= cz + 2; z++) {
-                // Sanctuary floor
+                // Sanctuary floor at naturalY + 8
                 world.setBlockState(new BlockPos(x, t3Y - 1, z), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
 
                 for (int y = t3Y; y <= t3Y + 4; y++) {
@@ -251,6 +322,12 @@ public class CollapsedShrineGenerator {
                             world.setBlockState(new BlockPos(x, y, z), Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
                         } else {
                             world.setBlockState(new BlockPos(x, y, z), getAestheticWallBlock(rand), Block.NOTIFY_LISTENERS);
+
+                            // Jungle Temple hanging vines on sanctuary exterior
+                            if (x == cx - 5) maybePlaceVines(world, new BlockPos(x, y, z), Direction.WEST, rand);
+                            if (x == cx + 5) maybePlaceVines(world, new BlockPos(x, y, z), Direction.EAST, rand);
+                            if (z == cz - 6) maybePlaceVines(world, new BlockPos(x, y, z), Direction.NORTH, rand);
+                            if (z == cz + 2) maybePlaceVines(world, new BlockPos(x, y, z), Direction.SOUTH, rand);
                         }
                     } else {
                         // Interior sanctuary room
@@ -268,25 +345,22 @@ public class CollapsedShrineGenerator {
         placeWallLantern(world, new BlockPos(cx - 2, t3Y + 2, cz + 3), Direction.SOUTH);
         placeWallLantern(world, new BlockPos(cx + 1, t3Y + 2, cz + 3), Direction.SOUTH);
 
-        // --- C. Stepped Pyramid Roof ---
-        // Roof Layer 1
-        int r1Y = t3Y + 5;
+        // --- 4. Stepped Pyramid Roof (Y + 14 to Y + 17) ---
+        // Roof Layer 1 (Y = naturalY + 14)
         for (int x = cx - 4; x <= cx + 4; x++) {
             for (int z = cz - 5; z <= cz + 1; z++) {
                 boolean isEdge = (x == cx - 4 || x == cx + 4 || z == cz - 5 || z == cz + 1);
                 world.setBlockState(new BlockPos(x, r1Y, z), isEdge ? Blocks.MOSSY_STONE_BRICK_SLAB.getDefaultState() : Blocks.MOSSY_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
             }
         }
-        // Roof Layer 2
-        int r2Y = r1Y + 1;
+        // Roof Layer 2 (Y = naturalY + 15)
         for (int x = cx - 3; x <= cx + 3; x++) {
             for (int z = cz - 4; z <= cz; z++) {
                 boolean isEdge = (x == cx - 3 || x == cx + 3 || z == cz - 4 || z == cz);
                 world.setBlockState(new BlockPos(x, r2Y, z), isEdge ? Blocks.STONE_BRICK_SLAB.getDefaultState() : Blocks.CRACKED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
             }
         }
-        // Roof Cap / Crown Ridge
-        int r3Y = r2Y + 1;
+        // Roof Cap / Crown Ridge (Y = naturalY + 16 to naturalY + 17, peak 17 blocks above naturalY)
         for (int x = cx - 1; x <= cx + 1; x++) {
             for (int z = cz - 3; z <= cz - 1; z++) {
                 world.setBlockState(new BlockPos(x, r3Y, z), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
@@ -297,7 +371,7 @@ public class CollapsedShrineGenerator {
         // Hanging lantern inside the upper sanctuary
         placeHangingLantern(world, new BlockPos(cx, t3Y + 4, cz - 2));
 
-        // --- D. Central Grand Staircase ---
+        // --- 5. Central Grand Staircase ---
         // Climbs from causeway (cz + 7, Y = naturalY + 2) straight up Tier 1 and Tier 2 into doorway (cz + 2, Y = t3Y)
         int stairSteps = 6;
         for (int i = 0; i < stairSteps; i++) {
@@ -1095,5 +1169,125 @@ public class CollapsedShrineGenerator {
         if (f < 0.50f) return Blocks.MOSSY_COBBLESTONE.getDefaultState();
         if (f < 0.80f) return Blocks.COBBLESTONE.getDefaultState();
         return Blocks.DEEPSLATE_BRICKS.getDefaultState();
+    }
+
+    // =========================================================================
+    // 6. JUNGLE TEMPLE TERRAIN ADAPTATION & FLORA UTILITIES
+    // =========================================================================
+
+    /**
+     * Determines the optimal baseline ground Y level for the 17-block surface temple
+     * across the temple's footprint, sampling beneath jungle tree canopies to true ground
+     * (matching vanilla Jungle Temple / ShiftableStructurePiece placement logic).
+     */
+    private static int findBaselineGroundY(ServerWorld world, int cx, int cz) {
+        int minZ = cz - 11;
+        int maxZ = cz + 20; // covers pyramid, causeway, and front stairs
+        int minX = cx - 11;
+        int maxX = cx + 11;
+
+        int totalY = 0;
+        int samples = 0;
+        int minFound = Integer.MAX_VALUE;
+
+        // Sample in a grid across the structure footprint
+        for (int x = minX; x <= maxX; x += 5) {
+            for (int z = minZ; z <= maxZ; z += 6) {
+                int groundY = findTrueGroundY(world, x, z);
+                if (groundY > world.getBottomY()) {
+                    totalY += groundY;
+                    samples++;
+                    if (groundY < minFound) minFound = groundY;
+                }
+            }
+        }
+
+        if (samples == 0) {
+            int fallback = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, cx, cz);
+            return Math.max(fallback, 64);
+        }
+
+        int avgY = totalY / samples;
+        // Settle comfortably into terrain (similar to vanilla ShiftableStructurePiece baseline)
+        int chosenY = Math.min(avgY, minFound + 3);
+        return Math.max(chosenY, 64);
+    }
+
+    private static int findTrueGroundY(ServerWorld world, int x, int z) {
+        int topY = world.getTopY(Heightmap.Type.WORLD_SURFACE, x, z);
+        BlockPos.Mutable pos = new BlockPos.Mutable(x, topY, z);
+        while (pos.getY() > world.getBottomY()) {
+            BlockState state = world.getBlockState(pos);
+            if (isFoliageOrAir(state)) {
+                pos.move(Direction.DOWN);
+            } else {
+                return pos.getY();
+            }
+        }
+        return world.getSeaLevel();
+    }
+
+    private static void fillFoundationDownwards(ServerWorld world, BlockPos startPos, Random rand) {
+        BlockPos.Mutable mut = startPos.mutableCopy();
+        int maxDepth = 20;
+        int depth = 0;
+        while (depth < maxDepth && mut.getY() > world.getBottomY()) {
+            BlockState current = world.getBlockState(mut);
+            if (isSolidTerrain(world, mut, current)) {
+                break;
+            }
+            world.setBlockState(mut, getAestheticFoundationBlock(rand), Block.NOTIFY_LISTENERS);
+            mut.move(Direction.DOWN);
+            depth++;
+        }
+    }
+
+    private static boolean isSolidTerrain(ServerWorld world, BlockPos pos, BlockState state) {
+        if (isFoliageOrAir(state)) return false;
+        if (!state.getFluidState().isEmpty() || state.isOf(Blocks.WATER) || state.isOf(Blocks.LAVA)) return false;
+        return state.isSolidBlock(world, pos);
+    }
+
+    private static boolean isFoliageOrAir(BlockState state) {
+        if (state.isAir()) return true;
+        if (state.isIn(BlockTags.LEAVES) || state.isIn(BlockTags.LOGS)) return true;
+        if (state.isOf(Blocks.VINE) || state.isOf(Blocks.BAMBOO) || state.isOf(Blocks.BAMBOO_SAPLING)) return true;
+        if (state.isOf(Blocks.COCOA) || state.isOf(Blocks.MOSS_CARPET) || state.isOf(Blocks.MOSS_BLOCK)) return true;
+        if (state.isOf(Blocks.HANGING_ROOTS) || state.isOf(Blocks.MANGROVE_ROOTS)) return true;
+        if (state.isIn(BlockTags.FLOWERS) || state.isOf(Blocks.GRASS) || state.isOf(Blocks.TALL_GRASS)
+                || state.isOf(Blocks.FERN) || state.isOf(Blocks.LARGE_FERN) || state.isOf(Blocks.SUGAR_CANE)) return true;
+        return false;
+    }
+
+    private static void maybePlaceVines(ServerWorld world, BlockPos wallPos, Direction face, Random rand) {
+        if (rand.nextFloat() > 0.30f) return;
+        BlockPos vinePos = wallPos.offset(face);
+        BooleanProperty prop = getVineFacingProperty(face.getOpposite());
+        if (prop == null) return;
+        BlockState vineState = Blocks.VINE.getDefaultState().with(prop, true);
+        if (world.getBlockState(vinePos).isAir()) {
+            world.setBlockState(vinePos, vineState, Block.NOTIFY_LISTENERS);
+            int length = rand.nextInt(3);
+            BlockPos.Mutable downPos = vinePos.mutableCopy();
+            for (int i = 0; i < length; i++) {
+                downPos.move(Direction.DOWN);
+                if (world.getBlockState(downPos).isAir()) {
+                    world.setBlockState(downPos, vineState, Block.NOTIFY_LISTENERS);
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+
+    private static BooleanProperty getVineFacingProperty(Direction direction) {
+        return switch (direction) {
+            case NORTH -> VineBlock.NORTH;
+            case SOUTH -> VineBlock.SOUTH;
+            case WEST -> VineBlock.WEST;
+            case EAST -> VineBlock.EAST;
+            case UP -> VineBlock.UP;
+            default -> null;
+        };
     }
 }
