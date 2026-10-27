@@ -1309,6 +1309,84 @@ public class NbtStructureManager {
         }
     }
 
+    public static BlockPos findOrGenerateSeismicGolemArena(ServerWorld world, BlockPos nearPos) {
+        QuestSaveData saveData = QuestSaveData.getServerState(world.getServer());
+        BlockPos existing = saveData.getSeismicGolemArenaLocation();
+        if (existing != null) {
+            return existing;
+        }
+
+        BlockPos arenaCenter = findLargePlainAreaForArena(world, nearPos.add(300, 0, 300));
+        generateSeismicGolemArenaAt(world, arenaCenter);
+
+        saveData.setSeismicGolemArenaLocation(arenaCenter);
+        saveData.markDirty();
+        Elemental.LOGGER.info("Seismic Golem Arena generated properly at: {}", arenaCenter);
+        return arenaCenter;
+    }
+
+    public static void generateSeismicGolemArenaAt(ServerWorld world, BlockPos arenaCenter) {
+        final int sizeX = 69;
+        final int sizeY = 28;
+        final int sizeZ = 69;
+        final int altarOffsetX = 34;
+        final int altarOffsetY = 5;
+        final int altarOffsetZ = 34;
+
+        List<Integer> groundHeights = new java.util.ArrayList<>();
+        int startX = arenaCenter.getX() - altarOffsetX;
+        int startZ = arenaCenter.getZ() - altarOffsetZ;
+
+        for (int x = startX; x < startX + sizeX; x += 4) {
+            for (int z = startZ; z < startZ + sizeZ; z += 4) {
+                world.getChunk(x >> 4, z >> 4);
+                int ty = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, x, z);
+                groundHeights.add(ty);
+            }
+        }
+        java.util.Collections.sort(groundHeights);
+        int floorY = groundHeights.isEmpty() ? arenaCenter.getY() : groundHeights.get(groundHeights.size() / 2);
+
+        int originX = startX;
+        int originY = floorY - altarOffsetY;
+        int originZ = startZ;
+        BlockPos originPos = new BlockPos(originX, originY, originZ);
+
+        for (int cx = (originX - 8) >> 4; cx <= (originX + sizeX + 8) >> 4; cx++) {
+            for (int cz = (originZ - 8) >> 4; cz <= (originZ + sizeZ + 8) >> 4; cz++) {
+                world.getChunk(cx, cz);
+            }
+        }
+
+        for (int x = originX; x < originX + sizeX; x++) {
+            for (int z = originZ; z < originZ + sizeZ; z++) {
+                int naturalY = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, x, z);
+                if (naturalY < originY) {
+                    for (int y = originY - 1; y >= naturalY - 2; y--) {
+                        BlockPos fillPos = new BlockPos(x, y, z);
+                        if (y >= originY - 2) {
+                            world.setBlockState(fillPos, Blocks.POLISHED_DEEPSLATE.getDefaultState(), Block.NOTIFY_LISTENERS);
+                        } else {
+                            world.setBlockState(fillPos, Blocks.DEEPSLATE.getDefaultState(), Block.NOTIFY_LISTENERS);
+                        }
+                    }
+                }
+
+                if (naturalY > originY + 5) {
+                    for (int y = originY + 6; y <= Math.min(naturalY + 1, originY + sizeY - 1); y++) {
+                        BlockPos clearPos = new BlockPos(x, y, z);
+                        if (!world.getBlockState(clearPos).isAir()) {
+                            world.setBlockState(clearPos, Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+                        }
+                    }
+                }
+            }
+        }
+
+        placeNbtStructure(world, SEISMIC_GOLEM_ARENA_ID, originPos);
+        buildArenaSteppedBoundary(world, originPos, floorY, sizeX, sizeZ);
+    }
+
     // ==========================================
     // 4. Safe Dry Surface & Terrain Search Helpers
     // ==========================================

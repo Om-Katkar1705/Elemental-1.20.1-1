@@ -242,10 +242,20 @@ public class JungleDungeonManager {
         return block == Blocks.MANGROVE_ROOTS || block == Blocks.MUDDY_MANGROVE_ROOTS || block == Blocks.WEEPING_VINES;
     }
 
+    public static List<ShrineInstance> getActiveShrines() {
+        return Collections.unmodifiableList(ACTIVE_SHRINES);
+    }
+
     /**
      * Locates the nearest Jungle biome or safe spot and generates the Collapsed Shrine.
      */
     public static BlockPos findOrGenerateCollapsedShrine(ServerWorld world, BlockPos originPos) {
+        com.elemental.quest.QuestSaveData saveData = com.elemental.quest.QuestSaveData.getServerState(world.getServer());
+        BlockPos existing = saveData.getCollapsedShrineLocation();
+        if (existing != null) {
+            return existing;
+        }
+
         // Search for nearest jungle biome
         BlockPos junglePos = findNearestJungleBiome(world, originPos);
         if (junglePos == null) {
@@ -255,7 +265,10 @@ public class JungleDungeonManager {
         int surfaceY = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, junglePos.getX(), junglePos.getZ());
         BlockPos surfacePos = new BlockPos(junglePos.getX(), surfaceY, junglePos.getZ());
 
-        return CollapsedShrineGenerator.generate(world, surfacePos);
+        BlockPos generatedPos = CollapsedShrineGenerator.generate(world, surfacePos);
+        saveData.setCollapsedShrineLocation(generatedPos);
+        saveData.markDirty();
+        return generatedPos;
     }
 
     /**

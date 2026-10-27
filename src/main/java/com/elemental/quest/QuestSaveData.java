@@ -25,6 +25,8 @@ public class QuestSaveData extends PersistentState {
     private BlockPos snowBiomeLocation = null;
     private BlockPos forestBiomeLocation = null;
     private BlockPos everlivingArenaLocation = null;
+    private BlockPos seismicGolemArenaLocation = null;
+    private BlockPos collapsedShrineLocation = null;
     // Collective Quest Progress (Shared across all players on the server)
     private QuestState collectiveState = QuestState.CRAFT_STONE_TOOLS;
     private int collectiveBlueprintsFound = 0;
@@ -163,6 +165,24 @@ public class QuestSaveData extends PersistentState {
         this.markDirty();
     }
 
+    public BlockPos getSeismicGolemArenaLocation() {
+        return seismicGolemArenaLocation;
+    }
+
+    public void setSeismicGolemArenaLocation(BlockPos location) {
+        this.seismicGolemArenaLocation = location;
+        this.markDirty();
+    }
+
+    public BlockPos getCollapsedShrineLocation() {
+        return collapsedShrineLocation;
+    }
+
+    public void setCollapsedShrineLocation(BlockPos location) {
+        this.collapsedShrineLocation = location;
+        this.markDirty();
+    }
+
     public PlayerQuestData getPlayerData(UUID uuid) {
         return playerDataMap.computeIfAbsent(uuid, id -> {
             PlayerQuestData data = new PlayerQuestData(id, this);
@@ -245,6 +265,22 @@ public class QuestSaveData extends PersistentState {
             );
         }
 
+        if (nbt.contains("SeismicGolemX") && nbt.contains("SeismicGolemY") && nbt.contains("SeismicGolemZ")) {
+            data.seismicGolemArenaLocation = new BlockPos(
+                    nbt.getInt("SeismicGolemX"),
+                    nbt.getInt("SeismicGolemY"),
+                    nbt.getInt("SeismicGolemZ")
+            );
+        }
+
+        if (nbt.contains("CollapsedShrineX") && nbt.contains("CollapsedShrineY") && nbt.contains("CollapsedShrineZ")) {
+            data.collapsedShrineLocation = new BlockPos(
+                    nbt.getInt("CollapsedShrineX"),
+                    nbt.getInt("CollapsedShrineY"),
+                    nbt.getInt("CollapsedShrineZ")
+            );
+        }
+
         if (nbt.contains("Players", NbtElement.LIST_TYPE)) {
             NbtList list = nbt.getList("Players", NbtElement.COMPOUND_TYPE);
             for (int i = 0; i < list.size(); i++) {
@@ -319,6 +355,18 @@ public class QuestSaveData extends PersistentState {
             nbt.putInt("EverlivingX", this.everlivingArenaLocation.getX());
             nbt.putInt("EverlivingY", this.everlivingArenaLocation.getY());
             nbt.putInt("EverlivingZ", this.everlivingArenaLocation.getZ());
+        }
+
+        if (this.seismicGolemArenaLocation != null) {
+            nbt.putInt("SeismicGolemX", this.seismicGolemArenaLocation.getX());
+            nbt.putInt("SeismicGolemY", this.seismicGolemArenaLocation.getY());
+            nbt.putInt("SeismicGolemZ", this.seismicGolemArenaLocation.getZ());
+        }
+
+        if (this.collapsedShrineLocation != null) {
+            nbt.putInt("CollapsedShrineX", this.collapsedShrineLocation.getX());
+            nbt.putInt("CollapsedShrineY", this.collapsedShrineLocation.getY());
+            nbt.putInt("CollapsedShrineZ", this.collapsedShrineLocation.getZ());
         }
 
         NbtList list = new NbtList();

@@ -180,6 +180,70 @@ public class ElementalQuestCommand {
                                         ctx.getSource().sendError(Text.literal("§cFailed to generate arena."));
                                         return 0;
                                     }
+                                }))
+                        .then(CommandManager.literal("colossus")
+                                .executes(ctx -> {
+                                    ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+                                    QuestSaveData saveData = QuestSaveData.getServerState(player.server);
+                                    BlockPos arena = saveData.getSeismicGolemArenaLocation();
+                                    if (arena == null) {
+                                        arena = NbtStructureManager.findOrGenerateSeismicGolemArena(player.getServerWorld(), player.getBlockPos());
+                                    }
+                                    final BlockPos target = arena;
+                                    ctx.getSource().sendFeedback(() -> Text.literal("§6Seismic Golem Arena located at: §e" + (target != null ? target.toShortString() : "unknown")), true);
+                                    return 1;
+                                })
+                                .then(CommandManager.literal("tp")
+                                        .executes(ctx -> {
+                                            ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+                                            QuestSaveData saveData = QuestSaveData.getServerState(player.server);
+                                            BlockPos arena = saveData.getSeismicGolemArenaLocation();
+                                            if (arena == null) {
+                                                arena = NbtStructureManager.findOrGenerateSeismicGolemArena(player.getServerWorld(), player.getBlockPos());
+                                            }
+                                            if (arena != null) {
+                                                player.teleport(player.getServerWorld(), arena.getX() + 0.5, arena.getY() + 1.0, arena.getZ() + 0.5, player.getYaw(), player.getPitch());
+                                                ctx.getSource().sendFeedback(() -> Text.literal("§aTeleported to Seismic Golem Arena!"), true);
+                                                return 1;
+                                            } else {
+                                                ctx.getSource().sendError(Text.literal("§cCould not locate or generate seismic golem arena."));
+                                                return 0;
+                                            }
+                                        }))
+                                .then(CommandManager.literal("regenerate")
+                                        .executes(ctx -> {
+                                            ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+                                            QuestSaveData saveData = QuestSaveData.getServerState(player.server);
+                                            saveData.setSeismicGolemArenaLocation(null);
+                                            saveData.markDirty();
+                                            BlockPos arena = NbtStructureManager.findOrGenerateSeismicGolemArena(player.getServerWorld(), player.getBlockPos());
+                                            if (arena != null) {
+                                                ctx.getSource().sendFeedback(() -> Text.literal("§aRegenerated Seismic Golem Arena at §e" + arena.toShortString()), true);
+                                                return 1;
+                                            } else {
+                                                ctx.getSource().sendError(Text.literal("§cFailed to generate seismic golem arena."));
+                                                return 0;
+                                            }
+                                        }))))
+                .then(CommandManager.literal("airship")
+                        .executes(ctx -> {
+                            ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+                            BlockPos airship = NbtStructureManager.findOrGenerateAirship(player.getServerWorld(), player.getBlockPos());
+                            ctx.getSource().sendFeedback(() -> Text.literal("§6Crashed Skyforge Ship located at: §e" + (airship != null ? airship.toShortString() : "unknown")), true);
+                            return 1;
+                        })
+                        .then(CommandManager.literal("tp")
+                                .executes(ctx -> {
+                                    ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+                                    BlockPos airship = NbtStructureManager.findOrGenerateAirship(player.getServerWorld(), player.getBlockPos());
+                                    if (airship != null) {
+                                        player.teleport(player.getServerWorld(), airship.getX() + 0.5, airship.getY() + 8.0, airship.getZ() + 0.5, player.getYaw(), player.getPitch());
+                                        ctx.getSource().sendFeedback(() -> Text.literal("§aTeleported to Crashed Skyforge Ship!"), true);
+                                        return 1;
+                                    } else {
+                                        ctx.getSource().sendError(Text.literal("§cCould not locate or generate skyforge ship."));
+                                        return 0;
+                                    }
                                 })))
                 .then(CommandManager.literal("dungeon")
                         .then(CommandManager.literal("shrine")
