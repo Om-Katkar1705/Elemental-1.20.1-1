@@ -1,23 +1,21 @@
 package com.elemental.world;
 
 import com.elemental.Elemental;
-import com.elemental.sound.ModSounds;
 import net.minecraft.block.*;
 import net.minecraft.block.entity.ChestBlockEntity;
 import net.minecraft.block.entity.DispenserBlockEntity;
+import net.minecraft.block.entity.MobSpawnerBlockEntity;
 import net.minecraft.block.entity.SignBlockEntity;
 import net.minecraft.block.entity.SignText;
 import net.minecraft.block.enums.BlockHalf;
 import net.minecraft.block.enums.SlabType;
+import net.minecraft.block.enums.Thickness;
+import net.minecraft.entity.EntityType;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.particle.ParticleTypes;
 import net.minecraft.potion.PotionUtil;
 import net.minecraft.potion.Potions;
 import net.minecraft.server.world.ServerWorld;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.state.property.Properties;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
@@ -30,29 +28,36 @@ import java.util.*;
 
 /**
  * Procedural generator for the Collapsed Shrine (Tier 1 Jungle Dungeon).
- * 
- * Aesthetic: Anime / Isekai fantasy ancient overgrown temple (48x48 to 54x54 blocks).
- * Features:
- * - Grand sunken central colonnade with collapsed ceiling and cascading jungle canopy
- * - Sacred mossy water fountain with glow flora and water drops
- * - Decoy / Fake traps that click and smoke to induce paranoia
- * - Brutal 1-HP spore traps that strip players of their health
- * - Lethal Insta-Kill pitfall chasm with pointed dripstone spikes
- * - Rootbound Axe sealed vault guarding the ancient offering chest
+ *
+ * Structure Overview:
+ * 1. Surface Temple: Mesoamerican / Mayan-style stepped pyramid ziggurat matching reference photo.
+ *    - Front elevated causeway approach with wide stone stairs and flanking carved stone pillar monoliths.
+ *    - Multi-tiered stepped pyramid (Tier 1 base, Tier 2 mid-terrace, Tier 3 upper sanctuary).
+ *    - Front central grand staircase ascending Tier 1 and Tier 2 straight into the temple doorway.
+ *    - Weathered stone brick, mossy cobblestone, pilasters, and hanging vines.
+ * 2. 4x4 Round Spiral Staircase:
+ *    - Descends from inside the surface temple sanctuary down into the subterranean complex.
+ *    - Lit with hanging chains and lanterns in the central opening.
+ * 3. 5 Distinct Subterranean Rooms (12x12x6 inner dimensions):
+ *    - Room 1: Sacred Sunken Fountain Sanctuary (Entry room, prismarine water pool, spore blossom, pillars)
+ *    - Room 2: Trap & Pitfall Chasm Gauntlet (Decoy clicker plates, hidden 1-HP spore trap, 30-block death pit with pointed dripstone stalagmites, scaffolding bridge, loot chest)
+ *    - Room 3: Overgrown Crypt & Archives (Ancient stone bookshelves, sarcophagi, cobwebs, crypt chest)
+ *    - Room 4: Double Spawner Challenge Arena (Cave Spider spawner in web nest + Skeleton spawner on raised stone tower, combat obstacles, challenge chest)
+ *    - Room 5: Grand Altar & Rootbound Vault (Raised ceremonial dais with altar chest, sealed vault with ancient impenetrable roots, inscribed lore sign, gold pedestal with sealed chest)
+ * 4. Interconnecting Corridors & Stairs:
+ *    - 3-wide x 4-high arched corridors with stone stairs bridging elevation changes between rooms.
+ *    - Ample lighting everywhere (wall lanterns, hanging lanterns, sea lanterns, spore blossoms, glow lichen).
  */
 public class CollapsedShrineGenerator {
 
     public static final Identifier LOOT_SHRINE = new Identifier(Elemental.MOD_ID, "chests/collapsed_shrine");
     public static final Identifier LOOT_SHRINE_SEALED = new Identifier(Elemental.MOD_ID, "chests/collapsed_shrine_sealed");
 
-    // Footprint: 52 x 52 blocks
-    public static final int SIZE_X = 52;
-    public static final int SIZE_Z = 52;
-    public static final int HEIGHT = 20;
+    public static final int ROOM_INNER_SIZE = 12;
+    public static final int ROOM_INNER_HEIGHT = 6;
 
     /**
-     * Generates a Collapsed Shrine centered near the given position.
-     * The floor is recessed 8 blocks below the natural surface to create a sunken anime ruin.
+     * Generates the complete Collapsed Shrine complex (surface temple + subterranean dungeon).
      */
     public static BlockPos generate(ServerWorld world, BlockPos surfaceCenter) {
         Random rand = new Random(surfaceCenter.asLong() ^ world.getSeed());
@@ -62,41 +67,72 @@ public class CollapsedShrineGenerator {
         int naturalY = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, centerX, centerZ);
         if (naturalY < 62) naturalY = 64;
 
-        // Recessed floor level
-        int floorY = naturalY - 7;
-        BlockPos origin = new BlockPos(centerX - SIZE_X / 2, floorY, centerZ - SIZE_Z / 2);
+        // Subterranean floor Y level (deep underground below jungle surface)
+        int floorY = naturalY - 18;
 
-        Elemental.LOGGER.info("Generating anime-inspired Collapsed Shrine at {} (floor Y={})", origin, floorY);
+        Elemental.LOGGER.info("Generating Collapsed Shrine with surface temple at Y={} and subterranean rooms at Y={}", naturalY, floorY);
 
-        // Track special locations for gameplay mechanics
         List<BlockPos> fakeTraps = new ArrayList<>();
         List<BlockPos> oneHpTraps = new ArrayList<>();
         List<BlockPos> rootBarrierPositions = new ArrayList<>();
-        BlockPos sealedChestPos = null;
+        BlockPos sealedChestPos;
 
-        // 1. Foundation & Subterranean Excavation
-        carveAndBuildChambers(world, origin, floorY, rand);
+        // 1. Build the Surface Stepped Pyramid Temple (matching reference photo)
+        buildSurfaceTemple(world, centerX, naturalY, centerZ - 10, rand);
 
-        // 2. Grand Central Nave & Columns
-        buildCentralSanctuary(world, origin, floorY, rand);
+        // 2. Build the 4x4 Round Spiral Staircase connecting surface temple to subterranean dungeon
+        int stairTopY = naturalY + 9;
+        buildRoundStaircase(world, centerX, centerZ - 10, stairTopY, floorY, rand);
 
-        // 3. Traps Wing (East) - Fake traps, 1-HP spore trap, and Insta-Kill chasm
-        buildTrapsWing(world, origin, floorY, rand, fakeTraps, oneHpTraps);
+        // 3. Build Subterranean Complex: 5 Distinct 12x12x6 Rooms
+        // Room 1: Sacred Sunken Fountain Sanctuary (Entry Room)
+        BlockPos r1Origin = new BlockPos(centerX - 6, floorY, centerZ - 6);
+        carveAndBuildRoomShell(world, r1Origin, rand);
+        buildRoom1Fountain(world, r1Origin, rand);
 
-        // 4. Overgrown Crypt & Garden Wing (West)
-        buildCryptWing(world, origin, floorY, rand);
+        // Room 2: Trap & Pitfall Chasm Gauntlet (East)
+        BlockPos r2Origin = new BlockPos(centerX + 18, floorY - 1, centerZ - 6);
+        carveAndBuildRoomShell(world, r2Origin, rand);
+        buildRoom2TrapsAndChasm(world, r2Origin, rand, fakeTraps, oneHpTraps);
 
-        // 5. North Altar & Rootbound Axe Sealed Vault
-        sealedChestPos = buildNorthAltarAndVault(world, origin, floorY, rand, rootBarrierPositions);
+        // Room 3: Overgrown Crypt & Archives (West)
+        BlockPos r3Origin = new BlockPos(centerX - 30, floorY, centerZ - 6);
+        carveAndBuildRoomShell(world, r3Origin, rand);
+        buildRoom3Crypt(world, r3Origin, rand);
 
-        // 6. Overgrown Foliage & Natural Roof Collapse
-        drapeVegetationAndVines(world, origin, floorY, rand);
+        // Room 4: Double Spawner Challenge Arena (South-East)
+        BlockPos r4Origin = new BlockPos(centerX + 14, floorY - 3, centerZ + 18);
+        carveAndBuildRoomShell(world, r4Origin, rand);
+        buildRoom4DoubleSpawner(world, r4Origin, rand);
 
-        // 7. Register Shrine with JungleDungeonManager for active ambience & traps
-        BlockPos shrineCenter = origin.add(SIZE_X / 2, 5, SIZE_Z / 2);
+        // Room 5: Grand Altar & Rootbound Vault (North)
+        BlockPos r5Origin = new BlockPos(centerX - 6, floorY + 1, centerZ - 28);
+        carveAndBuildRoomShell(world, r5Origin, rand);
+        sealedChestPos = buildRoom5GrandAltarAndVault(world, r5Origin, rand, rootBarrierPositions);
+
+        // 4. Build Connecting Corridors and Stairs
+        buildCorridorsAndStairs(world, centerX, centerZ, floorY, rand);
+
+        // 5. Connect 4x4 staircase bottom into Room 1
+        for (int x = centerX - 1; x <= centerX; x++) {
+            for (int y = floorY + 1; y <= floorY + 3; y++) {
+                world.setBlockState(new BlockPos(x, y, centerZ - 7), Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+                world.setBlockState(new BlockPos(x, y, centerZ - 6), Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+            }
+        }
+        // Archway framing at entrance to Room 1
+        world.setBlockState(new BlockPos(centerX - 2, floorY + 1, centerZ - 7), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(new BlockPos(centerX - 2, floorY + 2, centerZ - 7), Blocks.MOSSY_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(new BlockPos(centerX + 1, floorY + 1, centerZ - 7), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(new BlockPos(centerX + 1, floorY + 2, centerZ - 7), Blocks.MOSSY_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        placeWallLantern(world, new BlockPos(centerX - 2, floorY + 3, centerZ - 6), Direction.SOUTH);
+        placeWallLantern(world, new BlockPos(centerX + 1, floorY + 3, centerZ - 6), Direction.SOUTH);
+
+        // 6. Register Shrine with JungleDungeonManager
+        BlockPos shrineCenter = new BlockPos(centerX, floorY + 3, centerZ);
         Box shrineBounds = new Box(
-                origin.getX() - 4, origin.getY() - 40, origin.getZ() - 4,
-                origin.getX() + SIZE_X + 4, origin.getY() + HEIGHT + 10, origin.getZ() + SIZE_Z + 4
+                centerX - 42, floorY - 38, centerZ - 42,
+                centerX + 42, naturalY + 28, centerZ + 36
         );
 
         JungleDungeonManager.registerShrine(
@@ -106,163 +142,453 @@ public class CollapsedShrineGenerator {
         return shrineCenter;
     }
 
-    /**
-     * Excavates the temple interior and lays foundation walls, floor, and bedrock boundaries.
-     */
-    private static void carveAndBuildChambers(ServerWorld world, BlockPos origin, int floorY, Random rand) {
-        int minX = origin.getX();
-        int maxX = origin.getX() + SIZE_X - 1;
-        int minZ = origin.getZ();
-        int maxZ = origin.getZ() + SIZE_Z - 1;
+    // =========================================================================
+    // 1. SURFACE TEMPLE (Matching Reference Photo)
+    // =========================================================================
 
-        // Solid floor and base
-        for (int x = minX; x <= maxX; x++) {
-            for (int z = minZ; z <= maxZ; z++) {
-                // Foundation underneath floor
-                for (int y = floorY - 3; y < floorY; y++) {
+    /**
+     * Builds the stepped Mayan-style pyramid temple with front elevated causeway,
+     * decorative pillar monoliths, wide stairs, stepped tiers with pilasters,
+     * upper sanctuary house, and central grand staircase.
+     */
+    private static void buildSurfaceTemple(ServerWorld world, int cx, int naturalY, int cz, Random rand) {
+        // --- A. Elevated Causeway / Platform Ramp (South of the Pyramid) ---
+        int causewayZStart = cz + 7;
+        int causewayZEnd = cz + 19;
+        int causewayWidth = 10;
+        int causewayY = naturalY + 2;
+
+        // Foundation down to natural ground to prevent floating
+        for (int x = cx - causewayWidth / 2; x <= cx + causewayWidth / 2; x++) {
+            for (int z = causewayZStart; z <= causewayZEnd; z++) {
+                for (int y = naturalY - 4; y < causewayY; y++) {
+                    world.setBlockState(new BlockPos(x, y, z), getAestheticFoundationBlock(rand), Block.NOTIFY_LISTENERS);
+                }
+                world.setBlockState(new BlockPos(x, causewayY, z), getAestheticFloorBlock(rand), Block.NOTIFY_LISTENERS);
+            }
+        }
+
+        // Wide stone stairs at front of causeway leading up from ground
+        int frontStairZ = causewayZEnd + 1;
+        for (int step = 0; step <= 2; step++) {
+            int sy = causewayY - step;
+            int sz = frontStairZ + step;
+            for (int x = cx - 4; x <= cx + 4; x++) {
+                world.setBlockState(new BlockPos(x, sy, sz),
+                        Blocks.MOSSY_STONE_BRICK_STAIRS.getDefaultState().with(StairsBlock.FACING, Direction.NORTH), Block.NOTIFY_LISTENERS);
+                for (int y = naturalY - 3; y < sy; y++) {
+                    world.setBlockState(new BlockPos(x, y, sz), Blocks.COBBLESTONE.getDefaultState(), Block.NOTIFY_LISTENERS);
+                }
+            }
+        }
+
+        // Pair of Front Pillar Monoliths flanking the entrance stairs
+        buildStoneMonolith(world, new BlockPos(cx - 5, causewayY + 1, frontStairZ), 4, rand);
+        buildStoneMonolith(world, new BlockPos(cx + 5, causewayY + 1, frontStairZ), 4, rand);
+
+        // Pair of Mid Causeway Pillar Monoliths
+        buildStoneMonolith(world, new BlockPos(cx - 5, causewayY + 1, cz + 10), 5, rand);
+        buildStoneMonolith(world, new BlockPos(cx + 5, causewayY + 1, cz + 10), 5, rand);
+
+        // --- B. Stepped Pyramid (Ziggurat) ---
+        // Solid base foundation down to ground
+        for (int x = cx - 11; x <= cx + 11; x++) {
+            for (int z = cz - 11; z <= cz + 7; z++) {
+                for (int y = naturalY - 5; y <= naturalY; y++) {
                     world.setBlockState(new BlockPos(x, y, z), Blocks.DEEPSLATE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
                 }
+            }
+        }
 
-                // Aesthetic floor layer: mixture of mossy stone bricks, cracked bricks, mud bricks, and coarse dirt
-                BlockState floorBlock = getAestheticFloorBlock(rand);
-                world.setBlockState(new BlockPos(x, floorY, z), floorBlock, Block.NOTIFY_LISTENERS);
-
-                // Clear interior space up to height
-                for (int y = floorY + 1; y <= floorY + HEIGHT; y++) {
-                    BlockPos p = new BlockPos(x, y, z);
-                    // Leave peripheral walls, carve interior rooms
-                    boolean isOuterWall = (x == minX || x == maxX || z == minZ || z == maxZ);
-                    if (isOuterWall) {
-                        BlockState wallBlock = getAestheticWallBlock(rand);
-                        world.setBlockState(p, wallBlock, Block.NOTIFY_LISTENERS);
+        // Tier 1: Base Tier (20x18 footprint, height 4 blocks)
+        int t1Y = naturalY + 1;
+        for (int x = cx - 10; x <= cx + 10; x++) {
+            for (int z = cz - 10; z <= cz + 6; z++) {
+                for (int y = t1Y; y <= t1Y + 3; y++) {
+                    boolean isEdge = (x == cx - 10 || x == cx + 10 || z == cz - 10 || z == cz + 6);
+                    if (isEdge) {
+                        // Pilasters on sides
+                        boolean isPilaster = (Math.abs(x - cx) % 3 == 0 || Math.abs(z - cz) % 3 == 0);
+                        BlockState state = isPilaster ? Blocks.CHISELED_STONE_BRICKS.getDefaultState() : getAestheticWallBlock(rand);
+                        world.setBlockState(new BlockPos(x, y, z), state, Block.NOTIFY_LISTENERS);
                     } else {
+                        world.setBlockState(new BlockPos(x, y, z), Blocks.MOSSY_COBBLESTONE.getDefaultState(), Block.NOTIFY_LISTENERS);
+                    }
+                }
+            }
+        }
+
+        // Tier 2: Mid Tier (16x14 footprint, height 4 blocks)
+        int t2Y = t1Y + 4;
+        for (int x = cx - 8; x <= cx + 8; x++) {
+            for (int z = cz - 8; z <= cz + 4; z++) {
+                for (int y = t2Y; y <= t2Y + 3; y++) {
+                    boolean isEdge = (x == cx - 8 || x == cx + 8 || z == cz - 8 || z == cz + 4);
+                    if (isEdge) {
+                        boolean isPilaster = (Math.abs(x - cx) % 3 == 0 || Math.abs(z - cz) % 3 == 0);
+                        BlockState state = isPilaster ? Blocks.CHISELED_STONE_BRICKS.getDefaultState() : getAestheticWallBlock(rand);
+                        world.setBlockState(new BlockPos(x, y, z), state, Block.NOTIFY_LISTENERS);
+                    } else {
+                        world.setBlockState(new BlockPos(x, y, z), Blocks.STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+                    }
+                }
+            }
+        }
+
+        // Tier 3: Upper Temple Sanctuary Chamber (10x10 footprint, height 5 blocks)
+        int t3Y = t2Y + 4; // naturalY + 9
+        for (int x = cx - 5; x <= cx + 5; x++) {
+            for (int z = cz - 6; z <= cz + 2; z++) {
+                // Sanctuary floor
+                world.setBlockState(new BlockPos(x, t3Y - 1, z), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+
+                for (int y = t3Y; y <= t3Y + 4; y++) {
+                    boolean isOuterWall = (x == cx - 5 || x == cx + 5 || z == cz - 6 || z == cz + 2);
+                    if (isOuterWall) {
+                        // Front door opening on South wall (z = cz + 2)
+                        boolean isDoor = (z == cz + 2 && (x == cx || x == cx - 1) && y <= t3Y + 2);
+                        if (isDoor) {
+                            world.setBlockState(new BlockPos(x, y, z), Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+                        } else {
+                            world.setBlockState(new BlockPos(x, y, z), getAestheticWallBlock(rand), Block.NOTIFY_LISTENERS);
+                        }
+                    } else {
+                        // Interior sanctuary room
+                        world.setBlockState(new BlockPos(x, y, z), Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+                    }
+                }
+            }
+        }
+
+        // Doorway lintel and decorative frame
+        world.setBlockState(new BlockPos(cx - 2, t3Y + 3, cz + 2), Blocks.STONE_BRICK_STAIRS.getDefaultState().with(StairsBlock.FACING, Direction.EAST).with(StairsBlock.HALF, BlockHalf.TOP), Block.NOTIFY_LISTENERS);
+        world.setBlockState(new BlockPos(cx + 1, t3Y + 3, cz + 2), Blocks.STONE_BRICK_STAIRS.getDefaultState().with(StairsBlock.FACING, Direction.WEST).with(StairsBlock.HALF, BlockHalf.TOP), Block.NOTIFY_LISTENERS);
+        world.setBlockState(new BlockPos(cx - 1, t3Y + 3, cz + 2), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(new BlockPos(cx, t3Y + 3, cz + 2), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        placeWallLantern(world, new BlockPos(cx - 2, t3Y + 2, cz + 3), Direction.SOUTH);
+        placeWallLantern(world, new BlockPos(cx + 1, t3Y + 2, cz + 3), Direction.SOUTH);
+
+        // --- C. Stepped Pyramid Roof ---
+        // Roof Layer 1
+        int r1Y = t3Y + 5;
+        for (int x = cx - 4; x <= cx + 4; x++) {
+            for (int z = cz - 5; z <= cz + 1; z++) {
+                boolean isEdge = (x == cx - 4 || x == cx + 4 || z == cz - 5 || z == cz + 1);
+                world.setBlockState(new BlockPos(x, r1Y, z), isEdge ? Blocks.MOSSY_STONE_BRICK_SLAB.getDefaultState() : Blocks.MOSSY_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+            }
+        }
+        // Roof Layer 2
+        int r2Y = r1Y + 1;
+        for (int x = cx - 3; x <= cx + 3; x++) {
+            for (int z = cz - 4; z <= cz; z++) {
+                boolean isEdge = (x == cx - 3 || x == cx + 3 || z == cz - 4 || z == cz);
+                world.setBlockState(new BlockPos(x, r2Y, z), isEdge ? Blocks.STONE_BRICK_SLAB.getDefaultState() : Blocks.CRACKED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+            }
+        }
+        // Roof Cap / Crown Ridge
+        int r3Y = r2Y + 1;
+        for (int x = cx - 1; x <= cx + 1; x++) {
+            for (int z = cz - 3; z <= cz - 1; z++) {
+                world.setBlockState(new BlockPos(x, r3Y, z), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+                world.setBlockState(new BlockPos(x, r3Y + 1, z), Blocks.MOSSY_STONE_BRICK_SLAB.getDefaultState(), Block.NOTIFY_LISTENERS);
+            }
+        }
+
+        // Hanging lantern inside the upper sanctuary
+        placeHangingLantern(world, new BlockPos(cx, t3Y + 4, cz - 2));
+
+        // --- D. Central Grand Staircase ---
+        // Climbs from causeway (cz + 7, Y = naturalY + 2) straight up Tier 1 and Tier 2 into doorway (cz + 2, Y = t3Y)
+        int stairSteps = 6;
+        for (int i = 0; i < stairSteps; i++) {
+            int sz = cz + 7 - i;
+            int sy = causewayY + 1 + i;
+            if (sy > t3Y - 1) sy = t3Y - 1;
+
+            // 4-block wide stairs
+            for (int x = cx - 2; x <= cx + 1; x++) {
+                world.setBlockState(new BlockPos(x, sy, sz),
+                        Blocks.STONE_BRICK_STAIRS.getDefaultState().with(StairsBlock.FACING, Direction.NORTH), Block.NOTIFY_LISTENERS);
+                for (int y = naturalY + 1; y < sy; y++) {
+                    world.setBlockState(new BlockPos(x, y, sz), Blocks.MOSSY_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+                }
+                // Clear clearance above steps
+                world.setBlockState(new BlockPos(x, sy + 1, sz), Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+                world.setBlockState(new BlockPos(x, sy + 2, sz), Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+                world.setBlockState(new BlockPos(x, sy + 3, sz), Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+            }
+
+            // Balustrade buttresses on sides of central stairs
+            world.setBlockState(new BlockPos(cx - 3, sy + 1, sz), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+            world.setBlockState(new BlockPos(cx + 2, sy + 1, sz), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        }
+    }
+
+    /**
+     * Builds a decorative ancient carved stone pillar monolith with flared base and cap.
+     */
+    private static void buildStoneMonolith(ServerWorld world, BlockPos basePos, int height, Random rand) {
+        // Base pedestal (2x2)
+        world.setBlockState(basePos, Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(basePos.east(), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(basePos.south(), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(basePos.east().south(), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+
+        // Shaft
+        for (int y = 1; y < height; y++) {
+            BlockState b = (rand.nextFloat() < 0.6f) ? Blocks.MOSSY_STONE_BRICKS.getDefaultState() : Blocks.CRACKED_STONE_BRICKS.getDefaultState();
+            world.setBlockState(basePos.up(y), b, Block.NOTIFY_LISTENERS);
+            world.setBlockState(basePos.east().up(y), b, Block.NOTIFY_LISTENERS);
+            world.setBlockState(basePos.south().up(y), b, Block.NOTIFY_LISTENERS);
+            world.setBlockState(basePos.east().south().up(y), b, Block.NOTIFY_LISTENERS);
+        }
+
+        // Capital
+        BlockPos cap = basePos.up(height);
+        world.setBlockState(cap, Blocks.POLISHED_DEEPSLATE_SLAB.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(cap.east(), Blocks.POLISHED_DEEPSLATE_SLAB.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(cap.south(), Blocks.POLISHED_DEEPSLATE_SLAB.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(cap.east().south(), Blocks.POLISHED_DEEPSLATE_SLAB.getDefaultState(), Block.NOTIFY_LISTENERS);
+
+        // Lantern on top
+        placeStandingLantern(world, cap.up());
+    }
+
+    // =========================================================================
+    // 2. 4x4 ROUND SPIRAL STAIRCASE
+    // =========================================================================
+
+    /**
+     * Builds a circular/spiral 4x4 staircase descending from inside the surface temple
+     * all the way down to the subterranean dungeon floor.
+     * Footprint: cx - 2 to cx + 1, cz - 2 to cz + 1 (4x4 blocks).
+     */
+    private static void buildRoundStaircase(ServerWorld world, int cx, int cz, int topY, int bottomY, Random rand) {
+        int minX = cx - 2;
+        int minZ = cz - 2;
+
+        // Step coordinates around the 4x4 perimeter (8-step circular sequence):
+        // 0: North-Mid-Left  (1, 0)
+        // 1: North-Mid-Right (2, 0)
+        // 2: East-Mid-Top    (3, 1)
+        // 3: East-Mid-Bottom (3, 2)
+        // 4: South-Mid-Right (2, 3)
+        // 5: South-Mid-Left  (1, 3)
+        // 6: West-Mid-Bottom (0, 2)
+        // 7: West-Mid-Top    (0, 1)
+        int[][] stepCoords = {
+                {1, 0}, {2, 0},
+                {3, 1}, {3, 2},
+                {2, 3}, {1, 3},
+                {0, 2}, {0, 1}
+        };
+
+        // Enclosing stone shaft walls from top down to bottom
+        for (int y = bottomY; y <= topY; y++) {
+            for (int dx = -1; dx <= 4; dx++) {
+                for (int dz = -1; dz <= 4; dz++) {
+                    boolean isOuterWall = (dx == -1 || dx == 4 || dz == -1 || dz == 4);
+                    boolean isCorner = (dx == -1 && dz == -1) || (dx == 4 && dz == -1) || (dx == -1 && dz == 4) || (dx == 4 && dz == 4);
+                    BlockPos p = new BlockPos(minX + dx, y, minZ + dz);
+
+                    if (isOuterWall && !isCorner) {
+                        BlockState wallState = (rand.nextFloat() < 0.5f) ? Blocks.MOSSY_STONE_BRICKS.getDefaultState() : Blocks.CRACKED_STONE_BRICKS.getDefaultState();
+                        world.setBlockState(p, wallState, Block.NOTIFY_LISTENERS);
+                    } else if (!isOuterWall) {
                         world.setBlockState(p, Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
                     }
                 }
             }
         }
+
+        // 4 Corner support pillars inside the 4x4 shaft
+        for (int y = bottomY; y <= topY; y++) {
+            world.setBlockState(new BlockPos(minX, y, minZ), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+            world.setBlockState(new BlockPos(minX + 3, y, minZ), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+            world.setBlockState(new BlockPos(minX, y, minZ + 3), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+            world.setBlockState(new BlockPos(minX + 3, y, minZ + 3), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        }
+
+        // Central hanging chain and lanterns in the 2x2 core: (minX+1, minZ+1)
+        for (int y = bottomY + 2; y <= topY - 1; y++) {
+            world.setBlockState(new BlockPos(minX + 1, y, minZ + 1), Blocks.CHAIN.getDefaultState().with(ChainBlock.AXIS, Direction.Axis.Y), Block.NOTIFY_LISTENERS);
+            if ((y - bottomY) % 5 == 0) {
+                placeStandingLantern(world, new BlockPos(minX + 2, y, minZ + 1));
+            }
+        }
+
+        // Carve spiral staircase winding down
+        int totalHeight = topY - bottomY;
+        int totalHalfSteps = totalHeight * 2;
+
+        for (int s = 0; s < totalHalfSteps; s++) {
+            int stepIndex = s % 8;
+            int[] coord = stepCoords[stepIndex];
+            int px = minX + coord[0];
+            int pz = minZ + coord[1];
+
+            double currentY = topY - (s * 0.5);
+            int blockY = (int) Math.floor(currentY);
+            boolean isTopSlab = (currentY - blockY) >= 0.5;
+
+            BlockPos stepPos = new BlockPos(px, blockY, pz);
+
+            // Step block
+            BlockState slabState = Blocks.MOSSY_STONE_BRICK_SLAB.getDefaultState()
+                    .with(SlabBlock.TYPE, isTopSlab ? SlabType.TOP : SlabType.BOTTOM);
+            world.setBlockState(stepPos, slabState, Block.NOTIFY_LISTENERS);
+
+            // Solid support under bottom slab
+            if (!isTopSlab) {
+                world.setBlockState(stepPos.down(), Blocks.CRACKED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+            }
+
+            // Headroom clearance
+            world.setBlockState(stepPos.up(), Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+            world.setBlockState(stepPos.up(2), Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+            world.setBlockState(stepPos.up(3), Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+        }
+    }
+
+    // =========================================================================
+    // 3. SUBTERRANEAN ROOMS (12x12x6 Inner Dimensions)
+    // =========================================================================
+
+    /**
+     * Carves out a 12x12x6 room space and builds surrounding stone brick floor, walls, and ceiling.
+     */
+    private static void carveAndBuildRoomShell(ServerWorld world, BlockPos origin, Random rand) {
+        int ox = origin.getX();
+        int oy = origin.getY();
+        int oz = origin.getZ();
+
+        for (int dx = -1; dx <= ROOM_INNER_SIZE; dx++) {
+            for (int dz = -1; dz <= ROOM_INNER_SIZE; dz++) {
+                int x = ox + dx;
+                int z = oz + dz;
+
+                // Solid foundation underneath
+                world.setBlockState(new BlockPos(x, oy - 1, z), Blocks.DEEPSLATE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+
+                // Floor layer
+                world.setBlockState(new BlockPos(x, oy, z), getAestheticFloorBlock(rand), Block.NOTIFY_LISTENERS);
+
+                // Walls and interior
+                for (int dy = 1; dy <= ROOM_INNER_HEIGHT; dy++) {
+                    int y = oy + dy;
+                    BlockPos p = new BlockPos(x, y, z);
+                    boolean isWall = (dx == -1 || dx == ROOM_INNER_SIZE || dz == -1 || dz == ROOM_INNER_SIZE);
+                    if (isWall) {
+                        world.setBlockState(p, getAestheticWallBlock(rand), Block.NOTIFY_LISTENERS);
+                    } else {
+                        world.setBlockState(p, Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+                    }
+                }
+
+                // Ceiling layer
+                world.setBlockState(new BlockPos(x, oy + ROOM_INNER_HEIGHT + 1, z), Blocks.CRACKED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+            }
+        }
     }
 
     /**
-     * Builds the Grand Central Nave: High arched colonnade, massive columns, sacred water font.
+     * Room 1: Sacred Sunken Fountain Sanctuary (Entry Room)
+     * Features:
+     * - Sunken circular water fountain with prismarine bricks, water, and lily pads
+     * - Center pedestal with Spore Blossom emitting soothing green spore particles
+     * - 4 Grand weathered stone pillars with capitals holding hanging lanterns
+     * - Lush foliage, flowering azalea, and glowing cave vines
      */
-    private static void buildCentralSanctuary(ServerWorld world, BlockPos origin, int floorY, Random rand) {
-        int centerX = origin.getX() + SIZE_X / 2;
-        int centerZ = origin.getZ() + SIZE_Z / 2;
+    private static void buildRoom1Fountain(ServerWorld world, BlockPos origin, Random rand) {
+        int cx = origin.getX() + 6;
+        int cz = origin.getZ() + 6;
+        int fy = origin.getY();
 
-        // 1. Sacred Sunken Water Pool (10x10)
-        for (int dx = -5; dx <= 5; dx++) {
-            for (int dz = -5; dz <= 5; dz++) {
+        // Sunken Circular Water Basin (radius 3)
+        for (int dx = -3; dx <= 3; dx++) {
+            for (int dz = -3; dz <= 3; dz++) {
                 int distSq = dx * dx + dz * dz;
-                BlockPos poolPos = new BlockPos(centerX + dx, floorY, centerZ + dz);
-                if (distSq <= 24) {
-                    // Sunken water basin
-                    world.setBlockState(poolPos.down(), Blocks.PRISMARINE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
-                    world.setBlockState(poolPos, Blocks.WATER.getDefaultState(), Block.NOTIFY_LISTENERS);
-                    if (rand.nextFloat() < 0.25f) {
-                        world.setBlockState(poolPos.up(), Blocks.LILY_PAD.getDefaultState(), Block.NOTIFY_LISTENERS);
+                BlockPos p = new BlockPos(cx + dx, fy, cz + dz);
+                if (distSq <= 6) {
+                    world.setBlockState(p.down(), Blocks.PRISMARINE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+                    world.setBlockState(p, Blocks.WATER.getDefaultState(), Block.NOTIFY_LISTENERS);
+                    if (rand.nextFloat() < 0.35f) {
+                        world.setBlockState(p.up(), Blocks.LILY_PAD.getDefaultState(), Block.NOTIFY_LISTENERS);
                     }
-                } else if (distSq <= 30) {
-                    // Border coping
-                    world.setBlockState(poolPos, Blocks.MOSSY_STONE_BRICK_SLAB.getDefaultState().with(SlabBlock.TYPE, SlabType.BOTTOM), Block.NOTIFY_LISTENERS);
+                } else if (distSq <= 9) {
+                    world.setBlockState(p, Blocks.MOSSY_STONE_BRICK_SLAB.getDefaultState(), Block.NOTIFY_LISTENERS);
                 }
             }
         }
 
-        // Ancient center altar pedestal inside the pool
-        BlockPos altarPedestal = new BlockPos(centerX, floorY + 1, centerZ);
-        world.setBlockState(altarPedestal.down(), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
-        world.setBlockState(altarPedestal, Blocks.MOSSY_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
-        world.setBlockState(altarPedestal.up(), Blocks.SPORE_BLOSSOM.getDefaultState(), Block.NOTIFY_LISTENERS);
+        // Center Spore Blossom Pedestal
+        BlockPos pedestal = new BlockPos(cx, fy + 1, cz);
+        world.setBlockState(pedestal.down(), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(pedestal, Blocks.MOSSY_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(pedestal.up(), Blocks.SPORE_BLOSSOM.getDefaultState(), Block.NOTIFY_LISTENERS);
 
-        // 2. Colonnade: 8 grand weathered stone pillars (3x3 fluted base)
-        int[][] pillarOffsets = {
-                {-12, -12}, {0, -14}, {12, -12},
-                {-14, 0},             {14, 0},
-                {-12, 12},  {0, 14},  {12, 12}
-        };
-
-        for (int[] offset : pillarOffsets) {
-            int px = centerX + offset[0];
-            int pz = centerZ + offset[1];
-            buildWeatheredPillar(world, new BlockPos(px, floorY + 1, pz), HEIGHT - 3, rand);
+        // 4 Corner Columns with Hanging Lanterns
+        int[][] colOffsets = {{-3, -3}, {3, -3}, {-3, 3}, {3, 3}};
+        for (int[] offset : colOffsets) {
+            int px = cx + offset[0];
+            int pz = cz + offset[1];
+            // Base
+            world.setBlockState(new BlockPos(px, fy + 1, pz), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+            // Shaft
+            for (int y = fy + 2; y <= fy + 5; y++) {
+                world.setBlockState(new BlockPos(px, y, pz), Blocks.MOSSY_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+            }
+            // Capital & Lantern
+            world.setBlockState(new BlockPos(px, fy + 6, pz), Blocks.STONE_BRICK_STAIRS.getDefaultState().with(StairsBlock.HALF, BlockHalf.TOP), Block.NOTIFY_LISTENERS);
+            placeHangingLantern(world, new BlockPos(px, fy + 4, pz + 1));
         }
+
+        // Lush ground flora
+        world.setBlockState(new BlockPos(cx - 4, fy + 1, cz - 1), Blocks.FLOWERING_AZALEA.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(new BlockPos(cx + 4, fy + 1, cz + 1), Blocks.FLOWERING_AZALEA.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(new BlockPos(cx - 2, fy + 1, cz + 4), Blocks.MOSS_CARPET.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(new BlockPos(cx + 2, fy + 1, cz - 4), Blocks.MOSS_CARPET.getDefaultState(), Block.NOTIFY_LISTENERS);
+
+        // Wall sconce lanterns
+        placeWallLantern(world, new BlockPos(origin.getX(), fy + 3, cz), Direction.EAST);
+        placeWallLantern(world, new BlockPos(origin.getX() + 11, fy + 3, cz), Direction.WEST);
     }
 
     /**
-     * Builds a massive anime-style weathered stone pillar with vines, cracked bricks, and broken capitals.
+     * Room 2: Trap & Pitfall Chasm Gauntlet (East Wing)
+     * Features:
+     * - Conspicuous stone pressure plates that trigger decoy click sound + smoke (fakeTraps)
+     * - Hidden 1-HP spore trap carpet + dispenser with Strong Poison arrows (oneHpTraps)
+     * - Lethal 30-block abyssal pitfall chasm with pointed dripstone stalagmites
+     * - Fragile scaffolding bridge with moss carpet across the chasm
+     * - Treasure chest perched across the fragile bridge on a chiseled pedestal (LOOT_SHRINE)
+     * - Ample lighting with wall lanterns and inset floor shroomlights under iron trapdoors
      */
-    private static void buildWeatheredPillar(ServerWorld world, BlockPos base, int height, Random rand) {
-        // Base pedestal (3x3)
-        for (int dx = -1; dx <= 1; dx++) {
-            for (int dz = -1; dz <= 1; dz++) {
-                world.setBlockState(base.add(dx, 0, dz), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
-            }
-        }
+    private static void buildRoom2TrapsAndChasm(ServerWorld world, BlockPos origin, Random rand,
+                                                List<BlockPos> fakeTraps, List<BlockPos> oneHpTraps) {
+        int ox = origin.getX();
+        int oz = origin.getZ();
+        int fy = origin.getY();
 
-        // Main column shaft
-        int actualHeight = height - rand.nextInt(3); // Some pillars broken at top
-        for (int y = 1; y <= actualHeight; y++) {
-            BlockPos core = base.up(y);
-            BlockState shaftBlock = (rand.nextFloat() < 0.6f) ? Blocks.MOSSY_STONE_BRICKS.getDefaultState() :
-                    (rand.nextFloat() < 0.5f ? Blocks.CRACKED_STONE_BRICKS.getDefaultState() : Blocks.STONE_BRICKS.getDefaultState());
-            world.setBlockState(core, shaftBlock, Block.NOTIFY_LISTENERS);
+        // 1. Fake / Decoy Trap Pressure Plates (clicking harmless traps)
+        BlockPos fake1 = new BlockPos(ox + 3, fy + 1, oz + 3);
+        world.setBlockState(fake1.down(), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(fake1, Blocks.STONE_PRESSURE_PLATE.getDefaultState(), Block.NOTIFY_LISTENERS);
+        fakeTraps.add(fake1);
 
-            // Hanging vines along pillar sides
-            for (Direction dir : Direction.Type.HORIZONTAL) {
-                if (rand.nextFloat() < 0.45f) {
-                    BlockPos vinePos = core.offset(dir);
-                    if (world.getBlockState(vinePos).isAir()) {
-                        world.setBlockState(vinePos, Blocks.VINE.getDefaultState().with(VineBlock.getFacingProperty(dir.getOpposite()), true), Block.NOTIFY_LISTENERS);
-                    }
-                }
-            }
-        }
-    }
+        BlockPos fake2 = new BlockPos(ox + 3, fy + 1, oz + 8);
+        world.setBlockState(fake2.down(), Blocks.MOSSY_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(fake2, Blocks.STONE_PRESSURE_PLATE.getDefaultState(), Block.NOTIFY_LISTENERS);
+        fakeTraps.add(fake2);
 
-    /**
-     * Builds the East Wing with:
-     * 1. Decoy / Fake Traps (clicks, smoke, false alarms)
-     * 2. 1-HP Traps (ancient botanical poison surge that drops player to 0.5 heart)
-     * 3. Insta-Kill Trap (35-block abyssal drop onto pointed dripstone stalagmites)
-     */
-    private static void buildTrapsWing(ServerWorld world, BlockPos origin, int floorY, Random rand,
-                                       List<BlockPos> fakeTraps, List<BlockPos> oneHpTraps) {
-        int wingStartX = origin.getX() + SIZE_X / 2 + 10;
-        int wingZ = origin.getZ() + SIZE_Z / 2;
+        // 2. Brutal 1-HP Spore Trap hidden under moss carpet
+        BlockPos oneHp = new BlockPos(ox + 5, fy + 1, oz + 5);
+        world.setBlockState(oneHp.down(), Blocks.MUD_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(oneHp, Blocks.MOSS_CARPET.getDefaultState(), Block.NOTIFY_LISTENERS);
+        oneHpTraps.add(oneHp);
 
-        // Corridor dividing walls
-        for (int z = wingZ - 10; z <= wingZ + 10; z++) {
-            world.setBlockState(new BlockPos(wingStartX, floorY + 1, z), Blocks.MOSSY_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
-            world.setBlockState(new BlockPos(wingStartX, floorY + 2, z), Blocks.CRACKED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
-        }
-        // Archway opening into traps wing
-        for (int y = floorY + 1; y <= floorY + 4; y++) {
-            world.setBlockState(new BlockPos(wingStartX, y, wingZ), Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
-            world.setBlockState(new BlockPos(wingStartX, y, wingZ + 1), Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
-        }
-
-        // --- TRAP 1: The Fake / Decoy Trap Corridor ---
-        // Conspicuous pressure plates that click and emit harmless campfire smoke to psych out the player
-        BlockPos fakePlatePos1 = new BlockPos(wingStartX + 4, floorY + 1, wingZ - 3);
-        world.setBlockState(fakePlatePos1.down(), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
-        world.setBlockState(fakePlatePos1, Blocks.STONE_PRESSURE_PLATE.getDefaultState(), Block.NOTIFY_LISTENERS);
-        fakeTraps.add(fakePlatePos1);
-
-        BlockPos fakePlatePos2 = new BlockPos(wingStartX + 7, floorY + 1, wingZ + 2);
-        world.setBlockState(fakePlatePos2.down(), Blocks.MOSSY_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
-        world.setBlockState(fakePlatePos2, Blocks.STONE_PRESSURE_PLATE.getDefaultState(), Block.NOTIFY_LISTENERS);
-        fakeTraps.add(fakePlatePos2);
-
-        // --- TRAP 2: The Brutal 1-HP Spore Trap ---
-        // Hidden under false moss carpet: when stepped on, erupts in toxic spore burst and leaves player at 1 HP
-        BlockPos oneHpPlatePos = new BlockPos(wingStartX + 6, floorY + 1, wingZ - 5);
-        world.setBlockState(oneHpPlatePos.down(), Blocks.MUD_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
-        world.setBlockState(oneHpPlatePos, Blocks.MOSS_CARPET.getDefaultState(), Block.NOTIFY_LISTENERS);
-        oneHpTraps.add(oneHpPlatePos);
-
-        // Dispenser loaded with Poison II & Slowness hidden in wall near 1-HP trap
-        BlockPos dispenserPos = new BlockPos(wingStartX + 6, floorY + 2, wingZ - 7);
+        // Hidden wall dispenser loaded with Strong Poison arrows
+        BlockPos dispenserPos = new BlockPos(ox + 5, fy + 2, oz - 1);
         world.setBlockState(dispenserPos, Blocks.DISPENSER.getDefaultState().with(DispenserBlock.FACING, Direction.SOUTH), Block.NOTIFY_LISTENERS);
         if (world.getBlockEntity(dispenserPos) instanceof DispenserBlockEntity dispenser) {
             ItemStack poisonArrow = new ItemStack(Items.TIPPED_ARROW, 8);
@@ -270,149 +596,281 @@ public class CollapsedShrineGenerator {
             dispenser.setStack(4, poisonArrow);
         }
 
-        // --- TRAP 3: The Insta-Kill Pitfall Chasm (35 Blocks Deep + Pointed Dripstone) ---
-        // A false stone walkway leading to a chest on a tempting pedestal
-        int chasmX = wingStartX + 8;
-        int chasmZ = wingZ + 4;
+        // 3. Lethal Pitfall Chasm (30 blocks deep with pointed dripstone stalagmites)
+        // Positioned at X = ox + 7 to ox + 10, Z = oz + 2 to oz + 9
+        int pitDepth = 30;
+        int bottomY = Math.max(-58, fy - pitDepth);
 
-        // Carve deep death pit
-        int pitDepth = 35;
-        int bottomY = Math.max(-60, floorY - pitDepth);
-
-        for (int dx = -2; dx <= 2; dx++) {
-            for (int dz = -2; dz <= 2; dz++) {
-                BlockPos colPos = new BlockPos(chasmX + dx, floorY, chasmZ + dz);
+        for (int x = ox + 7; x <= ox + 10; x++) {
+            for (int z = oz + 2; z <= oz + 9; z++) {
                 // Hollow out the pit
-                for (int y = bottomY; y <= floorY; y++) {
-                    world.setBlockState(new BlockPos(colPos.getX(), y, colPos.getZ()), Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+                for (int y = bottomY; y <= fy; y++) {
+                    world.setBlockState(new BlockPos(x, y, z), Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
                 }
-                // Bedrock & Deepslate walls and floor
-                world.setBlockState(new BlockPos(colPos.getX(), bottomY - 1, colPos.getZ()), Blocks.DEEPSLATE.getDefaultState(), Block.NOTIFY_LISTENERS);
+                // Deepslate bedrock base
+                world.setBlockState(new BlockPos(x, bottomY - 1, z), Blocks.DEEPSLATE.getDefaultState(), Block.NOTIFY_LISTENERS);
 
-                // Lethal pointed dripstone stalagmites at the bottom
-                world.setBlockState(new BlockPos(colPos.getX(), bottomY, colPos.getZ()),
+                // Pointed dripstone stalagmites at the bottom
+                world.setBlockState(new BlockPos(x, bottomY, z),
                         Blocks.POINTED_DRIPSTONE.getDefaultState()
                                 .with(PointedDripstoneBlock.VERTICAL_DIRECTION, Direction.UP)
-                                .with(PointedDripstoneBlock.THICKNESS, net.minecraft.block.enums.Thickness.TIP_MERGE),
+                                .with(PointedDripstoneBlock.THICKNESS, Thickness.TIP_MERGE),
                         Block.NOTIFY_LISTENERS);
             }
         }
 
-        // Fragile walkway over the chasm (Scaffolding disguised with moss carpet)
-        for (int dz = -2; dz <= 1; dz++) {
-            BlockPos bridgePos = new BlockPos(chasmX, floorY, chasmZ + dz);
-            world.setBlockState(bridgePos, Blocks.SCAFFOLDING.getDefaultState(), Block.NOTIFY_LISTENERS);
-            world.setBlockState(bridgePos.up(), Blocks.MOSS_CARPET.getDefaultState(), Block.NOTIFY_LISTENERS);
+        // Fragile walkway bridge across the chasm (Scaffolding with Moss Carpet)
+        int bridgeZ = oz + 6;
+        for (int x = ox + 7; x <= ox + 9; x++) {
+            BlockPos bPos = new BlockPos(x, fy, bridgeZ);
+            world.setBlockState(bPos, Blocks.SCAFFOLDING.getDefaultState(), Block.NOTIFY_LISTENERS);
+            world.setBlockState(bPos.up(), Blocks.MOSS_CARPET.getDefaultState(), Block.NOTIFY_LISTENERS);
         }
 
-        // The lure: A treasure chest perched across the fragile pit
-        BlockPos lureChestPos = new BlockPos(chasmX, floorY + 1, chasmZ + 2);
-        world.setBlockState(lureChestPos.down(), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
-        world.setBlockState(lureChestPos, Blocks.CHEST.getDefaultState().with(ChestBlock.FACING, Direction.NORTH), Block.NOTIFY_LISTENERS);
-        if (world.getBlockEntity(lureChestPos) instanceof ChestBlockEntity chest) {
+        // Treasure chest on a raised stone pedestal across the chasm
+        BlockPos chestPos = new BlockPos(ox + 10, fy + 1, bridgeZ);
+        world.setBlockState(chestPos.down(), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(chestPos, Blocks.CHEST.getDefaultState().with(ChestBlock.FACING, Direction.WEST), Block.NOTIFY_LISTENERS);
+        if (world.getBlockEntity(chestPos) instanceof ChestBlockEntity chest) {
             chest.setLootTable(LOOT_SHRINE, rand.nextLong());
         }
+
+        // 4. Bright and Atmospheric Lighting
+        placeWallLantern(world, new BlockPos(ox + 1, fy + 3, oz + 2), Direction.EAST);
+        placeWallLantern(world, new BlockPos(ox + 1, fy + 3, oz + 9), Direction.EAST);
+        placeWallLantern(world, new BlockPos(ox + 10, fy + 3, oz + 1), Direction.WEST);
+        placeWallLantern(world, new BlockPos(ox + 10, fy + 3, oz + 10), Direction.WEST);
+
+        // Hanging chains and lanterns over the chasm
+        placeHangingLantern(world, new BlockPos(ox + 8, fy + 5, oz + 4));
+        placeHangingLantern(world, new BlockPos(ox + 8, fy + 5, oz + 8));
     }
 
     /**
-     * Builds the West Wing: Overgrown Crypt & Garden of Whispers.
-     * Contains ancient stone shelves, water pools, and a secondary exploration chest.
+     * Room 3: Overgrown Crypt & Archives (West Wing)
+     * Features:
+     * - Ancient stone bookshelves, mud bricks, and cobwebs
+     * - Two stone sarcophagi / tombs in the center with chiseled stone details
+     * - Secondary exploration treasure chest (LOOT_SHRINE)
+     * - Warm illumination with copper lanterns, wall sconces, and sea lanterns
      */
-    private static void buildCryptWing(ServerWorld world, BlockPos origin, int floorY, Random rand) {
-        int wingStartX = origin.getX() + SIZE_X / 2 - 12;
-        int wingZ = origin.getZ() + SIZE_Z / 2;
+    private static void buildRoom3Crypt(ServerWorld world, BlockPos origin, Random rand) {
+        int ox = origin.getX();
+        int oz = origin.getZ();
+        int fy = origin.getY();
 
-        // Crypt alcoves with decorative bookshelves and cobwebs
-        for (int dz = -8; dz <= 8; dz += 4) {
-            BlockPos alcove = new BlockPos(wingStartX - 6, floorY + 1, wingZ + dz);
-            world.setBlockState(alcove, Blocks.BOOKSHELF.getDefaultState(), Block.NOTIFY_LISTENERS);
-            world.setBlockState(alcove.up(), Blocks.COBWEB.getDefaultState(), Block.NOTIFY_LISTENERS);
-            world.setBlockState(alcove.offset(Direction.EAST), Blocks.LANTERN.getDefaultState().with(LanternBlock.HANGING, false), Block.NOTIFY_LISTENERS);
+        // North and South Wall Bookshelves and Cobwebs
+        for (int x = ox + 2; x <= ox + 9; x += 2) {
+            // North wall alcoves
+            world.setBlockState(new BlockPos(x, fy + 1, oz), Blocks.BOOKSHELF.getDefaultState(), Block.NOTIFY_LISTENERS);
+            world.setBlockState(new BlockPos(x, fy + 2, oz), Blocks.BOOKSHELF.getDefaultState(), Block.NOTIFY_LISTENERS);
+            world.setBlockState(new BlockPos(x, fy + 3, oz), Blocks.COBWEB.getDefaultState(), Block.NOTIFY_LISTENERS);
+
+            // South wall alcoves
+            world.setBlockState(new BlockPos(x, fy + 1, oz + 11), Blocks.BOOKSHELF.getDefaultState(), Block.NOTIFY_LISTENERS);
+            world.setBlockState(new BlockPos(x, fy + 2, oz + 11), Blocks.BOOKSHELF.getDefaultState(), Block.NOTIFY_LISTENERS);
+            world.setBlockState(new BlockPos(x, fy + 3, oz + 11), Blocks.COBWEB.getDefaultState(), Block.NOTIFY_LISTENERS);
         }
 
-        // Crypt exploration chest
-        BlockPos cryptChestPos = new BlockPos(wingStartX - 8, floorY + 1, wingZ);
+        // Two Ancient Sarcophagi / Stone Tombs in the center
+        // Tomb 1 (North-Center)
+        buildSarcophagus(world, new BlockPos(ox + 4, fy + 1, oz + 4));
+        // Tomb 2 (South-Center)
+        buildSarcophagus(world, new BlockPos(ox + 4, fy + 1, oz + 7));
+
+        // Crypt exploration chest on a mud-brick altar
+        BlockPos cryptChestPos = new BlockPos(ox + 8, fy + 1, oz + 6);
         world.setBlockState(cryptChestPos.down(), Blocks.MUD_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
-        world.setBlockState(cryptChestPos, Blocks.CHEST.getDefaultState().with(ChestBlock.FACING, Direction.EAST), Block.NOTIFY_LISTENERS);
+        world.setBlockState(cryptChestPos, Blocks.CHEST.getDefaultState().with(ChestBlock.FACING, Direction.WEST), Block.NOTIFY_LISTENERS);
         if (world.getBlockEntity(cryptChestPos) instanceof ChestBlockEntity chest) {
             chest.setLootTable(LOOT_SHRINE, rand.nextLong());
         }
+
+        // Lighting: Copper lanterns and wall lanterns
+        placeWallLantern(world, new BlockPos(ox, fy + 3, oz + 3), Direction.EAST);
+        placeWallLantern(world, new BlockPos(ox, fy + 3, oz + 8), Direction.EAST);
+        placeWallLantern(world, new BlockPos(ox + 10, fy + 3, oz + 3), Direction.WEST);
+        placeWallLantern(world, new BlockPos(ox + 10, fy + 3, oz + 8), Direction.WEST);
+        placeHangingLantern(world, new BlockPos(ox + 5, fy + 5, oz + 4));
+        placeHangingLantern(world, new BlockPos(ox + 5, fy + 5, oz + 7));
+    }
+
+    private static void buildSarcophagus(ServerWorld world, BlockPos basePos) {
+        for (int dx = 0; dx <= 2; dx++) {
+            BlockPos p = basePos.add(dx, 0, 0);
+            world.setBlockState(p, Blocks.POLISHED_DEEPSLATE.getDefaultState(), Block.NOTIFY_LISTENERS);
+            world.setBlockState(p.up(), Blocks.POLISHED_DEEPSLATE_SLAB.getDefaultState(), Block.NOTIFY_LISTENERS);
+        }
+        world.setBlockState(basePos.add(0, 1, 0), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
     }
 
     /**
-     * Builds the North Altar and the Rootbound Axe Sealed Vault:
-     * - Grand elevated dais with steps
-     * - Primary shrine offering chest
-     * - Root-sealed vault: enclosed by impenetrable ancient roots
-     * - Only clearable using the Rootbound Axe
+     * Room 4: Double Spawner Challenge Arena (South-East Wing)
+     * Features:
+     * - Recessed underground battle arena floor
+     * - Two DIFFERENT mob spawners:
+     *   1. Cave Spider Spawner nested in a sunken webbed alcove
+     *   2. Skeleton Spawner atop a raised stone brick watchtower platform
+     * - Combat cover pillars, iron bars, and obstacle terrain
+     * - Challenge reward chest guarded by the spawners (LOOT_SHRINE)
+     * - Well lit with wall lanterns and hanging soul lanterns
      */
-    private static BlockPos buildNorthAltarAndVault(ServerWorld world, BlockPos origin, int floorY, Random rand,
-                                                   List<BlockPos> rootBarrierPositions) {
-        int centerX = origin.getX() + SIZE_X / 2;
-        int altarZ = origin.getZ() + 10;
+    private static void buildRoom4DoubleSpawner(ServerWorld world, BlockPos origin, Random rand) {
+        int ox = origin.getX();
+        int oz = origin.getZ();
+        int fy = origin.getY();
 
-        // Elevated Dais (3-step raised stone platform)
-        for (int dx = -7; dx <= 7; dx++) {
-            for (int dz = -4; dz <= 4; dz++) {
-                BlockPos daisPos = new BlockPos(centerX + dx, floorY + 1, altarZ + dz);
-                world.setBlockState(daisPos, Blocks.POLISHED_DEEPSLATE.getDefaultState(), Block.NOTIFY_LISTENERS);
-                if (Math.abs(dx) <= 5 && Math.abs(dz) <= 2) {
-                    world.setBlockState(daisPos.up(), Blocks.DEEPSLATE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
-                }
+        // 1. Spawner 1: Cave Spider Spawner in a webbed nest (North-West corner)
+        BlockPos spiderSpawnerPos = new BlockPos(ox + 2, fy + 1, oz + 2);
+        world.setBlockState(spiderSpawnerPos.down(), Blocks.MUDDY_MANGROVE_ROOTS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(spiderSpawnerPos, Blocks.SPAWNER.getDefaultState(), Block.NOTIFY_LISTENERS);
+        if (world.getBlockEntity(spiderSpawnerPos) instanceof MobSpawnerBlockEntity spawner) {
+            spawner.getLogic().setEntityId(EntityType.CAVE_SPIDER, world, world.getRandom(), spiderSpawnerPos);
+        }
+        // Cobweb nest surrounding spider spawner
+        for (Direction dir : Direction.Type.HORIZONTAL) {
+            BlockPos webPos = spiderSpawnerPos.offset(dir);
+            if (world.getBlockState(webPos).isAir()) {
+                world.setBlockState(webPos, Blocks.COBWEB.getDefaultState(), Block.NOTIFY_LISTENERS);
+            }
+        }
+        world.setBlockState(spiderSpawnerPos.up(), Blocks.COBWEB.getDefaultState(), Block.NOTIFY_LISTENERS);
+
+        // 2. Spawner 2: Skeleton Spawner on a raised watchtower platform (South-East corner)
+        // 3x3 Stone Watchtower Platform
+        for (int dx = 7; dx <= 9; dx++) {
+            for (int dz = 7; dz <= 9; dz++) {
+                world.setBlockState(new BlockPos(ox + dx, fy + 1, oz + dz), Blocks.MOSSY_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+            }
+        }
+        BlockPos skeletonSpawnerPos = new BlockPos(ox + 8, fy + 2, oz + 8);
+        world.setBlockState(skeletonSpawnerPos, Blocks.SPAWNER.getDefaultState(), Block.NOTIFY_LISTENERS);
+        if (world.getBlockEntity(skeletonSpawnerPos) instanceof MobSpawnerBlockEntity spawner) {
+            spawner.getLogic().setEntityId(EntityType.SKELETON, world, world.getRandom(), skeletonSpawnerPos);
+        }
+        // Iron bars and partial battlements around watchtower
+        world.setBlockState(new BlockPos(ox + 7, fy + 2, oz + 7), Blocks.IRON_BARS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(new BlockPos(ox + 9, fy + 2, oz + 7), Blocks.IRON_BARS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(new BlockPos(ox + 7, fy + 2, oz + 9), Blocks.IRON_BARS.getDefaultState(), Block.NOTIFY_LISTENERS);
+
+        // 3. Combat Obstacle Cover Pillars in the center of the arena
+        world.setBlockState(new BlockPos(ox + 4, fy + 1, oz + 6), Blocks.CRACKED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(new BlockPos(ox + 4, fy + 2, oz + 6), Blocks.MOSSY_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(new BlockPos(ox + 4, fy + 3, oz + 6), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+
+        world.setBlockState(new BlockPos(ox + 7, fy + 1, oz + 4), Blocks.MOSSY_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(new BlockPos(ox + 7, fy + 2, oz + 4), Blocks.CRACKED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+
+        // 4. Challenge Reward Chest at the back on an altar dais
+        BlockPos rewardChestPos = new BlockPos(ox + 2, fy + 1, oz + 9);
+        world.setBlockState(rewardChestPos.down(), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(rewardChestPos, Blocks.CHEST.getDefaultState().with(ChestBlock.FACING, Direction.NORTH), Block.NOTIFY_LISTENERS);
+        if (world.getBlockEntity(rewardChestPos) instanceof ChestBlockEntity chest) {
+            chest.setLootTable(LOOT_SHRINE, rand.nextLong());
+        }
+
+        // 5. Plentiful Lighting so the player has clear visibility in combat
+        placeWallLantern(world, new BlockPos(ox + 1, fy + 3, oz + 5), Direction.EAST);
+        placeWallLantern(world, new BlockPos(ox + 10, fy + 3, oz + 5), Direction.WEST);
+        placeWallLantern(world, new BlockPos(ox + 5, fy + 3, oz + 1), Direction.SOUTH);
+        placeWallLantern(world, new BlockPos(ox + 5, fy + 3, oz + 10), Direction.NORTH);
+
+        placeHangingSoulLantern(world, new BlockPos(ox + 4, fy + 5, oz + 4));
+        placeHangingSoulLantern(world, new BlockPos(ox + 8, fy + 5, oz + 4));
+    }
+
+    /**
+     * Room 5: Grand Altar & Rootbound Vault Sanctuary (North Wing)
+     * Features:
+     * - Grand elevated ceremonial dais with polished deepslate steps
+     * - Primary shrine offering chest (LOOT_SHRINE)
+     * - Secret 6x6 Rootbound Vault chamber sealed by dense ancient roots (rootBarrierPositions)
+     * - Ancient inscribed sign with Rootbound Axe lore
+     * - Golden pedestal with Sealed Offering Chest (LOOT_SHRINE_SEALED)
+     * - Radiant sea lanterns and spore blossoms
+     */
+    private static BlockPos buildRoom5GrandAltarAndVault(ServerWorld world, BlockPos origin, Random rand,
+                                                        List<BlockPos> rootBarrierPositions) {
+        int ox = origin.getX();
+        int oz = origin.getZ();
+        int fy = origin.getY();
+
+        // 1. Raised Ceremonial Altar Dais in center of room
+        for (int dx = 3; dx <= 8; dx++) {
+            for (int dz = 4; dz <= 8; dz++) {
+                world.setBlockState(new BlockPos(ox + dx, fy + 1, oz + dz), Blocks.POLISHED_DEEPSLATE.getDefaultState(), Block.NOTIFY_LISTENERS);
+            }
+        }
+        for (int dx = 4; dx <= 7; dx++) {
+            for (int dz = 5; dz <= 7; dz++) {
+                world.setBlockState(new BlockPos(ox + dx, fy + 2, oz + dz), Blocks.DEEPSLATE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
             }
         }
 
-        // Mossy stone stairs leading up to the dais
-        for (int dx = -3; dx <= 3; dx++) {
-            world.setBlockState(new BlockPos(centerX + dx, floorY + 1, altarZ + 5),
+        // Mossy stone stairs leading up to dais
+        for (int dx = 4; dx <= 7; dx++) {
+            world.setBlockState(new BlockPos(ox + dx, fy + 1, oz + 9),
                     Blocks.STONE_BRICK_STAIRS.getDefaultState().with(StairsBlock.FACING, Direction.NORTH), Block.NOTIFY_LISTENERS);
-            world.setBlockState(new BlockPos(centerX + dx, floorY + 2, altarZ + 3),
+            world.setBlockState(new BlockPos(ox + dx, fy + 2, oz + 8),
                     Blocks.POLISHED_DEEPSLATE_STAIRS.getDefaultState().with(StairsBlock.FACING, Direction.NORTH), Block.NOTIFY_LISTENERS);
         }
 
         // Primary Altar Chest
-        BlockPos altarChestPos = new BlockPos(centerX, floorY + 3, altarZ);
+        BlockPos altarChestPos = new BlockPos(ox + 5, fy + 3, oz + 6);
         world.setBlockState(altarChestPos.down(), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
         world.setBlockState(altarChestPos, Blocks.CHEST.getDefaultState().with(ChestBlock.FACING, Direction.SOUTH), Block.NOTIFY_LISTENERS);
         if (world.getBlockEntity(altarChestPos) instanceof ChestBlockEntity chest) {
             chest.setLootTable(LOOT_SHRINE, rand.nextLong());
         }
 
-        // --- THE ROOTBOUND VAULT (Behind the Altar) ---
-        // A secret 6x6 chamber sealed by thick mangrove roots, muddy roots, and dense weeping vines
-        int vaultZ = altarZ - 7;
-        BlockPos sealedChestPos = new BlockPos(centerX, floorY + 1, vaultZ);
+        // 2. Secret Rootbound Vault Chamber (North extension behind wall)
+        // Footprint: X = ox + 3 to ox + 8, Z = oz - 6 to oz - 1
+        int vaultZ = oz - 4;
+        BlockPos sealedChestPos = new BlockPos(ox + 5, fy + 1, vaultZ);
 
-        // Hollow out vault chamber
-        for (int vx = centerX - 3; vx <= centerX + 3; vx++) {
-            for (int vz = vaultZ - 3; vz <= vaultZ + 1; vz++) {
-                for (int vy = floorY + 1; vy <= floorY + 5; vy++) {
-                    world.setBlockState(new BlockPos(vx, vy, vz), Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+        for (int vx = ox + 2; vx <= ox + 9; vx++) {
+            for (int vz = oz - 6; vz <= oz - 1; vz++) {
+                // Foundation and floor
+                world.setBlockState(new BlockPos(vx, fy - 1, vz), Blocks.DEEPSLATE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+                world.setBlockState(new BlockPos(vx, fy, vz), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+
+                // Clear interior
+                for (int vy = fy + 1; vy <= fy + 5; vy++) {
+                    boolean isVaultWall = (vx == ox + 2 || vx == ox + 9 || vz == oz - 6);
+                    if (isVaultWall) {
+                        world.setBlockState(new BlockPos(vx, vy, vz), Blocks.MOSSY_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+                    } else {
+                        world.setBlockState(new BlockPos(vx, vy, vz), Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+                    }
                 }
-                world.setBlockState(new BlockPos(vx, floorY, vz), Blocks.CHISELED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+                // Vault ceiling
+                world.setBlockState(new BlockPos(vx, fy + 6, vz), Blocks.CRACKED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
             }
         }
 
-        // Place the Root-Sealed Offering Chest
+        // Place the Root-Sealed Offering Chest on a Gold Block pedestal
         world.setBlockState(sealedChestPos.down(), Blocks.GOLD_BLOCK.getDefaultState(), Block.NOTIFY_LISTENERS);
         world.setBlockState(sealedChestPos, Blocks.CHEST.getDefaultState().with(ChestBlock.FACING, Direction.SOUTH), Block.NOTIFY_LISTENERS);
         if (world.getBlockEntity(sealedChestPos) instanceof ChestBlockEntity chest) {
             chest.setLootTable(LOOT_SHRINE_SEALED, rand.nextLong());
         }
 
-        // Seal the front entrance of the vault with impenetrable ancient roots (3 wide, 3 tall)
-        for (int rx = centerX - 2; rx <= centerX + 2; rx++) {
-            for (int ry = floorY + 1; ry <= floorY + 3; ry++) {
-                BlockPos rootPos = new BlockPos(rx, ry, vaultZ + 2);
-                BlockState rootState = (ry == floorY + 3) ? Blocks.MUDDY_MANGROVE_ROOTS.getDefaultState() :
+        // Vault ambient lighting
+        world.setBlockState(new BlockPos(ox + 5, fy + 5, vaultZ), Blocks.SEA_LANTERN.getDefaultState(), Block.NOTIFY_LISTENERS);
+
+        // 3. Dense Impenetrable Root Barrier sealing vault entrance (3 wide, 3 tall)
+        for (int rx = ox + 4; rx <= ox + 7; rx++) {
+            for (int ry = fy + 1; ry <= fy + 3; ry++) {
+                BlockPos rootPos = new BlockPos(rx, ry, oz);
+                BlockState rootState = (ry == fy + 3) ? Blocks.MUDDY_MANGROVE_ROOTS.getDefaultState() :
                         (rand.nextBoolean() ? Blocks.MANGROVE_ROOTS.getDefaultState() : Blocks.WEEPING_VINES.getDefaultState());
                 world.setBlockState(rootPos, rootState, Block.NOTIFY_LISTENERS);
                 rootBarrierPositions.add(rootPos);
             }
         }
 
-        // Ancient Inscribed Sign in front of the root barrier
-        BlockPos signPos = new BlockPos(centerX + 2, floorY + 1, vaultZ + 3);
+        // Ancient Inscribed Lore Sign in front of the root barrier
+        BlockPos signPos = new BlockPos(ox + 8, fy + 1, oz + 1);
         world.setBlockState(signPos, Blocks.OAK_WALL_SIGN.getDefaultState().with(WallSignBlock.FACING, Direction.SOUTH), Block.NOTIFY_LISTENERS);
         if (world.getBlockEntity(signPos) instanceof SignBlockEntity sign) {
             SignText signText = sign.getText(true)
@@ -424,58 +882,196 @@ public class CollapsedShrineGenerator {
             sign.markDirty();
         }
 
+        // 4. Radiant Illumination
+        world.setBlockState(new BlockPos(ox + 5, fy + 6, oz + 6), Blocks.SEA_LANTERN.getDefaultState(), Block.NOTIFY_LISTENERS);
+        world.setBlockState(new BlockPos(ox + 5, fy + 5, oz + 6), Blocks.SPORE_BLOSSOM.getDefaultState(), Block.NOTIFY_LISTENERS);
+        placeWallLantern(world, new BlockPos(ox + 1, fy + 3, oz + 6), Direction.EAST);
+        placeWallLantern(world, new BlockPos(ox + 10, fy + 3, oz + 6), Direction.WEST);
+
         return sealedChestPos;
     }
 
+    // =========================================================================
+    // 4. CORRIDORS & STAIRS
+    // =========================================================================
+
     /**
-     * Creates intentional anime-style roof breaches, hanging jungle canopies, weeping vines, and glow flora.
+     * Builds interconnecting 3-wide x 4-high corridors and stairs between the 5 rooms.
      */
-    private static void drapeVegetationAndVines(ServerWorld world, BlockPos origin, int floorY, Random rand) {
-        int minX = origin.getX() + 4;
-        int maxX = origin.getX() + SIZE_X - 5;
-        int minZ = origin.getZ() + 4;
-        int maxZ = origin.getZ() + SIZE_Z - 5;
+    private static void buildCorridorsAndStairs(ServerWorld world, int cx, int cz, int floorY, Random rand) {
+        // --- Corridor 1 -> 2: From Room 1 (Fountain) to Room 2 (Traps & Chasm) [East] ---
+        int c12StartX = cx + 6;
+        int c12EndX = cx + 18;
+        int c12Z = cz;
+        for (int x = c12StartX; x <= c12EndX; x++) {
+            int yFloor = (x >= cx + 16) ? floorY - 1 : floorY;
+            buildCorridorSliceX(world, x, yFloor, c12Z, rand);
 
-        // Natural vegetation clusters across the floor
-        for (int x = minX; x <= maxX; x += 3) {
-            for (int z = minZ; z <= maxZ; z += 3) {
-                if (rand.nextFloat() < 0.35f) {
-                    BlockPos p = new BlockPos(x, floorY + 1, z);
-                    if (world.getBlockState(p).isAir() && world.getBlockState(p.down()).isOpaqueFullCube(world, p.down())) {
-                        float vType = rand.nextFloat();
-                        if (vType < 0.35f) {
-                            world.setBlockState(p, Blocks.FERN.getDefaultState(), Block.NOTIFY_LISTENERS);
-                        } else if (vType < 0.65f) {
-                            world.setBlockState(p, Blocks.MOSS_CARPET.getDefaultState(), Block.NOTIFY_LISTENERS);
-                        } else if (vType < 0.85f) {
-                            world.setBlockState(p, Blocks.FLOWERING_AZALEA.getDefaultState(), Block.NOTIFY_LISTENERS);
-                        } else {
-                            world.setBlockState(p, Blocks.BAMBOO.getDefaultState().with(BambooBlock.LEAVES, net.minecraft.block.enums.BambooLeaves.LARGE), Block.NOTIFY_LISTENERS);
-                        }
-                    }
+            // Step down stair
+            if (x == cx + 16) {
+                for (int z = c12Z - 1; z <= c12Z + 1; z++) {
+                    world.setBlockState(new BlockPos(x, floorY, z),
+                            Blocks.STONE_BRICK_STAIRS.getDefaultState().with(StairsBlock.FACING, Direction.EAST), Block.NOTIFY_LISTENERS);
                 }
+            }
+            // Lanterns every 4 blocks
+            if ((x - c12StartX) % 4 == 0) {
+                placeWallLantern(world, new BlockPos(x, yFloor + 3, c12Z - 1), Direction.SOUTH);
             }
         }
 
-        // Hanging jungle vines and glow berries from the ceiling perimeter
-        int ceilingY = floorY + HEIGHT - 2;
-        for (int x = minX; x <= maxX; x += 2) {
-            for (int z = minZ; z <= maxZ; z += 2) {
-                if (rand.nextFloat() < 0.20f) {
-                    int vineLen = 2 + rand.nextInt(5);
-                    for (int len = 0; len < vineLen; len++) {
-                        BlockPos vinePos = new BlockPos(x, ceilingY - len, z);
-                        if (world.getBlockState(vinePos).isAir()) {
-                            if (rand.nextFloat() < 0.3f) {
-                                world.setBlockState(vinePos, Blocks.CAVE_VINES.getDefaultState().with(CaveVines.BERRIES, true), Block.NOTIFY_LISTENERS);
-                            } else {
-                                world.setBlockState(vinePos, Blocks.WEEPING_VINES_PLANT.getDefaultState(), Block.NOTIFY_LISTENERS);
-                            }
-                        }
-                    }
+        // --- Corridor 1 -> 3: From Room 1 (Fountain) to Room 3 (Crypt) [West] ---
+        int c13StartX = cx - 18;
+        int c13EndX = cx - 7;
+        int c13Z = cz;
+        for (int x = c13StartX; x <= c13EndX; x++) {
+            buildCorridorSliceX(world, x, floorY, c13Z, rand);
+            if ((x - c13StartX) % 4 == 0) {
+                placeWallLantern(world, new BlockPos(x, floorY + 3, c13Z + 1), Direction.NORTH);
+            }
+        }
+
+        // --- Corridor 1 -> 5: From Room 1 (Fountain) to Room 5 (Grand Altar) [North] ---
+        // Runs along X = cx + 3, flanking the staircase, ascending from floorY up to floorY + 1
+        int c15ZStart = cz - 17;
+        int c15ZEnd = cz - 7;
+        int c15X = cx + 3;
+        for (int z = c15ZStart; z <= c15ZEnd; z++) {
+            int yFloor = (z <= cz - 12) ? floorY + 1 : floorY;
+            buildCorridorSliceZ(world, c15X, yFloor, z, rand);
+
+            // Step up stair
+            if (z == cz - 12) {
+                for (int x = c15X - 1; x <= c15X + 1; x++) {
+                    world.setBlockState(new BlockPos(x, floorY + 1, z),
+                            Blocks.STONE_BRICK_STAIRS.getDefaultState().with(StairsBlock.FACING, Direction.NORTH), Block.NOTIFY_LISTENERS);
+                }
+            }
+            if ((z - c15ZStart) % 4 == 0) {
+                placeWallLantern(world, new BlockPos(c15X + 1, yFloor + 3, z), Direction.WEST);
+            }
+        }
+        // Connect Room 5 entrance doorway
+        for (int x = cx - 1; x <= cx + 4; x++) {
+            for (int y = floorY + 2; y <= floorY + 4; y++) {
+                world.setBlockState(new BlockPos(x, y, cz - 17), Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+            }
+        }
+
+        // --- Corridor 2 -> 4: From Room 2 (Traps) to Room 4 (Double Spawner) [South] ---
+        // Runs from z = cz + 6 to cz + 17 at X = cx + 20, descending from floorY - 1 to floorY - 3
+        int c24ZStart = cz + 6;
+        int c24ZEnd = cz + 18;
+        int c24X = cx + 20;
+        for (int z = c24ZStart; z <= c24ZEnd; z++) {
+            int yFloor = (z >= cz + 13) ? floorY - 3 : (z >= cz + 9 ? floorY - 2 : floorY - 1);
+            buildCorridorSliceZ(world, c24X, yFloor, z, rand);
+
+            // Descending stairs
+            if (z == cz + 9) {
+                for (int x = c24X - 1; x <= c24X + 1; x++) {
+                    world.setBlockState(new BlockPos(x, floorY - 1, z),
+                            Blocks.STONE_BRICK_STAIRS.getDefaultState().with(StairsBlock.FACING, Direction.SOUTH), Block.NOTIFY_LISTENERS);
+                }
+            } else if (z == cz + 13) {
+                for (int x = c24X - 1; x <= c24X + 1; x++) {
+                    world.setBlockState(new BlockPos(x, floorY - 2, z),
+                            Blocks.STONE_BRICK_STAIRS.getDefaultState().with(StairsBlock.FACING, Direction.SOUTH), Block.NOTIFY_LISTENERS);
+                }
+            }
+
+            if ((z - c24ZStart) % 4 == 0) {
+                placeWallLantern(world, new BlockPos(c24X - 1, yFloor + 3, z), Direction.EAST);
+            }
+        }
+
+        // --- Corridor 1 -> 4: Secondary connection from Room 1 South wall to Room 4 ---
+        // Runs from z = cz + 6 to cz + 14 at X = cx, then turns East into Room 4
+        for (int z = cz + 6; z <= cz + 14; z++) {
+            buildCorridorSliceZ(world, cx, floorY, z, rand);
+        }
+        for (int x = cx; x <= cx + 14; x++) {
+            int yFloor = (x >= cx + 7) ? floorY - 3 : floorY - 1;
+            buildCorridorSliceX(world, x, yFloor, cz + 14, rand);
+            if (x == cx + 7) {
+                for (int z = cz + 13; z <= cz + 15; z++) {
+                    world.setBlockState(new BlockPos(x, floorY - 1, z),
+                            Blocks.STONE_BRICK_STAIRS.getDefaultState().with(StairsBlock.FACING, Direction.EAST), Block.NOTIFY_LISTENERS);
                 }
             }
         }
+        // Open doorway into Room 4
+        for (int y = floorY - 2; y <= floorY; y++) {
+            for (int z = cz + 20; z <= cz + 22; z++) {
+                world.setBlockState(new BlockPos(cx + 14, y, z), Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+            }
+        }
+    }
+
+    private static void buildCorridorSliceX(ServerWorld world, int x, int yFloor, int centerZ, Random rand) {
+        for (int z = centerZ - 2; z <= centerZ + 2; z++) {
+            // Foundation
+            world.setBlockState(new BlockPos(x, yFloor - 1, z), Blocks.DEEPSLATE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+            // Floor
+            world.setBlockState(new BlockPos(x, yFloor, z), getAestheticFloorBlock(rand), Block.NOTIFY_LISTENERS);
+
+            for (int dy = 1; dy <= 4; dy++) {
+                int y = yFloor + dy;
+                BlockPos p = new BlockPos(x, y, z);
+                boolean isWall = (z == centerZ - 2 || z == centerZ + 2);
+                if (isWall) {
+                    world.setBlockState(p, getAestheticWallBlock(rand), Block.NOTIFY_LISTENERS);
+                } else {
+                    world.setBlockState(p, Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+                }
+            }
+            // Ceiling
+            world.setBlockState(new BlockPos(x, yFloor + 5, z), Blocks.CRACKED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        }
+    }
+
+    private static void buildCorridorSliceZ(ServerWorld world, int centerX, int yFloor, int z, Random rand) {
+        for (int x = centerX - 2; x <= centerX + 2; x++) {
+            // Foundation
+            world.setBlockState(new BlockPos(x, yFloor - 1, z), Blocks.DEEPSLATE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+            // Floor
+            world.setBlockState(new BlockPos(x, yFloor, z), getAestheticFloorBlock(rand), Block.NOTIFY_LISTENERS);
+
+            for (int dy = 1; dy <= 4; dy++) {
+                int y = yFloor + dy;
+                BlockPos p = new BlockPos(x, y, z);
+                boolean isWall = (x == centerX - 2 || x == centerX + 2);
+                if (isWall) {
+                    world.setBlockState(p, getAestheticWallBlock(rand), Block.NOTIFY_LISTENERS);
+                } else {
+                    world.setBlockState(p, Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+                }
+            }
+            // Ceiling
+            world.setBlockState(new BlockPos(x, yFloor + 5, z), Blocks.CRACKED_STONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+        }
+    }
+
+    // =========================================================================
+    // 5. LIGHTING & BLOCK PALETTE UTILITIES
+    // =========================================================================
+
+    private static void placeWallLantern(ServerWorld world, BlockPos pos, Direction facing) {
+        world.setBlockState(pos, Blocks.LANTERN.getDefaultState().with(LanternBlock.HANGING, false), Block.NOTIFY_LISTENERS);
+    }
+
+    private static void placeStandingLantern(ServerWorld world, BlockPos pos) {
+        world.setBlockState(pos, Blocks.LANTERN.getDefaultState().with(LanternBlock.HANGING, false), Block.NOTIFY_LISTENERS);
+    }
+
+    private static void placeHangingLantern(ServerWorld world, BlockPos pos) {
+        world.setBlockState(pos.up(), Blocks.CHAIN.getDefaultState().with(ChainBlock.AXIS, Direction.Axis.Y), Block.NOTIFY_LISTENERS);
+        world.setBlockState(pos, Blocks.LANTERN.getDefaultState().with(LanternBlock.HANGING, true), Block.NOTIFY_LISTENERS);
+    }
+
+    private static void placeHangingSoulLantern(ServerWorld world, BlockPos pos) {
+        world.setBlockState(pos.up(), Blocks.CHAIN.getDefaultState().with(ChainBlock.AXIS, Direction.Axis.Y), Block.NOTIFY_LISTENERS);
+        world.setBlockState(pos, Blocks.SOUL_LANTERN.getDefaultState().with(LanternBlock.HANGING, true), Block.NOTIFY_LISTENERS);
     }
 
     private static BlockState getAestheticFloorBlock(Random rand) {
@@ -492,5 +1088,12 @@ public class CollapsedShrineGenerator {
         if (f < 0.75f) return Blocks.CRACKED_STONE_BRICKS.getDefaultState();
         if (f < 0.90f) return Blocks.CHISELED_STONE_BRICKS.getDefaultState();
         return Blocks.COBBLESTONE.getDefaultState();
+    }
+
+    private static BlockState getAestheticFoundationBlock(Random rand) {
+        float f = rand.nextFloat();
+        if (f < 0.50f) return Blocks.MOSSY_COBBLESTONE.getDefaultState();
+        if (f < 0.80f) return Blocks.COBBLESTONE.getDefaultState();
+        return Blocks.DEEPSLATE_BRICKS.getDefaultState();
     }
 }
