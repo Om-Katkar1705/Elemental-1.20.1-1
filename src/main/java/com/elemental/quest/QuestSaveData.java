@@ -27,6 +27,7 @@ public class QuestSaveData extends PersistentState {
     private BlockPos everlivingArenaLocation = null;
     private BlockPos seismicGolemArenaLocation = null;
     private BlockPos collapsedShrineLocation = null;
+    private BlockPos lushStrongholdTempleLocation = null;
     // Collective Quest Progress (Shared across all players on the server)
     private QuestState collectiveState = QuestState.CRAFT_STONE_TOOLS;
     private int collectiveBlueprintsFound = 0;
@@ -183,6 +184,15 @@ public class QuestSaveData extends PersistentState {
         this.markDirty();
     }
 
+    public BlockPos getLushStrongholdTempleLocation() {
+        return lushStrongholdTempleLocation;
+    }
+
+    public void setLushStrongholdTempleLocation(BlockPos location) {
+        this.lushStrongholdTempleLocation = location;
+        this.markDirty();
+    }
+
     public PlayerQuestData getPlayerData(UUID uuid) {
         return playerDataMap.computeIfAbsent(uuid, id -> {
             PlayerQuestData data = new PlayerQuestData(id, this);
@@ -281,6 +291,14 @@ public class QuestSaveData extends PersistentState {
             );
         }
 
+        if (nbt.contains("LushTempleX") && nbt.contains("LushTempleY") && nbt.contains("LushTempleZ")) {
+            data.lushStrongholdTempleLocation = new BlockPos(
+                    nbt.getInt("LushTempleX"),
+                    nbt.getInt("LushTempleY"),
+                    nbt.getInt("LushTempleZ")
+            );
+        }
+
         if (nbt.contains("Players", NbtElement.LIST_TYPE)) {
             NbtList list = nbt.getList("Players", NbtElement.COMPOUND_TYPE);
             for (int i = 0; i < list.size(); i++) {
@@ -367,6 +385,12 @@ public class QuestSaveData extends PersistentState {
             nbt.putInt("CollapsedShrineX", this.collapsedShrineLocation.getX());
             nbt.putInt("CollapsedShrineY", this.collapsedShrineLocation.getY());
             nbt.putInt("CollapsedShrineZ", this.collapsedShrineLocation.getZ());
+        }
+
+        if (this.lushStrongholdTempleLocation != null) {
+            nbt.putInt("LushTempleX", this.lushStrongholdTempleLocation.getX());
+            nbt.putInt("LushTempleY", this.lushStrongholdTempleLocation.getY());
+            nbt.putInt("LushTempleZ", this.lushStrongholdTempleLocation.getZ());
         }
 
         NbtList list = new NbtList();

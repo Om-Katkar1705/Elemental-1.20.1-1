@@ -77,6 +77,7 @@ public abstract class LocateCommandMixin {
             candidates.put("crashed_skyforge_ship", getOrLocateAirship(world, saveData, originPos));
             candidates.put("everliving_knight_arena", getOrLocateEverlivingArena(world, saveData, originPos));
             candidates.put("collapsed_shrine", getOrLocateCollapsedShrine(world, saveData, originPos));
+            candidates.put("lush_stronghold_temple", getOrLocateLushStrongholdTemple(world, saveData, originPos));
             candidates.put("seismic_golem_arena", getOrLocateSeismicGolemArena(world, saveData, originPos));
 
             String closestKey = "aerons_camp";
@@ -102,6 +103,7 @@ public abstract class LocateCommandMixin {
                 case "crashed_skyforge_ship" -> getOrLocateAirship(world, saveData, originPos);
                 case "everliving_knight_arena" -> getOrLocateEverlivingArena(world, saveData, originPos);
                 case "collapsed_shrine" -> getOrLocateCollapsedShrine(world, saveData, originPos);
+                case "lush_stronghold_temple" -> getOrLocateLushStrongholdTemple(world, saveData, originPos);
                 case "seismic_golem_arena" -> getOrLocateSeismicGolemArena(world, saveData, originPos);
                 default -> null;
             };
@@ -139,6 +141,7 @@ public abstract class LocateCommandMixin {
                 || path.equals("crashed_skyforge_ship")
                 || path.equals("everliving_knight_arena")
                 || path.equals("collapsed_shrine")
+                || path.equals("lush_stronghold_temple")
                 || path.equals("seismic_golem_arena");
     }
 
@@ -192,5 +195,13 @@ public abstract class LocateCommandMixin {
             return existing;
         }
         return NbtStructureManager.findOrGenerateSeismicGolemArena(world, originPos);
+    }
+
+    private static BlockPos getOrLocateLushStrongholdTemple(ServerWorld world, QuestSaveData saveData, BlockPos originPos) {
+        BlockPos existing = saveData.getLushStrongholdTempleLocation();
+        if (existing != null) {
+            return existing;
+        }
+        return NbtStructureManager.findOrGenerateLushStrongholdTemple(world, originPos);
     }
 }

@@ -46,6 +46,7 @@ public class NbtStructureManager {
     public static final Identifier SKYFORGE_SHIP_ID = new Identifier(Elemental.MOD_ID, "crashed_skyforge_ship");
     public static final Identifier SEISMIC_GOLEM_ARENA_ID = new Identifier(Elemental.MOD_ID, "seismic_golem_arena");
     public static final Identifier EVERLIVING_ARENA_ID = new Identifier(Elemental.MOD_ID, "everliving_knight_arena");
+    public static final Identifier LUSH_STRONGHOLD_TEMPLE_ID = new Identifier(Elemental.MOD_ID, "lush_stronghold_temple");
 
     /**
      * Generic loader and placer for NBT structure templates.
@@ -1731,5 +1732,53 @@ public class NbtStructureManager {
             }
         }
         return true;
+    }
+
+    // ==========================================
+    // 5. Lush Stronghold Temple NBT Generation
+    // ==========================================
+
+    public static BlockPos findOrGenerateLushStrongholdTemple(ServerWorld world, BlockPos originPos) {
+        QuestSaveData saveData = QuestSaveData.getServerState(world.getServer());
+        BlockPos existing = saveData.getLushStrongholdTempleLocation();
+        if (existing != null) {
+            return existing;
+        }
+
+        BlockPos targetPos = JungleDungeonManager.findNearestJungleBiome(world, originPos);
+        if (targetPos == null) {
+            targetPos = originPos;
+        }
+
+        int surfaceY = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, targetPos.getX(), targetPos.getZ());
+        if (surfaceY < 64) surfaceY = 64;
+
+        int undergroundY = Math.max(world.getBottomY() + 10, surfaceY - 38);
+        BlockPos placePos = new BlockPos(targetPos.getX() - 24, undergroundY, targetPos.getZ() - 24);
+
+        BlockPos centerPos = generateLushStrongholdTempleAt(world, placePos);
+        saveData.setLushStrongholdTempleLocation(centerPos);
+        saveData.markDirty();
+        return centerPos;
+    }
+
+    public static BlockPos generateLushStrongholdTempleAt(ServerWorld world, BlockPos placePos) {
+        for (int cx = placePos.getX() >> 4; cx <= (placePos.getX() + 48) >> 4; cx++) {
+            for (int cz = placePos.getZ() >> 4; cz <= (placePos.getZ() + 48) >> 4; cz++) {
+                world.getChunk(cx, cz);
+            }
+        }
+
+        placeNbtStructure(world, LUSH_STRONGHOLD_TEMPLE_ID, placePos);
+
+        BlockPos center = placePos.add(24, 6, 24);
+        net.minecraft.util.math.Box bounds = new net.minecraft.util.math.Box(
+                placePos.getX(), placePos.getY(), placePos.getZ(),
+                placePos.getX() + 48, placePos.getY() + 36, placePos.getZ() + 48
+        );
+        JungleDungeonManager.registerShrine(center, bounds, java.util.Collections.emptyList(), java.util.Collections.emptyList(), java.util.Collections.emptyList(), null);
+
+        Elemental.LOGGER.info("Generated Lush Stronghold Temple at {} (center: {})", placePos, center);
+        return center;
     }
 }

@@ -257,7 +257,7 @@ public class ElementalQuestCommand {
                                         .executes(ctx -> {
                                             ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
                                             BlockPos shrinePos = com.elemental.world.CollapsedShrineGenerator.generate(player.getServerWorld(), player.getBlockPos());
-                                            ctx.getSource().sendFeedback(() -> Text.literal("§aGenerated 52x52 Collapsed Shrine centered at: §e" + shrinePos.toShortString()), true);
+                                            ctx.getSource().sendFeedback(() -> Text.literal("§aGenerated 50x54 Collapsed Shrine centered at: §e" + shrinePos.toShortString()), true);
                                             return 1;
                                         }))
                                 .then(CommandManager.literal("tp")
@@ -266,6 +266,29 @@ public class ElementalQuestCommand {
                                             BlockPos shrinePos = com.elemental.world.JungleDungeonManager.findOrGenerateCollapsedShrine(player.getServerWorld(), player.getBlockPos());
                                             player.teleport(player.getServerWorld(), shrinePos.getX() + 0.5, shrinePos.getY() + 1.0, shrinePos.getZ() + 0.5, player.getYaw(), player.getPitch());
                                             ctx.getSource().sendFeedback(() -> Text.literal("§aTeleported into the Collapsed Shrine!"), true);
+                                            return 1;
+                                        })))
+                        .then(CommandManager.literal("temple")
+                                .executes(ctx -> {
+                                    ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+                                    BlockPos templePos = com.elemental.world.NbtStructureManager.findOrGenerateLushStrongholdTemple(player.getServerWorld(), player.getBlockPos());
+                                    ctx.getSource().sendFeedback(() -> Text.literal("§aLush Stronghold Temple generated at: §e" + templePos.toShortString()), true);
+                                    return 1;
+                                })
+                                .then(CommandManager.literal("here")
+                                        .executes(ctx -> {
+                                            ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+                                            BlockPos placePos = player.getBlockPos().add(-24, 0, -24);
+                                            BlockPos templePos = com.elemental.world.NbtStructureManager.generateLushStrongholdTempleAt(player.getServerWorld(), placePos);
+                                            ctx.getSource().sendFeedback(() -> Text.literal("§aGenerated 48x48 Lush Stronghold Temple centered at: §e" + templePos.toShortString()), true);
+                                            return 1;
+                                        }))
+                                .then(CommandManager.literal("tp")
+                                        .executes(ctx -> {
+                                            ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+                                            BlockPos templePos = com.elemental.world.NbtStructureManager.findOrGenerateLushStrongholdTemple(player.getServerWorld(), player.getBlockPos());
+                                            player.teleport(player.getServerWorld(), templePos.getX() + 0.5, templePos.getY() + 1.0, templePos.getZ() + 0.5, player.getYaw(), player.getPitch());
+                                            ctx.getSource().sendFeedback(() -> Text.literal("§aTeleported to the Lush Stronghold Temple!"), true);
                                             return 1;
                                         }))))
         );
