@@ -256,7 +256,7 @@ public class ElementalQuestCommand {
                                 .then(CommandManager.literal("here")
                                         .executes(ctx -> {
                                             ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
-                                            BlockPos shrinePos = com.elemental.world.CollapsedShrineGenerator.generate(player.getServerWorld(), player.getBlockPos());
+                                            BlockPos shrinePos = com.elemental.world.shrine.CollaspedShrineStructureGenerator.generate(player.getServerWorld(), player.getBlockPos());
                                             ctx.getSource().sendFeedback(() -> Text.literal("§aGenerated 50x54 Collapsed Shrine centered at: §e" + shrinePos.toShortString()), true);
                                             return 1;
                                         }))

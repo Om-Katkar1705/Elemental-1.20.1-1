@@ -265,7 +265,7 @@ public class JungleDungeonManager {
         int surfaceY = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, junglePos.getX(), junglePos.getZ());
         BlockPos surfacePos = new BlockPos(junglePos.getX(), surfaceY, junglePos.getZ());
 
-        BlockPos generatedPos = CollapsedShrineGenerator.generate(world, surfacePos);
+        BlockPos generatedPos = com.elemental.world.shrine.CollaspedShrineStructureGenerator.generate(world, surfacePos);
         saveData.setCollapsedShrineLocation(generatedPos);
         saveData.markDirty();
         return generatedPos;
