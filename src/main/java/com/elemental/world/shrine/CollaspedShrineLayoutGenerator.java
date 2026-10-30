@@ -126,23 +126,31 @@ public class CollaspedShrineLayoutGenerator {
     }
 
     // Maximum limits
-    public static final int MAX_PIECES = 45;
-    public static final int TARGET_ROOMS = 9;
-    public static final int MAX_BRANCH_DEPTH = 7;
+    public static final int TARGET_ROOMS = 13;
+    public static final int MIN_ROOMS = 10;
+    public static final int MAX_BRANCH_DEPTH = 11;
+    public static final int MAX_PIECES = 85;
 
     /**
      * Generates a complete deterministic layout starting from a given surface origin.
      */
     public static LayoutResult generateLayout(BlockPos surfaceOrigin, long worldSeed, BlockRotation baseRotation) {
         long seed = worldSeed ^ surfaceOrigin.asLong();
-        for (int attempt = 0; attempt < 5; attempt++) {
+        for (int attempt = 0; attempt < 10; attempt++) {
             Random rand = new Random(seed + attempt * 31337L);
+            LayoutResult result = buildSingleAttempt(surfaceOrigin, baseRotation, rand);
+            if (result.isValid() && getTotalRoomCount(result.getRoomCounts()) >= MIN_ROOMS) {
+                return result;
+            }
+        }
+        for (int attempt = 0; attempt < 5; attempt++) {
+            Random rand = new Random(seed + attempt * 99991L);
             LayoutResult result = buildSingleAttempt(surfaceOrigin, baseRotation, rand);
             if (result.isValid()) {
                 return result;
             }
         }
-        // Fallback: minimal valid layout (surface + stairs + arrival + inner sanctum)
+        // Fallback: minimal valid layout (surface + spiral + stairs + arrival + inner sanctum)
         return buildMinimalGuaranteedLayout(surfaceOrigin, baseRotation);
     }
 
@@ -157,17 +165,31 @@ public class CollaspedShrineLayoutGenerator {
         PlacedPiece surfacePiece = new PlacedPiece(ShrinePieceTemplate.SURFACE_ENTRANCE, surfaceOrigin, baseRotation, 0);
         pieces.add(surfacePiece);
 
-        // 2. Attach Surface Descent Stairs
-        // Connect to the surface descent connector (NORTH)
-        WorldConnector surfaceExit = surfacePiece.getConnectors().get(0);
-        PlacedPiece stairsPiece = attachPieceToConnector(surfaceExit, ShrinePieceTemplate.SURFACE_DESCENT_STAIRS, 1);
+        // 2. Attach Deep Turned Stairs (3 modular 5x5 spiral sections, dropping 24 blocks deep under the temple)
+        WorldConnector currentStairExit = surfacePiece.getConnectors().get(0);
+        for (int i = 0; i < 3; i++) {
+            PlacedPiece spiralPiece = attachPieceToConnector(currentStairExit, ShrinePieceTemplate.SPIRAL_5X5, 1);
+            if (spiralPiece != null) {
+                currentStairExit.setConnected(true);
+                pieces.add(spiralPiece);
+                for (WorldConnector wc : spiralPiece.getConnectors()) {
+                    if (!wc.isConnected()) {
+                        currentStairExit = wc;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 3. Attach Surface Descent Stairs deep underground
+        PlacedPiece stairsPiece = attachPieceToConnector(currentStairExit, ShrinePieceTemplate.SURFACE_DESCENT_STAIRS, 2);
         if (stairsPiece == null) {
             return new LayoutResult(pieces, surfacePiece.getBoundingBox(), roomCounts, false);
         }
-        surfaceExit.setConnected(true);
+        currentStairExit.setConnected(true);
         pieces.add(stairsPiece);
 
-        // 3. Attach Arrival Chamber (Room 1)
+        // 4. Attach Arrival Chamber (Room 1)
         WorldConnector stairsBottomExit = null;
         for (WorldConnector wc : stairsPiece.getConnectors()) {
             if (!wc.isConnected()) {
@@ -179,7 +201,7 @@ public class CollaspedShrineLayoutGenerator {
             return new LayoutResult(pieces, surfacePiece.getBoundingBox(), roomCounts, false);
         }
         stairsBottomExit.setConnected(true);
-        PlacedPiece arrivalPiece = attachPieceToConnector(stairsBottomExit, ShrinePieceTemplate.ARRIVAL_CHAMBER, 2);
+        PlacedPiece arrivalPiece = attachPieceToConnector(stairsBottomExit, ShrinePieceTemplate.ARRIVAL_CHAMBER, 3);
         if (arrivalPiece == null) {
             return new LayoutResult(pieces, surfacePiece.getBoundingBox(), roomCounts, false);
         }
@@ -196,9 +218,9 @@ public class CollaspedShrineLayoutGenerator {
 
         boolean innerSanctumPlaced = false;
 
-        // 4. Expansion loop
+        // 5. Expansion loop
         int safetyLimit = 0;
-        while (!openConnectors.isEmpty() && pieces.size() < MAX_PIECES && safetyLimit++ < 200) {
+        while (!openConnectors.isEmpty() && pieces.size() < MAX_PIECES && safetyLimit++ < 400) {
             int openIdx = rand.nextInt(openConnectors.size());
             WorldConnector currentConnector = openConnectors.remove(openIdx);
             int currentDepth = currentConnector.getOwner().getDepth() + 1;
@@ -212,7 +234,7 @@ public class CollaspedShrineLayoutGenerator {
             int currentRoomCount = getTotalRoomCount(roomCounts);
 
             // Determine if we should attempt to place Inner Sanctum
-            if (!innerSanctumPlaced && (currentRoomCount >= TARGET_ROOMS - 1 || openConnectors.size() <= 1)) {
+            if (!innerSanctumPlaced && (currentRoomCount >= TARGET_ROOMS - 1 || (openConnectors.size() <= 1 && currentRoomCount >= MIN_ROOMS))) {
                 PlacedPiece sanctum = tryAttachTemplate(currentConnector, ShrinePieceTemplate.INNER_SANCTUM, currentDepth, pieces, rand);
                 if (sanctum != null) {
                     pieces.add(sanctum);
@@ -224,7 +246,7 @@ public class CollaspedShrineLayoutGenerator {
             }
 
             // Decide whether to place a Room or a Corridor/Junction
-            boolean wantRoom = (currentRoomCount < TARGET_ROOMS) && (rand.nextFloat() < 0.45f);
+            boolean wantRoom = (currentRoomCount < TARGET_ROOMS) && (rand.nextFloat() < 0.60f);
 
             PlacedPiece nextPiece = null;
             if (wantRoom) {
@@ -249,6 +271,13 @@ public class CollaspedShrineLayoutGenerator {
             // Try Corridor / Junction
             ShrinePieceTemplate candidateCorridor = selectCandidateCorridor(rand);
             nextPiece = tryAttachTemplate(currentConnector, candidateCorridor, currentDepth, pieces, rand);
+            if (nextPiece == null && candidateCorridor != ShrinePieceTemplate.CORRIDOR_CORNER) {
+                // When a straight extension fails, route with corner to avoid occupied space
+                nextPiece = tryAttachTemplate(currentConnector, ShrinePieceTemplate.CORRIDOR_CORNER, currentDepth, pieces, rand);
+            }
+            if (nextPiece == null && candidateCorridor != ShrinePieceTemplate.CORRIDOR_TURN) {
+                nextPiece = tryAttachTemplate(currentConnector, ShrinePieceTemplate.CORRIDOR_TURN, currentDepth, pieces, rand);
+            }
             if (nextPiece != null) {
                 pieces.add(nextPiece);
                 currentConnector.setConnected(true);
@@ -302,9 +331,23 @@ public class CollaspedShrineLayoutGenerator {
         PlacedPiece surfacePiece = new PlacedPiece(ShrinePieceTemplate.SURFACE_ENTRANCE, surfaceOrigin, baseRotation, 0);
         pieces.add(surfacePiece);
 
-        WorldConnector surfaceExit = surfacePiece.getConnectors().get(0);
-        PlacedPiece stairsPiece = attachPieceToConnector(surfaceExit, ShrinePieceTemplate.SURFACE_DESCENT_STAIRS, 1);
-        surfaceExit.setConnected(true);
+        WorldConnector currentStairExit = surfacePiece.getConnectors().get(0);
+        for (int i = 0; i < 3; i++) {
+            PlacedPiece spiralPiece = attachPieceToConnector(currentStairExit, ShrinePieceTemplate.SPIRAL_5X5, 1);
+            if (spiralPiece != null) {
+                currentStairExit.setConnected(true);
+                pieces.add(spiralPiece);
+                for (WorldConnector wc : spiralPiece.getConnectors()) {
+                    if (!wc.isConnected()) {
+                        currentStairExit = wc;
+                        break;
+                    }
+                }
+            }
+        }
+
+        PlacedPiece stairsPiece = attachPieceToConnector(currentStairExit, ShrinePieceTemplate.SURFACE_DESCENT_STAIRS, 2);
+        currentStairExit.setConnected(true);
         pieces.add(stairsPiece);
 
         WorldConnector stairsBottomExit = null;
@@ -317,14 +360,14 @@ public class CollaspedShrineLayoutGenerator {
         if (stairsBottomExit != null) {
             stairsBottomExit.setConnected(true);
         }
-        PlacedPiece arrivalPiece = attachPieceToConnector(stairsBottomExit, ShrinePieceTemplate.ARRIVAL_CHAMBER, 2);
+        PlacedPiece arrivalPiece = attachPieceToConnector(stairsBottomExit, ShrinePieceTemplate.ARRIVAL_CHAMBER, 3);
         pieces.add(arrivalPiece);
         roomCounts.put(CollaspedShrineRoomType.ARRIVAL_CHAMBER, 1);
 
         // Connect Inner Sanctum directly to arrival chamber South exit
         WorldConnector arrivalSouth = arrivalPiece.getConnectors().get(1);
         arrivalSouth.setConnected(true);
-        PlacedPiece sanctum = attachPieceToConnector(arrivalSouth, ShrinePieceTemplate.INNER_SANCTUM, 3);
+        PlacedPiece sanctum = attachPieceToConnector(arrivalSouth, ShrinePieceTemplate.INNER_SANCTUM, 4);
         if (sanctum != null) {
             pieces.add(sanctum);
             roomCounts.put(CollaspedShrineRoomType.INNER_SANCTUM, 1);

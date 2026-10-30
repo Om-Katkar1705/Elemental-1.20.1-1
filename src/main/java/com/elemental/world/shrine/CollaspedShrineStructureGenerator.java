@@ -226,14 +226,21 @@ public class CollaspedShrineStructureGenerator {
                     .setIgnoreEntities(false);
 
             StructureTemplate template = opt.get();
-            template.place(world, piece.getOriginPos(), piece.getOriginPos(), placementData, world.getRandom(), Block.NOTIFY_LISTENERS);
+            BlockPos placePos = template.offsetByTransformedSize(piece.getOriginPos(), BlockMirror.NONE, piece.getRotation());
+            template.place(world, placePos, BlockPos.ORIGIN, placementData, world.getRandom(), Block.NOTIFY_LISTENERS);
 
             // Track special rooms
             if (piece.getTemplate().getRoomType() == CollaspedShrineRoomType.INNER_SANCTUM) {
-                sanctumChestPos = piece.getOriginPos().add(6, 3, 9);
+                BlockPos transformedChestRel = ShrinePieceTemplate.transformLocalPos(
+                        new BlockPos(6, 3, 9), piece.getTemplate().getSize(), piece.getRotation()
+                );
+                sanctumChestPos = piece.getOriginPos().add(transformedChestRel);
             }
             if (piece.getTemplate().getRoomType() == CollaspedShrineRoomType.TRAP_GALLERY) {
-                fakeTraps.add(piece.getOriginPos().add(2, 1, 5));
+                BlockPos transformedTrapRel = ShrinePieceTemplate.transformLocalPos(
+                        new BlockPos(2, 1, 5), piece.getTemplate().getSize(), piece.getRotation()
+                );
+                fakeTraps.add(piece.getOriginPos().add(transformedTrapRel));
             }
         }
 

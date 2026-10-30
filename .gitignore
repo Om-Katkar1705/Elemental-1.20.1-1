@@ -45,3 +45,5 @@ replay_*.log
 
 # Unwanted archives
 .unwanted/
+unwanted/
+logs/

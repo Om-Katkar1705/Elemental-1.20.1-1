@@ -122,6 +122,9 @@ public class ShrinePieceTemplate {
 
     public static final ShrinePieceTemplate SURFACE_ENTRANCE;
     public static final ShrinePieceTemplate SURFACE_DESCENT_STAIRS;
+    public static final ShrinePieceTemplate SPIRAL_5X5;
+    public static final ShrinePieceTemplate CORRIDOR_CORNER;
+    public static final ShrinePieceTemplate CORRIDOR_TURN;
     public static final ShrinePieceTemplate ARRIVAL_CHAMBER;
     public static final ShrinePieceTemplate INNER_SANCTUM;
     public static final ShrinePieceTemplate CAP_WALL;
@@ -150,6 +153,18 @@ public class ShrinePieceTemplate {
                         new Connector(new BlockPos(2, 0, 0), Direction.NORTH, 3, 3)
                 ),
                 100
+        ));
+
+        // Standalone Modular 5x5 Spiral Staircase
+        SPIRAL_5X5 = register(new ShrinePieceTemplate(
+                id("collasped_shrine/stairs/spiral_5x5"),
+                Category.STAIRS, null,
+                5, 8, 5,
+                List.of(
+                        new Connector(new BlockPos(2, 7, 4), Direction.SOUTH, 3, 3),
+                        new Connector(new BlockPos(2, 0, 0), Direction.NORTH, 3, 3)
+                ),
+                50
         ));
 
         // 3. Corridors
@@ -186,14 +201,25 @@ public class ShrinePieceTemplate {
                 20
         ));
 
-        // 4. Junctions
-        registerCorridor(new ShrinePieceTemplate(
-                id("collasped_shrine/junctions/corridor_turn"),
-                Category.JUNCTION, null,
-                7, 5, 7,
+        // 4. Modular Corridor Corners & Junctions
+        CORRIDOR_CORNER = registerCorridor(new ShrinePieceTemplate(
+                id("collasped_shrine/corridors/corridor_corner"),
+                Category.CORRIDOR, null,
+                5, 5, 5,
                 List.of(
                         new Connector(new BlockPos(2, 0, 0), Direction.NORTH, 3, 3),
-                        new Connector(new BlockPos(6, 0, 4), Direction.EAST, 3, 3)
+                        new Connector(new BlockPos(4, 0, 2), Direction.EAST, 3, 3)
+                ),
+                35
+        ));
+
+        CORRIDOR_TURN = registerCorridor(new ShrinePieceTemplate(
+                id("collasped_shrine/junctions/corridor_turn"),
+                Category.JUNCTION, null,
+                5, 5, 5,
+                List.of(
+                        new Connector(new BlockPos(2, 0, 0), Direction.NORTH, 3, 3),
+                        new Connector(new BlockPos(4, 0, 2), Direction.EAST, 3, 3)
                 ),
                 25
         ));

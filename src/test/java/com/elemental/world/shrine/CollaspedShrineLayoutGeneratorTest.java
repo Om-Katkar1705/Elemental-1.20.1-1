@@ -128,6 +128,83 @@ public class CollaspedShrineLayoutGeneratorTest {
         }
     }
 
+    @Test
+    @DisplayName("Verify minimum 10-15 room requirement across multiple seeded runs")
+    void testRoomCountRequirement() {
+        for (int i = 0; i < 20; i++) {
+            BlockPos origin = new BlockPos(i * 50, 64, i * 50);
+            long seed = 54321L + i * 1337L;
+            CollaspedShrineLayoutGenerator.LayoutResult res =
+                    CollaspedShrineLayoutGenerator.generateLayout(origin, seed, BlockRotation.NONE);
+
+            int totalRooms = 0;
+            for (int count : res.getRoomCounts().values()) {
+                totalRooms += count;
+            }
+
+            assertTrue(totalRooms >= 10, "Layout must generate at least 10 rooms (found " + totalRooms + " for seed " + seed + ")");
+            assertTrue(totalRooms <= 18, "Layout must stay within reasonable bounds (found " + totalRooms + " for seed " + seed + ")");
+        }
+    }
+
+    @Test
+    @DisplayName("Verify deep turned stairs descent under temple before descent stairs")
+    void testDeepSubterraneanStairs() {
+        BlockPos origin = new BlockPos(0, 64, 0);
+        CollaspedShrineLayoutGenerator.LayoutResult res =
+                CollaspedShrineLayoutGenerator.generateLayout(origin, 987654L, BlockRotation.NONE);
+
+        List<CollaspedShrineLayoutGenerator.PlacedPiece> pieces = res.getPlacedPieces();
+        assertTrue(pieces.size() >= 5, "Layout must contain surface, spiral stairs, descent stairs, and arrival chamber");
+
+        // Verify piece 0 is surface entrance
+        assertEquals(ShrinePieceTemplate.SURFACE_ENTRANCE.getTemplateId(), pieces.get(0).getTemplate().getTemplateId());
+
+        // Verify next pieces are modular spiral stairs descending in Y
+        int spiralCount = 0;
+        int lastY = pieces.get(0).getOriginPos().getY();
+        for (int i = 1; i <= 3; i++) {
+            if (pieces.get(i).getTemplate().getTemplateId().getPath().contains("spiral_5x5")) {
+                spiralCount++;
+                assertTrue(pieces.get(i).getOriginPos().getY() < lastY, "Spiral piece must descend in Y");
+                lastY = pieces.get(i).getOriginPos().getY();
+            }
+        }
+        assertEquals(3, spiralCount, "Must have 3 modular spiral sections for deep subterranean descent");
+
+        // Verify descent stairs attach deep beneath surface
+        CollaspedShrineLayoutGenerator.PlacedPiece descentStairs = pieces.get(4);
+        assertEquals(ShrinePieceTemplate.SURFACE_DESCENT_STAIRS.getTemplateId(), descentStairs.getTemplate().getTemplateId());
+        assertTrue(descentStairs.getOriginPos().getY() <= 64 - 35, "Descent stairs origin must be deep underground (Y <= 29)");
+    }
+
+    @Test
+    @DisplayName("Verify rotated piece offset coordinate alignment math")
+    void testPlacementCoordinateTransform() {
+        BlockPos origin = new BlockPos(100, 50, 200);
+        BlockPos local = new BlockPos(2, 0, 1);
+        int sx = 5, sy = 5, sz = 7;
+
+        for (BlockRotation rot : BlockRotation.values()) {
+            BlockPos rotatedLocal = net.minecraft.structure.StructureTemplate.transformAround(
+                    local, net.minecraft.util.BlockMirror.NONE, rot, BlockPos.ORIGIN
+            );
+            BlockPos expected = origin.add(ShrinePieceTemplate.transformLocalPos(
+                    local, new net.minecraft.util.math.Vec3i(sx, sy, sz), rot
+            ));
+
+            BlockPos offset;
+            switch (rot) {
+                case CLOCKWISE_90 -> offset = origin.add(sz - 1, 0, 0);
+                case CLOCKWISE_180 -> offset = origin.add(sx - 1, 0, sz - 1);
+                case COUNTERCLOCKWISE_90 -> offset = origin.add(0, 0, sx - 1);
+                default -> offset = origin;
+            }
+            BlockPos worldPos = offset.add(rotatedLocal);
+            assertEquals(expected, worldPos, "World pos must match expected for " + rot);
+        }
+    }
+
     private boolean checkSanctumReachability(List<CollaspedShrineLayoutGenerator.PlacedPiece> pieces) {
         if (pieces.isEmpty()) return false;
 
@@ -139,7 +216,19 @@ public class CollaspedShrineLayoutGeneratorTest {
             BlockBox b1 = pieces.get(i).getBoundingBox();
             for (int j = i + 1; j < pieces.size(); j++) {
                 BlockBox b2 = pieces.get(j).getBoundingBox();
-                if (b1.intersects(b2)) {
+                boolean connected = b1.intersects(b2);
+                if (!connected) {
+                    for (var c1 : pieces.get(i).getConnectors()) {
+                        for (var c2 : pieces.get(j).getConnectors()) {
+                            if (c1.isConnected() && c2.isConnected() && c1.getWorldPos().equals(c2.getWorldPos())) {
+                                connected = true;
+                                break;
+                            }
+                        }
+                        if (connected) break;
+                    }
+                }
+                if (connected) {
                     adj.get(i).add(j);
                     adj.get(j).add(i);
                 }

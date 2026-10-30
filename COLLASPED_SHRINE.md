@@ -113,6 +113,27 @@ Every stair flight across the surface temple and subterranean network strictly a
    * **Connector Alignment**: Outward normal vectors (`NORTH`, `SOUTH`, `EAST`, `WEST`).
    * **Seam Overlap**: Direct connections share a 1-block doorway seam where doorway air volumes align and perimeter wall frames merge seamlessly, eliminating double walls and gaps.
 
+4. **Deep Subterranean Turned Staircase System**:
+   * **Surface Stairwell**: $5 \times 5$ turning stair inside the temple foundation descending from the sanctuary floor ($Y=6$) through the foundation to the lower exit landing ($Y=0$) around solid stone masonry with protective stone balustrade at $Y=7$.
+   * **Stacked Modular Turned Stairs (`spiral_5x5`)**: 3 modular $5 \times 8 \times 5$ spiral sections stacked directly beneath the temple footprint, dropping the stairwell 21 to 24 blocks deep into the earth ($Y = \text{baseFloorY} - 21$).
+   * **Deep Dungeon Descent**: `surface_descent_stairs` only begins 21+ blocks underground, descending an additional 16 blocks to the Arrival Chamber at $Y = \text{baseFloorY} - 37$ ($Y \approx 27$).
+   * **Zero Surface Protrusion**: The ceiling of the straight descent tunnel sits $>20$ blocks below the jungle surface, fully enclosed in subterranean stone with zero risk of poking above ground.
+
+5. **Stair Block Orientation & Alignment Rules**:
+   * Every stair block across all `.nbt` templates (`surface_entrance`, `spiral_5x5`, `surface_descent_stairs`, `corridor_stairs_down`, `inner_sanctum`, `guardian_hall`) strictly conforms to standard Minecraft blockstate mechanics:
+     * **Bottom**: Fully supported by solid stone blocks underneath.
+     * **Back**: Rests flush against the solid backing block or higher step riser.
+     * **Bend / Step**: Faces outwards towards the lower elevation / approaching player (`facing` property points in the direction of the lower front step).
+     * **Headroom**: Minimum 3 blocks to 6 blocks of clear air headroom above every step, preventing head collisions.
+
+6. **Structure Template Placement Math**:
+   * Rotated modular pieces are placed using Minecraft's exact `StructureTemplate.offsetByTransformedSize(originPos, BlockMirror.NONE, rotation)` with pivot `BlockPos.ORIGIN`.
+   * Completely eliminates displacement or disconnection of rotated rooms, corners, and corridors.
+
+7. **Modular Corridor Corners & 10–15 Room Generation**:
+   * **Dimensions**: $5 \times 5 \times 5$ outer bounding box ($3 \times 3 \times 3$ interior turning air volume) providing perpendicular ($90^\circ$) corridor connections across all 4 cardinal rotations.
+   * **Obstacle Routing**: Integrated into procedural selection in `CollaspedShrineLayoutGenerator` to route around occupied space when straight extensions collide.
+   * **Guaranteed Room Count**: Layout expansion algorithm guarantees at least 10 to 15 semantic rooms out of the 12 variations across seeds, terminating dead ends with stone wall caps or collapsed rubble caps.
 
 ---
 
@@ -124,10 +145,12 @@ src/main/resources/data/elemental/structures/collasped_shrine/
         surface_entrance.nbt
     stairs/
         surface_descent_stairs.nbt
+        spiral_5x5.nbt
         corridor_stairs_down.nbt
     corridors/
         corridor_straight_short.nbt
         corridor_straight_long.nbt
+        corridor_corner.nbt
     junctions/
         corridor_turn.nbt
         corridor_t_junction.nbt
