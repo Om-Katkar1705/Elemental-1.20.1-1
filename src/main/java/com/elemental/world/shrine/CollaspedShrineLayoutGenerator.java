@@ -208,11 +208,25 @@ public class CollaspedShrineLayoutGenerator {
         pieces.add(arrivalPiece);
         roomCounts.put(CollaspedShrineRoomType.ARRIVAL_CHAMBER, 1);
 
-        // Queue of open connectors for exploration
+        // 5. Attach 3 Short Corridors to the 3 exits of Arrival Chamber (South, West, East)
+        // Per reference design: The entrance always has 3 short corridors extending from the Arrival Chamber,
+        // and all subsequent dungeon generation proceeds purely from the outer ends of these 3 short corridors.
         List<WorldConnector> openConnectors = new ArrayList<>();
-        for (WorldConnector wc : arrivalPiece.getConnectors()) {
-            if (!wc.isConnected()) {
-                openConnectors.add(wc);
+        for (WorldConnector arrivalExit : arrivalPiece.getConnectors()) {
+            if (!arrivalExit.isConnected()) {
+                PlacedPiece shortCorridor = attachPieceToConnector(arrivalExit, ShrinePieceTemplate.CORRIDOR_STRAIGHT_SHORT, 4);
+                if (shortCorridor != null) {
+                    arrivalExit.setConnected(true);
+                    pieces.add(shortCorridor);
+                    for (WorldConnector scExit : shortCorridor.getConnectors()) {
+                        if (!scExit.isConnected()) {
+                            openConnectors.add(scExit);
+                            break;
+                        }
+                    }
+                } else {
+                    openConnectors.add(arrivalExit);
+                }
             }
         }
 
@@ -277,6 +291,13 @@ public class CollaspedShrineLayoutGenerator {
             }
             if (nextPiece == null && candidateCorridor != ShrinePieceTemplate.CORRIDOR_TURN) {
                 nextPiece = tryAttachTemplate(currentConnector, ShrinePieceTemplate.CORRIDOR_TURN, currentDepth, pieces, rand);
+            }
+            if (nextPiece == null && candidateCorridor != ShrinePieceTemplate.SPIRAL_5X5) {
+                // When horizontal routing fails, try descending with spiral stairs to open a new vertical level
+                nextPiece = tryAttachTemplate(currentConnector, ShrinePieceTemplate.SPIRAL_5X5, currentDepth, pieces, rand);
+            }
+            if (nextPiece == null && candidateCorridor != ShrinePieceTemplate.CORRIDOR_STAIRS_DOWN) {
+                nextPiece = tryAttachTemplate(currentConnector, ShrinePieceTemplate.CORRIDOR_STAIRS_DOWN, currentDepth, pieces, rand);
             }
             if (nextPiece != null) {
                 pieces.add(nextPiece);
@@ -364,18 +385,51 @@ public class CollaspedShrineLayoutGenerator {
         pieces.add(arrivalPiece);
         roomCounts.put(CollaspedShrineRoomType.ARRIVAL_CHAMBER, 1);
 
-        // Connect Inner Sanctum directly to arrival chamber South exit
-        WorldConnector arrivalSouth = arrivalPiece.getConnectors().get(1);
-        arrivalSouth.setConnected(true);
-        PlacedPiece sanctum = attachPieceToConnector(arrivalSouth, ShrinePieceTemplate.INNER_SANCTUM, 4);
-        if (sanctum != null) {
-            pieces.add(sanctum);
-            roomCounts.put(CollaspedShrineRoomType.INNER_SANCTUM, 1);
+        // Attach 3 Short Corridors to the 3 exits of Arrival Chamber
+        PlacedPiece southCorridor = null;
+        List<WorldConnector> guaranteedOpen = new ArrayList<>();
+        for (WorldConnector arrivalExit : arrivalPiece.getConnectors()) {
+            if (!arrivalExit.isConnected()) {
+                PlacedPiece shortCorridor = attachPieceToConnector(arrivalExit, ShrinePieceTemplate.CORRIDOR_STRAIGHT_SHORT, 4);
+                if (shortCorridor != null) {
+                    arrivalExit.setConnected(true);
+                    pieces.add(shortCorridor);
+                    if (arrivalExit.getOutwardDirection() == Direction.SOUTH) {
+                        southCorridor = shortCorridor;
+                    } else {
+                        for (WorldConnector scExit : shortCorridor.getConnectors()) {
+                            if (!scExit.isConnected()) {
+                                guaranteedOpen.add(scExit);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Connect Inner Sanctum to the end of the South short corridor
+        if (southCorridor != null) {
+            WorldConnector southEnd = null;
+            for (WorldConnector scExit : southCorridor.getConnectors()) {
+                if (!scExit.isConnected()) {
+                    southEnd = scExit;
+                    break;
+                }
+            }
+            if (southEnd != null) {
+                southEnd.setConnected(true);
+                PlacedPiece sanctum = attachPieceToConnector(southEnd, ShrinePieceTemplate.INNER_SANCTUM, 5);
+                if (sanctum != null) {
+                    pieces.add(sanctum);
+                    roomCounts.put(CollaspedShrineRoomType.INNER_SANCTUM, 1);
+                }
+            }
         }
 
         // Cap remaining exits
         Random rand = new Random(42);
-        for (WorldConnector wc : arrivalPiece.getConnectors()) {
+        for (WorldConnector wc : guaranteedOpen) {
             if (!wc.isConnected()) {
                 attachCap(wc, pieces, rand);
             }
@@ -423,6 +477,15 @@ public class CollaspedShrineLayoutGenerator {
                 if (transformed.outwardDirection() == requiredInward) {
                     BlockPos worldOrigin = targetConnector.getWorldPos().subtract(transformed.relPos());
                     PlacedPiece candidate = new PlacedPiece(newTemplate, worldOrigin, rot, depth);
+
+                    // Keep subterranean pieces safely underground and above bedrock
+                    BlockBox box = candidate.getBoundingBox();
+                    if (box.getMinY() < -55) {
+                        continue;
+                    }
+                    if (!existingPieces.isEmpty() && depth >= 1 && box.getMaxY() > existingPieces.get(0).getOriginPos().getY() - 14) {
+                        continue;
+                    }
 
                     // Collision check
                     if (!checkCollision(candidate, targetConnector.getOwner(), existingPieces)) {

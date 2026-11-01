@@ -113,11 +113,13 @@ Every stair flight across the surface temple and subterranean network strictly a
    * **Connector Alignment**: Outward normal vectors (`NORTH`, `SOUTH`, `EAST`, `WEST`).
    * **Seam Overlap**: Direct connections share a 1-block doorway seam where doorway air volumes align and perimeter wall frames merge seamlessly, eliminating double walls and gaps.
 
-4. **Deep Subterranean Turned Staircase System**:
+4. **Deep Subterranean Turned Staircase & 3-Corridor Entrance System**:
    * **Surface Stairwell**: $5 \times 5$ turning stair inside the temple foundation descending from the sanctuary floor ($Y=6$) through the foundation to the lower exit landing ($Y=0$) around solid stone masonry with protective stone balustrade at $Y=7$.
    * **Stacked Modular Turned Stairs (`spiral_5x5`)**: 3 modular $5 \times 8 \times 5$ spiral sections stacked directly beneath the temple footprint, dropping the stairwell 21 to 24 blocks deep into the earth ($Y = \text{baseFloorY} - 21$).
    * **Deep Dungeon Descent**: `surface_descent_stairs` only begins 21+ blocks underground, descending an additional 16 blocks to the Arrival Chamber at $Y = \text{baseFloorY} - 37$ ($Y \approx 27$).
    * **Zero Surface Protrusion**: The ceiling of the straight descent tunnel sits $>20$ blocks below the jungle surface, fully enclosed in subterranean stone with zero risk of poking above ground.
+   * **Fixed 3-Corridor Entrance Anchor**: The Arrival Chamber connects directly to three `corridor_straight_short` ($5 \times 5 \times 7$) corridors across its 3 outward exits (`SOUTH`, `WEST`, `EAST`). All procedural dungeon branching and room placement proceeds from the outer ends of these three corridors, matching the canonical reference architecture.
+   * **Multi-Level Vertical Expansion**: `spiral_5x5` (7-block drop) and `corridor_stairs_down` (4-block drop) are registered in the procedural corridor pool with equal selection weights, enabling multi-tier vertical dungeon generation that packs 10–15 rooms into a compact 3D subterranean footprint without lateral sprawl or collisions.
 
 5. **Stair Block Orientation & Alignment Rules**:
    * Every stair block across all `.nbt` templates (`surface_entrance`, `spiral_5x5`, `surface_descent_stairs`, `corridor_stairs_down`, `inner_sanctum`, `guardian_hall`) strictly conforms to standard Minecraft blockstate mechanics:

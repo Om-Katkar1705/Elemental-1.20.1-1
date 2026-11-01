@@ -127,6 +127,8 @@ public class ShrinePieceTemplate {
     public static final ShrinePieceTemplate CORRIDOR_TURN;
     public static final ShrinePieceTemplate ARRIVAL_CHAMBER;
     public static final ShrinePieceTemplate INNER_SANCTUM;
+    public static final ShrinePieceTemplate CORRIDOR_STRAIGHT_SHORT;
+    public static final ShrinePieceTemplate CORRIDOR_STAIRS_DOWN;
     public static final ShrinePieceTemplate CAP_WALL;
     public static final ShrinePieceTemplate CAP_COLLAPSED;
 
@@ -156,7 +158,7 @@ public class ShrinePieceTemplate {
         ));
 
         // Standalone Modular 5x5 Spiral Staircase
-        SPIRAL_5X5 = register(new ShrinePieceTemplate(
+        SPIRAL_5X5 = registerCorridor(new ShrinePieceTemplate(
                 id("collasped_shrine/stairs/spiral_5x5"),
                 Category.STAIRS, null,
                 5, 8, 5,
@@ -164,11 +166,11 @@ public class ShrinePieceTemplate {
                         new Connector(new BlockPos(2, 7, 4), Direction.SOUTH, 3, 3),
                         new Connector(new BlockPos(2, 0, 0), Direction.NORTH, 3, 3)
                 ),
-                50
+                30
         ));
 
         // 3. Corridors
-        registerCorridor(new ShrinePieceTemplate(
+        CORRIDOR_STRAIGHT_SHORT = registerCorridor(new ShrinePieceTemplate(
                 id("collasped_shrine/corridors/corridor_straight_short"),
                 Category.CORRIDOR, null,
                 5, 5, 7,
@@ -249,7 +251,7 @@ public class ShrinePieceTemplate {
                 15
         ));
 
-        registerCorridor(new ShrinePieceTemplate(
+        CORRIDOR_STAIRS_DOWN = registerCorridor(new ShrinePieceTemplate(
                 id("collasped_shrine/stairs/corridor_stairs_down"),
                 Category.STAIRS, null,
                 5, 9, 9,
@@ -257,7 +259,7 @@ public class ShrinePieceTemplate {
                         new Connector(new BlockPos(2, 4, 8), Direction.SOUTH, 3, 3),
                         new Connector(new BlockPos(2, 0, 0), Direction.NORTH, 3, 3)
                 ),
-                15
+                30
         ));
 
         // 5. Caps

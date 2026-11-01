@@ -176,6 +176,42 @@ public class CollaspedShrineLayoutGeneratorTest {
         CollaspedShrineLayoutGenerator.PlacedPiece descentStairs = pieces.get(4);
         assertEquals(ShrinePieceTemplate.SURFACE_DESCENT_STAIRS.getTemplateId(), descentStairs.getTemplate().getTemplateId());
         assertTrue(descentStairs.getOriginPos().getY() <= 64 - 35, "Descent stairs origin must be deep underground (Y <= 29)");
+
+        // Verify piece 5 is Arrival Chamber
+        CollaspedShrineLayoutGenerator.PlacedPiece arrival = pieces.get(5);
+        assertEquals(ShrinePieceTemplate.ARRIVAL_CHAMBER.getTemplateId(), arrival.getTemplate().getTemplateId());
+
+        // Verify pieces 6, 7, 8 are the 3 short corridors extending from the Arrival Chamber exits
+        for (int i = 6; i <= 8; i++) {
+            assertTrue(pieces.get(i).getTemplate().getTemplateId().getPath().contains("corridor_straight_short"),
+                    "Piece " + i + " must be a short corridor attached to an arrival chamber exit (found: " + pieces.get(i).getTemplate().getTemplateId() + ")");
+        }
+    }
+
+    @Test
+    @DisplayName("Verify procedural utilization of spiral stairs and corridor down stairs in multi-level dungeon")
+    void testMultiLevelStairUsageAcrossDungeon() {
+        int layoutsWithStairs = 0;
+        for (int i = 0; i < 20; i++) {
+            BlockPos origin = new BlockPos(i * 100, 64, i * 100);
+            long seed = 13579L + i * 2468L;
+            CollaspedShrineLayoutGenerator.LayoutResult res =
+                    CollaspedShrineLayoutGenerator.generateLayout(origin, seed, BlockRotation.NONE);
+
+            // Check subterranean pieces beyond the entrance (index >= 9) for stairs
+            boolean hasSubterraneanStairs = false;
+            for (int p = 9; p < res.getPlacedPieces().size(); p++) {
+                String path = res.getPlacedPieces().get(p).getTemplate().getTemplateId().getPath();
+                if (path.contains("spiral_5x5") || path.contains("corridor_stairs_down")) {
+                    hasSubterraneanStairs = true;
+                    break;
+                }
+            }
+            if (hasSubterraneanStairs) {
+                layoutsWithStairs++;
+            }
+        }
+        assertTrue(layoutsWithStairs >= 10, "Spiral stairs and corridor down stairs should be used purely randomly in dungeon expansion (found in " + layoutsWithStairs + "/20 layouts)");
     }
 
     @Test
