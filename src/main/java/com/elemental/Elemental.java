@@ -59,7 +59,6 @@ public class Elemental implements ModInitializer {
 		AshenRiftNetworking.registerServerReceivers();
 		AshenRiftScheduler.register();
 		QuestNetworking.registerServerReceivers();
-		com.elemental.world.JungleDungeonManager.register();
 
 		// Register commands
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {

@@ -47,3 +47,7 @@ replay_*.log
 .unwanted/
 unwanted/
 logs/
+
+# media and temporary archives
+*.mp4
+*.zip

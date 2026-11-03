@@ -2,7 +2,6 @@ package com.elemental.mixin;
 
 import com.elemental.Elemental;
 import com.elemental.quest.QuestSaveData;
-import com.elemental.world.JungleDungeonManager;
 import com.elemental.world.NbtStructureManager;
 import com.google.common.base.Stopwatch;
 import com.mojang.datafixers.util.Either;
@@ -76,9 +75,6 @@ public abstract class LocateCommandMixin {
             candidates.put("aerons_camp", getOrLocateCamp(world, source, saveData, originPos));
             candidates.put("crashed_skyforge_ship", getOrLocateAirship(world, saveData, originPos));
             candidates.put("everliving_knight_arena", getOrLocateEverlivingArena(world, saveData, originPos));
-            candidates.put("collasped_shrine", getOrLocateCollapsedShrine(world, saveData, originPos));
-            candidates.put("collapsed_shrine", getOrLocateCollapsedShrine(world, saveData, originPos));
-            candidates.put("lush_stronghold_temple", getOrLocateLushStrongholdTemple(world, saveData, originPos));
             candidates.put("seismic_golem_arena", getOrLocateSeismicGolemArena(world, saveData, originPos));
 
             String closestKey = "aerons_camp";
@@ -103,8 +99,6 @@ public abstract class LocateCommandMixin {
                 case "aerons_camp" -> getOrLocateCamp(world, source, saveData, originPos);
                 case "crashed_skyforge_ship" -> getOrLocateAirship(world, saveData, originPos);
                 case "everliving_knight_arena" -> getOrLocateEverlivingArena(world, saveData, originPos);
-                case "collasped_shrine", "collapsed_shrine" -> getOrLocateCollapsedShrine(world, saveData, originPos);
-                case "lush_stronghold_temple" -> getOrLocateLushStrongholdTemple(world, saveData, originPos);
                 case "seismic_golem_arena" -> getOrLocateSeismicGolemArena(world, saveData, originPos);
                 default -> null;
             };
@@ -141,9 +135,6 @@ public abstract class LocateCommandMixin {
         return path.equals("aerons_camp")
                 || path.equals("crashed_skyforge_ship")
                 || path.equals("everliving_knight_arena")
-                || path.equals("collasped_shrine")
-                || path.equals("collapsed_shrine")
-                || path.equals("lush_stronghold_temple")
                 || path.equals("seismic_golem_arena");
     }
 
@@ -183,27 +174,11 @@ public abstract class LocateCommandMixin {
         return NbtStructureManager.findOrGenerateEverlivingArena(world, originPos);
     }
 
-    private static BlockPos getOrLocateCollapsedShrine(ServerWorld world, QuestSaveData saveData, BlockPos originPos) {
-        BlockPos existing = saveData.getCollapsedShrineLocation();
-        if (existing != null) {
-            return existing;
-        }
-        return JungleDungeonManager.findOrGenerateCollapsedShrine(world, originPos);
-    }
-
     private static BlockPos getOrLocateSeismicGolemArena(ServerWorld world, QuestSaveData saveData, BlockPos originPos) {
         BlockPos existing = saveData.getSeismicGolemArenaLocation();
         if (existing != null) {
             return existing;
         }
         return NbtStructureManager.findOrGenerateSeismicGolemArena(world, originPos);
-    }
-
-    private static BlockPos getOrLocateLushStrongholdTemple(ServerWorld world, QuestSaveData saveData, BlockPos originPos) {
-        BlockPos existing = saveData.getLushStrongholdTempleLocation();
-        if (existing != null) {
-            return existing;
-        }
-        return NbtStructureManager.findOrGenerateLushStrongholdTemple(world, originPos);
     }
 }
