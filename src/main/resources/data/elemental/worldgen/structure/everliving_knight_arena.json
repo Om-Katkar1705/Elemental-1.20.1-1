@@ -6,10 +6,10 @@
   "size": 1,
   "spawn_overrides": {},
   "start_height": {
-    "absolute": 0
+    "absolute": -2
   },
-  "start_pool": "minecraft:empty",
+  "start_pool": "elemental:everliving_knight_arena",
   "step": "surface_structures",
-  "terrain_adaptation": "none",
+  "terrain_adaptation": "beard_box",
   "use_expansion_hack": false
 }

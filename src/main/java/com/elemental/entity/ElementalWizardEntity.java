@@ -7,6 +7,7 @@ import com.elemental.network.QuestNetworking;
 import com.elemental.quest.DialogueManager;
 import com.elemental.quest.PlayerQuestData;
 import com.elemental.quest.QuestManager;
+import com.elemental.quest.QuestSaveData;
 import com.elemental.quest.QuestState;
 import com.elemental.sound.ModSounds;
 import net.minecraft.entity.EntityType;
@@ -141,52 +142,22 @@ public class ElementalWizardEntity extends PathAwareEntity {
             // Unlock Element Core, Weaponer, and Stencil recipes so the player has them immediately
             unlockElementCoreRecipes(serverPlayer);
 
-            // Phase 1: First meeting at Desert Village
-            if (state == QuestState.DESERT_EXPEDITION || state == QuestState.TALK_TO_WIZARD || state.getId() < QuestState.CRAFT_WEAPONER.getId()) {
-                startWizardIntroduction(serverPlayer);
-            }
-            // Phase 2: In Task 1 (Craft Weaponer)
-            else if (state == QuestState.CRAFT_WEAPONER) {
-                if (QuestManager.hasItemOrWorn(serverPlayer, ModBlocks.WEAPONER.asItem())) {
-                    startTask1CompletedDialogue(serverPlayer);
-                } else {
-                    startTask1Reminder(serverPlayer);
-                }
-            }
-            // Phase 3: In Task 2 (Craft Dry Heat Element)
-            else if (state == QuestState.CRAFT_DRY_HEAT_ELEMENT) {
-                if (QuestManager.hasItemOrWorn(serverPlayer, ModItems.DRY_HEAT_ELEMENT)) {
-                    startTask2CompletedDialogue(serverPlayer);
-                } else {
-                    startTask2Reminder(serverPlayer);
-                }
-            }
-            // Phase 4: In Task 3 (Forge Sunforged Scimitar)
-            else if (state == QuestState.FORGE_SUNFORGED_SCIMITAR) {
-                if (QuestManager.hasItemOrWorn(serverPlayer, ModItems.SUNFORGED_SCIMITAR)) {
-                    startTask3CompletedDialogue(serverPlayer);
-                } else {
-                    startTask3Reminder(serverPlayer);
-                }
-            }
-            // Phase 5: Craft Snow Element & Forge Frostwake Pick
-            else if (state == QuestState.CRAFT_SNOW_ELEMENT || state == QuestState.FORGE_FROSTWAKE_PICK) {
-                serverPlayer.sendMessage(Text.literal("§5[Eldrin] §b").append(Text.translatable("dialogue.elemental.wizard.snow_reminder")), false);
-                playWizardSoundAll(serverPlayer.server);
-            }
-            // Phase 6: Craft Tree Element & Forge Rootbound Axe
-            else if (state == QuestState.CRAFT_TREE_ELEMENT || state == QuestState.FORGE_ROOTBOUND_AXE) {
-                serverPlayer.sendMessage(Text.literal("§5[Eldrin] §a").append(Text.translatable("dialogue.elemental.wizard.tree_reminder")), false);
-                playWizardSoundAll(serverPlayer.server);
-            }
-            // Phase 7: Everliving Knight Boss Fight
-            else if (state == QuestState.LOCATE_EVERLIVING_ARENA || state == QuestState.DEFEAT_EVERLIVING_KNIGHT) {
+            QuestSaveData saveData = QuestSaveData.getServerState(serverPlayer.server);
+            boolean hasAllThree = (saveData.isScimitarObtained() || QuestManager.hasItemOrWorn(serverPlayer, ModItems.SUNFORGED_SCIMITAR))
+                    && (saveData.isPickObtained() || QuestManager.hasItemOrWorn(serverPlayer, ModItems.FROSTWAKE_PICK))
+                    && (saveData.isAxeObtained() || QuestManager.hasItemOrWorn(serverPlayer, ModItems.ROOTBOUND_AXE));
+
+            if (state == QuestState.LOCATE_EVERLIVING_ARENA || state == QuestState.DEFEAT_EVERLIVING_KNIGHT) {
                 serverPlayer.sendMessage(Text.literal("§5[Eldrin] §c").append(Text.translatable("dialogue.elemental.wizard.arena_reminder")), false);
                 playWizardSoundAll(serverPlayer.server);
-            }
-            // Completed or Free roaming
-            else {
+            } else if (state == QuestState.QUEST_COMPLETE) {
                 startCompletedGreeting(serverPlayer);
+            } else if (hasAllThree) {
+                startEverlivingBossDialogue(serverPlayer);
+            } else if (!saveData.isWizardIntroDone()) {
+                startWizardIntroduction(serverPlayer);
+            } else {
+                tellPlayerCurrentTask(serverPlayer);
             }
 
             return ActionResult.SUCCESS;
@@ -268,11 +239,101 @@ public class ElementalWizardEntity extends PathAwareEntity {
             for (ServerPlayerEntity sp : player.server.getPlayerManager().getPlayerList()) {
                 unlockElementCoreRecipes(sp);
             }
-            QuestManager.setQuestState(player, QuestState.CRAFT_WEAPONER);
+            QuestSaveData saveData = QuestSaveData.getServerState(player.server);
+            saveData.setWizardIntroDone(true);
+            saveData.markDirty();
             for (ServerPlayerEntity sp : player.server.getPlayerManager().getPlayerList()) {
                 sp.playSound(ModSounds.QUEST_ACCEPTED, SoundCategory.PLAYERS, 1.0f, 1.0f);
             }
+            tellPlayerCurrentTask(player);
         });
+    }
+
+    public static void tellPlayerCurrentTask(ServerPlayerEntity player) {
+        QuestSaveData saveData = QuestSaveData.getServerState(player.server);
+        boolean hasWeaponer = QuestManager.hasItemOrWorn(player, ModBlocks.WEAPONER.asItem());
+
+        if (!hasWeaponer) {
+            int cores = QuestManager.countItem(player, ModItems.ELEMENT_CORE);
+            int copper = QuestManager.countItem(player, net.minecraft.item.Items.COPPER_INGOT);
+            int deepslate = QuestManager.countItem(player, net.minecraft.item.Items.POLISHED_DEEPSLATE);
+            player.sendMessage(Text.literal("§5[Eldrin] §eTask 1: Craft a Weaponer workstation at a crafting table!").formatted(Formatting.GOLD, Formatting.BOLD), false);
+            player.sendMessage(Text.literal("§7  • 1x Element Core (" + cores + "/1)"), false);
+            player.sendMessage(Text.literal("§7  • 4x Copper Ingot (" + copper + "/4)"), false);
+            player.sendMessage(Text.literal("§7  • 4x Polished Deepslate (" + deepslate + "/4)"), false);
+            playWizardSoundAll(player.server);
+            return;
+        }
+
+        List<String> order = List.of(
+                saveData.getFirstBiome() != null ? saveData.getFirstBiome() : "DESERT",
+                saveData.getSecondBiome() != null ? saveData.getSecondBiome() : "SNOW",
+                saveData.getThirdBiome() != null ? saveData.getThirdBiome() : "FOREST"
+        );
+
+        String activeBiome = null;
+        for (String b : order) {
+            if ("DESERT".equals(b) && !saveData.isScimitarObtained() && !QuestManager.hasItemOrWorn(player, ModItems.SUNFORGED_SCIMITAR)) {
+                activeBiome = b;
+                break;
+            } else if ("SNOW".equals(b) && !saveData.isPickObtained() && !QuestManager.hasItemOrWorn(player, ModItems.FROSTWAKE_PICK)) {
+                activeBiome = b;
+                break;
+            } else if ("FOREST".equals(b) && !saveData.isAxeObtained() && !QuestManager.hasItemOrWorn(player, ModItems.ROOTBOUND_AXE)) {
+                activeBiome = b;
+                break;
+            }
+        }
+
+        PlayerQuestData qData = QuestManager.getPlayerData(player);
+        QuestState state = qData.getState();
+
+        if (state == QuestState.REACH_BIOME_2) {
+            String bName = QuestManager.getBiomeDisplayName(saveData.getSecondBiome());
+            player.sendMessage(Text.literal("§5[Eldrin] §eYour current objective: fly to and reach the 2nd source: §6" + bName + "§e! Reach that region first before crafting its element.").formatted(Formatting.GOLD), false);
+            playWizardSoundAll(player.server);
+            return;
+        }
+
+        if (state == QuestState.REACH_BIOME_3) {
+            String bName = QuestManager.getBiomeDisplayName(saveData.getThirdBiome());
+            player.sendMessage(Text.literal("§5[Eldrin] §eYour current objective: fly to and reach the final source: §6" + bName + "§e! Reach that region first before crafting its element.").formatted(Formatting.AQUA), false);
+            playWizardSoundAll(player.server);
+            return;
+        }
+
+        if (activeBiome == null) {
+            startEverlivingBossDialogue(player);
+            return;
+        }
+
+        switch (activeBiome) {
+            case "DESERT" -> {
+                boolean hasHeat = QuestManager.hasItemOrWorn(player, ModItems.DRY_HEAT_ELEMENT);
+                if (!hasHeat) {
+                    player.sendMessage(Text.literal("§5[Eldrin] §6Task 2: Craft a Dry Heat Element! Place an Element Core and a Cactus inside the Weaponer.").formatted(Formatting.GOLD), false);
+                } else {
+                    player.sendMessage(Text.literal("§5[Eldrin] §6Task 3: Forge the Sunforged Scimitar! Combine a Weapon Stencil and Dry Heat Element inside the Weaponer.").formatted(Formatting.YELLOW, Formatting.BOLD), false);
+                }
+            }
+            case "SNOW" -> {
+                boolean hasSnow = QuestManager.hasItemOrWorn(player, ModItems.SNOW_ELEMENT);
+                if (!hasSnow) {
+                    player.sendMessage(Text.literal("§5[Eldrin] §bTask 2: Craft a Snow Element! Place an Element Core and a Snow Block inside the Weaponer.").formatted(Formatting.AQUA), false);
+                } else {
+                    player.sendMessage(Text.literal("§5[Eldrin] §bTask 3: Forge the Frostwake Pick! Combine a Weapon Stencil and Snow Element inside the Weaponer.").formatted(Formatting.AQUA, Formatting.BOLD), false);
+                }
+            }
+            case "FOREST" -> {
+                boolean hasTree = QuestManager.hasItemOrWorn(player, ModItems.TREE_ELEMENT);
+                if (!hasTree) {
+                    player.sendMessage(Text.literal("§5[Eldrin] §aTask 2: Craft a Tree Element! Place an Element Core and a Dark Oak Log inside the Weaponer.").formatted(Formatting.GREEN), false);
+                } else {
+                    player.sendMessage(Text.literal("§5[Eldrin] §aTask 3: Forge the Rootbound Axe! Combine a Weapon Stencil and Tree Element inside the Weaponer.").formatted(Formatting.GREEN, Formatting.BOLD), false);
+                }
+            }
+        }
+        playWizardSoundAll(player.server);
     }
 
     public static void startTask1CompletedDialogue(ServerPlayerEntity player) {

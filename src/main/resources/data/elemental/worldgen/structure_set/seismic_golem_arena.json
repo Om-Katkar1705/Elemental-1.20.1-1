@@ -1,0 +1,16 @@
+{
+  "structures": [
+    {
+      "structure": "elemental:seismic_golem_arena",
+      "weight": 1
+    }
+  ],
+  "placement": {
+    "type": "minecraft:concentric_rings",
+    "distance": 45,
+    "spread": 3,
+    "count": 1,
+    "preferred_biomes": "#minecraft:is_overworld",
+    "salt": 74910283
+  }
+}

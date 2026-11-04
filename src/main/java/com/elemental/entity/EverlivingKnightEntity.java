@@ -895,9 +895,7 @@ public class EverlivingKnightEntity extends HostileEntity implements GeoEntity {
         this.bossBar.clearPlayers();
         super.onDeath(source);
 
-        if (!this.getWorld().isClient()) {
-            this.dropItem(com.elemental.item.ModItems.UPGRADE_KEY);
-        }
+        // Sir Solvane drops exactly 1 Upgrade Key via his loot table (elemental:entities/everliving_knight).
 
         if (!this.getWorld().isClient() && this.getWorld().getServer() != null) {
             for (net.minecraft.server.network.ServerPlayerEntity player : this.getWorld().getServer().getPlayerManager().getPlayerList()) {

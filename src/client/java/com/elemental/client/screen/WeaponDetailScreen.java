@@ -189,14 +189,10 @@ public class WeaponDetailScreen extends Screen {
     }
 
     public boolean isWeaponUnlocked(String weaponId, QuestState state) {
-        if ("sunforged_scimitar".equalsIgnoreCase(weaponId)) {
-            return state.getId() >= QuestState.CRAFT_WEAPONER.getId();
-        }
-        if ("frostwake_pick".equalsIgnoreCase(weaponId)) {
-            return state.getId() >= QuestState.CRAFT_SNOW_ELEMENT.getId();
-        }
-        if ("rootbound_axe".equalsIgnoreCase(weaponId)) {
-            return state.getId() >= QuestState.CRAFT_TREE_ELEMENT.getId();
+        if ("sunforged_scimitar".equalsIgnoreCase(weaponId)
+                || "frostwake_pick".equalsIgnoreCase(weaponId)
+                || "rootbound_axe".equalsIgnoreCase(weaponId)) {
+            return state.getId() >= QuestState.CRAFT_JETPACK.getId();
         }
         return false;
     }
@@ -226,44 +222,19 @@ public class WeaponDetailScreen extends Screen {
         boolean buttonActive = false;
         Runnable action = null;
 
+        boolean hasItemInInventory = this.client != null && this.client.player != null
+                && (this.client.player.getInventory().contains(current.stack) || this.client.player.getMainHandStack().isOf(current.stack.getItem()));
+
         if (!isWeaponUnlocked(current.id, state)) {
             buttonText = Text.literal("✦ Weapon Locked ✦").formatted(Formatting.DARK_GRAY);
             buttonActive = false;
-        } else if ("frostwake_pick".equalsIgnoreCase(current.id)) {
-            if (state == QuestState.CRAFT_SNOW_ELEMENT || state == QuestState.FORGE_FROSTWAKE_PICK) {
-                buttonText = Text.literal("✦ Active Quest: Frostwake Pick ✦").formatted(Formatting.AQUA);
-                buttonActive = false;
-            } else if (state.getId() >= QuestState.CRAFT_TREE_ELEMENT.getId()) {
-                buttonText = Text.literal("✔ Frostwake Pick Mastered").formatted(Formatting.GREEN);
-                buttonActive = false;
-            } else {
-                buttonText = Text.literal("✦ Begin Quest: Forge Frostwake Pick ✦").formatted(Formatting.AQUA, Formatting.BOLD);
-                buttonActive = true;
-                action = () -> sendSelectWeaponQuest("frostwake_pick");
-            }
-        } else if ("rootbound_axe".equalsIgnoreCase(current.id)) {
-            if (state == QuestState.CRAFT_TREE_ELEMENT || state == QuestState.FORGE_ROOTBOUND_AXE) {
-                buttonText = Text.literal("✦ Active Quest: Rootbound Axe ✦").formatted(Formatting.GREEN);
-                buttonActive = false;
-            } else if (state.getId() >= QuestState.LOCATE_EVERLIVING_ARENA.getId()) {
-                buttonText = Text.literal("✔ Rootbound Axe Mastered").formatted(Formatting.GREEN);
-                buttonActive = false;
-            } else {
-                buttonText = Text.literal("✦ Begin Quest: Forge Rootbound Axe ✦").formatted(Formatting.GREEN, Formatting.BOLD);
-                buttonActive = true;
-                action = () -> sendSelectWeaponQuest("rootbound_axe");
-            }
-        } else if ("sunforged_scimitar".equalsIgnoreCase(current.id)) {
-            if (state.getId() >= QuestState.CRAFT_SNOW_ELEMENT.getId()) {
-                buttonText = Text.literal("✔ Sunforged Scimitar Mastered").formatted(Formatting.GOLD);
-                buttonActive = false;
-            } else {
-                buttonText = Text.literal("✦ Active Quest: Sunforged Scimitar ✦").formatted(Formatting.GOLD);
-                buttonActive = false;
-            }
-        } else {
-            buttonText = Text.literal("✦ Weapon Locked ✦").formatted(Formatting.DARK_GRAY);
+        } else if (hasItemInInventory || state.getId() >= QuestState.LOCATE_EVERLIVING_ARENA.getId()) {
+            buttonText = Text.literal("✔ " + current.name + " Mastered").formatted(Formatting.GREEN);
             buttonActive = false;
+        } else {
+            buttonText = Text.literal("✦ Track: Forge " + current.name + " ✦").formatted(Formatting.GOLD, Formatting.BOLD);
+            buttonActive = true;
+            action = () -> sendSelectWeaponQuest(current.id);
         }
 
         final Runnable finalAction = action;

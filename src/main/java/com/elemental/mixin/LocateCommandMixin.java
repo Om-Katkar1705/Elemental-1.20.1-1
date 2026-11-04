@@ -47,13 +47,15 @@ public abstract class LocateCommandMixin {
             String namespace = id.getNamespace();
             String path = id.getPath();
 
-            if (isElementalStructurePath(path) && (namespace.equals(Elemental.MOD_ID) || namespace.equals("minecraft"))) {
+            if (isElementalStructurePath(path)
+                    && (namespace.equals(Elemental.MOD_ID) || namespace.equals("minecraft"))) {
                 matchedPath = path;
             }
         } else if (keyOrTag.right().isPresent()) {
             TagKey<Structure> tag = keyOrTag.right().get();
             Identifier tagId = tag.id();
-            if (tagId.getPath().equals("structures") && (tagId.getNamespace().equals(Elemental.MOD_ID) || tagId.getNamespace().equals("minecraft"))) {
+            if (tagId.getPath().equals("structures")
+                    && (tagId.getNamespace().equals(Elemental.MOD_ID) || tagId.getNamespace().equals("minecraft"))) {
                 isAllStructuresTag = true;
             }
         }
@@ -109,12 +111,14 @@ public abstract class LocateCommandMixin {
         }
 
         Registry<Structure> registry = world.getRegistryManager().get(RegistryKeys.STRUCTURE);
-        RegistryKey<Structure> targetKey = RegistryKey.of(RegistryKeys.STRUCTURE, new Identifier(Elemental.MOD_ID, resolvedPath));
+        RegistryKey<Structure> targetKey = RegistryKey.of(RegistryKeys.STRUCTURE,
+                new Identifier(Elemental.MOD_ID, resolvedPath));
         Optional<RegistryEntry.Reference<Structure>> entryOpt = registry.getEntry(targetKey);
 
         RegistryEntry<Structure> entry = entryOpt.isPresent()
                 ? entryOpt.get()
-                : registry.getEntry(RegistryKey.of(RegistryKeys.STRUCTURE, new Identifier("minecraft", resolvedPath))).orElse(null);
+                : registry.getEntry(RegistryKey.of(RegistryKeys.STRUCTURE, new Identifier("minecraft", resolvedPath)))
+                        .orElse(null);
 
         stopwatch.stop();
 
@@ -125,8 +129,7 @@ public abstract class LocateCommandMixin {
                 Pair.of(targetPos, entry),
                 "commands.locate.structure.success",
                 false,
-                stopwatch.elapsed()
-        );
+                stopwatch.elapsed());
 
         cir.setReturnValue(result);
     }
@@ -138,7 +141,8 @@ public abstract class LocateCommandMixin {
                 || path.equals("seismic_golem_arena");
     }
 
-    private static BlockPos getOrLocateCamp(ServerWorld world, ServerCommandSource source, QuestSaveData saveData, BlockPos originPos) {
+    private static BlockPos getOrLocateCamp(ServerWorld world, ServerCommandSource source, QuestSaveData saveData,
+            BlockPos originPos) {
         BlockPos camp = saveData.getAeronsTentLocation();
         if (camp != null) {
             return camp;
@@ -174,7 +178,8 @@ public abstract class LocateCommandMixin {
         return NbtStructureManager.findOrGenerateEverlivingArena(world, originPos);
     }
 
-    private static BlockPos getOrLocateSeismicGolemArena(ServerWorld world, QuestSaveData saveData, BlockPos originPos) {
+    private static BlockPos getOrLocateSeismicGolemArena(ServerWorld world, QuestSaveData saveData,
+            BlockPos originPos) {
         BlockPos existing = saveData.getSeismicGolemArenaLocation();
         if (existing != null) {
             return existing;

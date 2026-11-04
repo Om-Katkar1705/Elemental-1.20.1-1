@@ -254,6 +254,13 @@ public class QuestGuidanceHud implements HudRenderCallback {
                 yield TASK_SALVAGE[found];
             }
             case RETURN_TO_AERON -> TASK_DELIVER;
+            case BIOME_EXPEDITION_1 -> Text.literal("§e► Fly to Closest Biome: Meet Eldrin (1/3)");
+            case REACH_BIOME_2 -> Text.literal("§e► Fly to 2nd Biome: Reach Region First (2/3)");
+            case FORGE_WEAPON_2 -> Text.literal("§a► 2nd Biome Reached: Craft Element & Forge Weapon (2/3)");
+            case REACH_BIOME_3 -> Text.literal("§e► Fly to Final Biome: Reach Region First (3/3)");
+            case FORGE_WEAPON_3 -> Text.literal("§a► Final Biome Reached: Craft Element & Forge Weapon (3/3)");
+            case BIOME_EXPEDITION_2 -> Text.literal("§e► Fly to 2nd Closest Biome: Reach Region (2/3)");
+            case BIOME_EXPEDITION_3 -> Text.literal("§e► Fly to Final Biome: Reach Region (3/3)");
             case DESERT_EXPEDITION -> TASK_DESERT;
             case TALK_TO_WIZARD -> TASK_TALK_WIZARD;
             case LOCATE_EVERLIVING_ARENA -> TASK_LOCATE_ARENA;

@@ -38,7 +38,17 @@ public class ElementalQuestCommand {
                                     QuestSaveData saveData = QuestSaveData.getServerState(player.server);
                                     saveData.setGuideSpawned(false);
                                     saveData.setTentGenerated(false);
+                                    saveData.setWizardLocation(null);
+                                    saveData.setWizardIntroDone(false);
+                                    saveData.setWizardSpawned(false);
+                                    saveData.setWizardUuid(null);
                                     saveData.setEverlivingArenaLocation(null);
+                                    saveData.setFirstBiome(null);
+                                    saveData.setSecondBiome(null);
+                                    saveData.setThirdBiome(null);
+                                    saveData.setScimitarObtained(false);
+                                    saveData.setPickObtained(false);
+                                    saveData.setAxeObtained(false);
                                     saveData.markDirty();
                                     QuestManager.syncToAll(player.server);
 

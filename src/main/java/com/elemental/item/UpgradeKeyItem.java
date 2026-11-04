@@ -84,11 +84,7 @@ public class UpgradeKeyItem extends Item {
             serverWorld.spawnParticles(ParticleTypes.GLOW, cx, cy + 0.2, cz, 35, 0.35, 0.35, 0.35, 0.05);
         }
 
-        // Consume 1 key
-        if (player != null && !player.getAbilities().creativeMode) {
-            keyStack.decrement(1);
-        }
-
+        // Multi-use relic: Not consumed upon use
         if (player instanceof ServerPlayerEntity serverPlayer) {
             serverPlayer.sendMessage(Text.translatable("message.elemental.anvil_transformed").formatted(Formatting.AQUA, Formatting.BOLD), true);
         }
@@ -99,6 +95,7 @@ public class UpgradeKeyItem extends Item {
     @Override
     public void appendTooltip(ItemStack stack, @Nullable World world, List<Text> tooltip, TooltipContext context) {
         tooltip.add(Text.literal("§6✦ Ancient Boss Relic").formatted(Formatting.GOLD));
+        tooltip.add(Text.literal("§a✔ Reusable Artifact (Multiple uses)").formatted(Formatting.GREEN));
         tooltip.add(Text.literal("§7Right-click any standard §fAnvil§7 to transform it into an §bElemental Anvil§7.").formatted(Formatting.GRAY));
         tooltip.add(Text.literal("§8Dropped by Sir Solvane, the Everliving Knight.").formatted(Formatting.DARK_GRAY));
         super.appendTooltip(stack, world, tooltip, context);

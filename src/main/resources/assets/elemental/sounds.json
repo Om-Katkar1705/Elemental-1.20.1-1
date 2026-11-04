@@ -2,15 +2,22 @@
   "npc_dialogue": {
     "subtitle": "subtitles.elemental.npc_dialogue",
     "sounds": [
-      "item/book/page_turn1",
-      "mob/villager/idle1"
+      {
+        "name": "minecraft:item.book.page_turn",
+        "type": "event"
+      },
+      {
+        "name": "minecraft:entity.villager.ambient",
+        "type": "event"
+      }
     ]
   },
   "quest_accepted": {
     "subtitle": "subtitles.elemental.quest_accepted",
     "sounds": [
       {
-        "name": "random/levelup",
+        "name": "minecraft:entity.player.levelup",
+        "type": "event",
         "pitch": 1.5,
         "volume": 0.6
       }
@@ -20,7 +27,8 @@
     "subtitle": "subtitles.elemental.objective_updated",
     "sounds": [
       {
-        "name": "random/orb",
+        "name": "minecraft:entity.experience_orb.pickup",
+        "type": "event",
         "pitch": 1.4
       }
     ]
@@ -28,14 +36,18 @@
   "quest_completed": {
     "subtitle": "subtitles.elemental.quest_completed",
     "sounds": [
-      "ui/toast/challenge_complete"
+      {
+        "name": "minecraft:ui.toast.challenge_complete",
+        "type": "event"
+      }
     ]
   },
   "jetpack_guidance": {
     "subtitle": "subtitles.elemental.jetpack_guidance",
     "sounds": [
       {
-        "name": "block/beacon/activate",
+        "name": "minecraft:block.beacon.activate",
+        "type": "event",
         "pitch": 1.3
       }
     ]
@@ -56,12 +68,14 @@
     "subtitle": "subtitles.elemental.jetpack_warmup",
     "sounds": [
       {
-        "name": "block/furnace/fire_crackle",
+        "name": "minecraft:block.furnace.fire_crackle",
+        "type": "event",
         "volume": 0.35,
         "pitch": 1.4
       },
       {
-        "name": "block/beacon/power_select",
+        "name": "minecraft:block.beacon.power_select",
+        "type": "event",
         "volume": 0.3,
         "pitch": 1.6
       }
@@ -71,12 +85,14 @@
     "subtitle": "subtitles.elemental.seismic_colossus_step",
     "sounds": [
       {
-        "name": "mob/irongolem/step",
+        "name": "minecraft:entity.iron_golem.step",
+        "type": "event",
         "pitch": 0.4,
         "volume": 1.8
       },
       {
-        "name": "block/anvil/land",
+        "name": "minecraft:block.anvil.land",
+        "type": "event",
         "pitch": 0.3,
         "volume": 0.8
       }
@@ -86,12 +102,14 @@
     "subtitle": "subtitles.elemental.seismic_colossus_slam",
     "sounds": [
       {
-        "name": "random/explode",
+        "name": "minecraft:entity.generic.explode",
+        "type": "event",
         "pitch": 0.6,
         "volume": 2.0
       },
       {
-        "name": "mob/ravager/roar",
+        "name": "minecraft:entity.ravager.roar",
+        "type": "event",
         "pitch": 0.5,
         "volume": 1.5
       }
@@ -101,12 +119,14 @@
     "subtitle": "subtitles.elemental.seismic_colossus_roar",
     "sounds": [
       {
-        "name": "mob/enderdragon/growl",
+        "name": "minecraft:entity.ender_dragon.growl",
+        "type": "event",
         "pitch": 0.5,
         "volume": 2.5
       },
       {
-        "name": "mob/warden/roar",
+        "name": "minecraft:entity.warden.roar",
+        "type": "event",
         "pitch": 0.6,
         "volume": 2.0
       }
@@ -116,12 +136,14 @@
     "subtitle": "subtitles.elemental.seismic_colossus_throw",
     "sounds": [
       {
-        "name": "mob/irongolem/throw",
+        "name": "minecraft:entity.iron_golem.attack",
+        "type": "event",
         "pitch": 0.5,
         "volume": 1.5
       },
       {
-        "name": "mob/witch/throw",
+        "name": "minecraft:entity.witch.throw",
+        "type": "event",
         "pitch": 0.6,
         "volume": 1.2
       }
@@ -131,12 +153,14 @@
     "subtitle": "subtitles.elemental.seismic_colossus_hurt",
     "sounds": [
       {
-        "name": "mob/irongolem/hit",
+        "name": "minecraft:entity.iron_golem.hurt",
+        "type": "event",
         "pitch": 0.5,
         "volume": 1.5
       },
       {
-        "name": "block/stone/hit",
+        "name": "minecraft:block.stone.hit",
+        "type": "event",
         "pitch": 0.4,
         "volume": 1.2
       }
@@ -146,12 +170,14 @@
     "subtitle": "subtitles.elemental.seismic_colossus_death",
     "sounds": [
       {
-        "name": "mob/irongolem/death",
+        "name": "minecraft:entity.iron_golem.death",
+        "type": "event",
         "pitch": 0.4,
         "volume": 2.0
       },
       {
-        "name": "random/explode",
+        "name": "minecraft:entity.generic.explode",
+        "type": "event",
         "pitch": 0.4,
         "volume": 2.0
       }
@@ -161,12 +187,14 @@
     "subtitle": "subtitles.elemental.hammer_spark",
     "sounds": [
       {
-        "name": "block/anvil/use",
+        "name": "minecraft:block.anvil.use",
+        "type": "event",
         "pitch": 1.2,
         "volume": 1.5
       },
       {
-        "name": "random/anvil_land",
+        "name": "minecraft:block.anvil.land",
+        "type": "event",
         "pitch": 1.4,
         "volume": 1.0
       }

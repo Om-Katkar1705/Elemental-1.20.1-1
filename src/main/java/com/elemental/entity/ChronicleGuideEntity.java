@@ -121,8 +121,8 @@ public class ChronicleGuideEntity extends PathAwareEntity {
             else if (state == QuestState.CRAFT_PNEUMATIC_PISTON || state == QuestState.CRAFT_AEROGEL_CORE || state == QuestState.CRAFT_ELEMENT_CORE || state == QuestState.CRAFT_JETPACK) {
                 startJetpackTaskReminderConversation(serverPlayer, state);
             }
-            // After Phase 2 or Jetpack already claimed: Desert expedition reminders & questions
-            else if (questData.hasClaimedJetpack() || state.getId() >= QuestState.DESERT_EXPEDITION.getId()) {
+            // After Phase 2 or Jetpack already claimed: Biome expedition reminders & questions
+            else if (questData.hasClaimedJetpack() || state.getId() >= QuestState.BIOME_EXPEDITION_1.getId()) {
                 if (!hasItemOrWorn(serverPlayer, ModItems.ELEMENTAL_JETPACK)) {
                     ItemStack jetpack = new ItemStack(ModItems.ELEMENTAL_JETPACK, 1);
                     if (!serverPlayer.getInventory().insertStack(jetpack)) {
@@ -132,8 +132,9 @@ public class ChronicleGuideEntity extends PathAwareEntity {
                     serverPlayer.getWorld().playSound(null, serverPlayer.getX(), serverPlayer.getY(), serverPlayer.getZ(),
                             SoundEvents.ITEM_ARMOR_EQUIP_NETHERITE, SoundCategory.PLAYERS, 1.0f, 1.0f);
                     unlockJetpackRecipes(serverPlayer);
+                    com.elemental.entity.ElementalWizardEntity.unlockElementCoreRecipes(serverPlayer);
                 }
-                startDesertReminderConversation(serverPlayer);
+                startBiomeReminderConversation(serverPlayer);
             }
             // Between Phase 1 and Phase 2: Remind about searching the ship
             else {
@@ -464,14 +465,20 @@ public class ChronicleGuideEntity extends PathAwareEntity {
         showDialogueChoices(player);
     }
 
-    private void startDesertReminderConversation(ServerPlayerEntity player) {
+    private void startBiomeReminderConversation(ServerPlayerEntity player) {
         playNpcSoundAll(player.server);
-        BlockPos desertPos = com.elemental.world.NbtStructureManager.findOrGenerateDesertSanctuary(player.getServerWorld(), player.getBlockPos());
+        QuestSaveData saveData = QuestSaveData.getServerState(player.server);
         PlayerQuestData qData = QuestManager.getPlayerData(player);
-        qData.setTargetWaypoint(desertPos);
-        QuestManager.syncToAll(player.server);
-        player.server.getPlayerManager().broadcast(Text.literal("§6[Aeron] §e").append(Text.translatable("dialogue.elemental.aeron.reminder_desert", desertPos.getX(), desertPos.getZ())), false);
-        player.server.getPlayerManager().broadcast(Text.translatable("message.elemental.desert_coords", desertPos.getX(), desertPos.getZ()).formatted(Formatting.GOLD, Formatting.BOLD), false);
+        if (saveData.getFirstBiome() == null) {
+            QuestManager.initializeBiomeLineup(player);
+        } else {
+            QuestManager.updateWaypointForBiomeLineup(player, qData, 0);
+            QuestManager.syncToAll(player.server);
+        }
+        BlockPos target = qData.getTargetWaypoint();
+        int tx = target != null ? target.getX() : 0;
+        int tz = target != null ? target.getZ() : 0;
+        player.server.getPlayerManager().broadcast(Text.literal("§6[Aeron] §eUse your Elemental Jetpack to explore the primal biomes: closest first, then 2nd closest, and finally the far one! Your current waypoint points to [X: " + tx + ", Z: " + tz + "]."), false);
         showDialogueChoices(player);
     }
 

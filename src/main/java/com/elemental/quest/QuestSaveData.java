@@ -26,6 +26,15 @@ public class QuestSaveData extends PersistentState {
     private BlockPos forestBiomeLocation = null;
     private BlockPos everlivingArenaLocation = null;
     private BlockPos seismicGolemArenaLocation = null;
+    private BlockPos wizardLocation = null;
+    private boolean wizardIntroDone = false;
+    private UUID wizardUuid = null;
+    private String firstBiome = null;
+    private String secondBiome = null;
+    private String thirdBiome = null;
+    private boolean scimitarObtained = false;
+    private boolean pickObtained = false;
+    private boolean axeObtained = false;
     // Collective Quest Progress (Shared across all players on the server)
     private QuestState collectiveState = QuestState.CRAFT_STONE_TOOLS;
     private int collectiveBlueprintsFound = 0;
@@ -173,6 +182,101 @@ public class QuestSaveData extends PersistentState {
         this.markDirty();
     }
 
+    public BlockPos getWizardLocation() {
+        return wizardLocation;
+    }
+
+    public void setWizardLocation(BlockPos wizardLocation) {
+        this.wizardLocation = wizardLocation;
+        this.markDirty();
+    }
+
+    public boolean isWizardIntroDone() {
+        return wizardIntroDone;
+    }
+
+    public void setWizardIntroDone(boolean wizardIntroDone) {
+        this.wizardIntroDone = wizardIntroDone;
+        this.markDirty();
+    }
+
+    public UUID getWizardUuid() {
+        return wizardUuid;
+    }
+
+    public void setWizardUuid(UUID wizardUuid) {
+        this.wizardUuid = wizardUuid;
+        this.markDirty();
+    }
+
+    public String getFirstBiome() {
+        return firstBiome;
+    }
+
+    public void setFirstBiome(String firstBiome) {
+        this.firstBiome = firstBiome;
+        this.markDirty();
+    }
+
+    public String getSecondBiome() {
+        return secondBiome;
+    }
+
+    public void setSecondBiome(String secondBiome) {
+        this.secondBiome = secondBiome;
+        this.markDirty();
+    }
+
+    public String getThirdBiome() {
+        return thirdBiome;
+    }
+
+    public void setThirdBiome(String thirdBiome) {
+        this.thirdBiome = thirdBiome;
+        this.markDirty();
+    }
+
+    public void setBiomeOrder(String first, String second, String third) {
+        this.firstBiome = first;
+        this.secondBiome = second;
+        this.thirdBiome = third;
+        this.markDirty();
+    }
+
+    public boolean isScimitarObtained() {
+        return scimitarObtained;
+    }
+
+    public void setScimitarObtained(boolean val) {
+        this.scimitarObtained = val;
+        this.markDirty();
+    }
+
+    public boolean isPickObtained() {
+        return pickObtained;
+    }
+
+    public void setPickObtained(boolean val) {
+        this.pickObtained = val;
+        this.markDirty();
+    }
+
+    public boolean isAxeObtained() {
+        return axeObtained;
+    }
+
+    public void setAxeObtained(boolean val) {
+        this.axeObtained = val;
+        this.markDirty();
+    }
+
+    public boolean hasObtainedWeapon(String weaponId) {
+        if ("sunforged_scimitar".equalsIgnoreCase(weaponId)) return scimitarObtained;
+        if ("frostwake_pick".equalsIgnoreCase(weaponId)) return pickObtained;
+        if ("rootbound_axe".equalsIgnoreCase(weaponId)) return axeObtained;
+        return false;
+    }
+
     public PlayerQuestData getPlayerData(UUID uuid) {
         return playerDataMap.computeIfAbsent(uuid, id -> {
             PlayerQuestData data = new PlayerQuestData(id, this);
@@ -263,6 +367,31 @@ public class QuestSaveData extends PersistentState {
             );
         }
 
+        if (nbt.contains("WizardLocX") && nbt.contains("WizardLocY") && nbt.contains("WizardLocZ")) {
+            data.wizardLocation = new BlockPos(
+                    nbt.getInt("WizardLocX"),
+                    nbt.getInt("WizardLocY"),
+                    nbt.getInt("WizardLocZ")
+            );
+        }
+        data.wizardIntroDone = nbt.getBoolean("WizardIntroDone");
+
+        if (nbt.containsUuid("WizardUuid")) {
+            data.wizardUuid = nbt.getUuid("WizardUuid");
+        }
+        if (nbt.contains("FirstBiome")) {
+            data.firstBiome = nbt.getString("FirstBiome");
+        }
+        if (nbt.contains("SecondBiome")) {
+            data.secondBiome = nbt.getString("SecondBiome");
+        }
+        if (nbt.contains("ThirdBiome")) {
+            data.thirdBiome = nbt.getString("ThirdBiome");
+        }
+        data.scimitarObtained = nbt.getBoolean("ScimitarObtained");
+        data.pickObtained = nbt.getBoolean("PickObtained");
+        data.axeObtained = nbt.getBoolean("AxeObtained");
+
         if (nbt.contains("Players", NbtElement.LIST_TYPE)) {
             NbtList list = nbt.getList("Players", NbtElement.COMPOUND_TYPE);
             for (int i = 0; i < list.size(); i++) {
@@ -344,6 +473,29 @@ public class QuestSaveData extends PersistentState {
             nbt.putInt("SeismicGolemY", this.seismicGolemArenaLocation.getY());
             nbt.putInt("SeismicGolemZ", this.seismicGolemArenaLocation.getZ());
         }
+
+        if (this.wizardLocation != null) {
+            nbt.putInt("WizardLocX", this.wizardLocation.getX());
+            nbt.putInt("WizardLocY", this.wizardLocation.getY());
+            nbt.putInt("WizardLocZ", this.wizardLocation.getZ());
+        }
+        nbt.putBoolean("WizardIntroDone", this.wizardIntroDone);
+
+        if (this.wizardUuid != null) {
+            nbt.putUuid("WizardUuid", this.wizardUuid);
+        }
+        if (this.firstBiome != null) {
+            nbt.putString("FirstBiome", this.firstBiome);
+        }
+        if (this.secondBiome != null) {
+            nbt.putString("SecondBiome", this.secondBiome);
+        }
+        if (this.thirdBiome != null) {
+            nbt.putString("ThirdBiome", this.thirdBiome);
+        }
+        nbt.putBoolean("ScimitarObtained", this.scimitarObtained);
+        nbt.putBoolean("PickObtained", this.pickObtained);
+        nbt.putBoolean("AxeObtained", this.axeObtained);
 
         NbtList list = new NbtList();
         for (PlayerQuestData pData : this.playerDataMap.values()) {

@@ -8,8 +8,8 @@
   "start_height": {
     "absolute": 0
   },
-  "start_pool": "minecraft:empty",
+  "start_pool": "elemental:aerons_camp",
   "step": "surface_structures",
-  "terrain_adaptation": "none",
+  "terrain_adaptation": "beard_thin",
   "use_expansion_hack": false
 }

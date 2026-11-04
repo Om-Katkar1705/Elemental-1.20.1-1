@@ -141,6 +141,36 @@ public class NbtStructureManager {
             return;
         }
 
+        try {
+            var structureRegistry = world.getRegistryManager().get(RegistryKeys.STRUCTURE);
+            net.minecraft.registry.RegistryKey<net.minecraft.world.gen.structure.Structure> structureKey =
+                    net.minecraft.registry.RegistryKey.of(RegistryKeys.STRUCTURE, AERONS_CAMP_ID);
+            var entry = structureRegistry.getEntry(structureKey);
+            if (entry.isPresent()) {
+                var result = world.getChunkManager().getChunkGenerator().locateStructure(
+                        world,
+                        net.minecraft.registry.entry.RegistryEntryList.of(entry.get()),
+                        player.getBlockPos(),
+                        50,
+                        false
+                );
+                if (result != null) {
+                    BlockPos structurePos = result.getFirst();
+                    BlockPos ground = findTrueGroundSurface(world, structurePos.getX(), structurePos.getZ());
+                    BlockPos campPos = ground != null ? ground : structurePos;
+                    saveData.setAeronsTentLocation(campPos);
+                    saveData.setTentGenerated(true);
+                    saveData.setGuideSpawned(true);
+                    saveData.markDirty();
+                    spawnAeron(world, campPos);
+                    Elemental.LOGGER.info("Located naturally generated Aeron's Camp at: {}", campPos);
+                    return;
+                }
+            }
+        } catch (Exception e) {
+            Elemental.LOGGER.warn("Could not locate naturally generated camp: ", e);
+        }
+
         BlockPos worldSpawn = world.getSpawnPos();
         BlockPos safeCampPos = findSafeSurface(world, worldSpawn);
 
@@ -571,6 +601,35 @@ public class NbtStructureManager {
     public static BlockPos findOrGenerateAirship(ServerWorld world, BlockPos nearPos) {
         QuestSaveData saveData = QuestSaveData.getServerState(world.getServer());
         BlockPos existing = saveData.getSkyforgeAirshipLocation();
+
+        if (existing == null) {
+            try {
+                var structureRegistry = world.getRegistryManager().get(RegistryKeys.STRUCTURE);
+                net.minecraft.registry.RegistryKey<net.minecraft.world.gen.structure.Structure> structureKey =
+                        net.minecraft.registry.RegistryKey.of(RegistryKeys.STRUCTURE, SKYFORGE_SHIP_ID);
+                var entry = structureRegistry.getEntry(structureKey);
+                if (entry.isPresent()) {
+                    var result = world.getChunkManager().getChunkGenerator().locateStructure(
+                            world,
+                            net.minecraft.registry.entry.RegistryEntryList.of(entry.get()),
+                            nearPos,
+                            100,
+                            false
+                    );
+                    if (result != null) {
+                        BlockPos structurePos = result.getFirst();
+                        BlockPos ground = findTrueGroundSurface(world, structurePos.getX(), structurePos.getZ());
+                        existing = ground != null ? ground : structurePos;
+                        saveData.setSkyforgeAirshipLocation(existing);
+                        saveData.markDirty();
+                        Elemental.LOGGER.info("Located naturally generated Skyforge Ship at: {}", existing);
+                    }
+                }
+            } catch (Exception e) {
+                Elemental.LOGGER.warn("Could not locate naturally generated airship: ", e);
+            }
+        }
+
         BlockPos bestSurfacePos;
         BlockPos crashPos;
         BlockPos placePos;
@@ -835,26 +894,34 @@ public class NbtStructureManager {
     }
 
     public static void ensureWizardAtVillage(ServerWorld world, BlockPos villagePos, QuestSaveData saveData) {
-        if (villagePos == null) return;
+        ensureWizardAtLocation(world, villagePos, saveData);
+    }
+
+    public static void ensureWizardAtLocation(ServerWorld world, BlockPos targetPos, QuestSaveData saveData) {
+        if (targetPos == null) return;
+        saveData.setWizardLocation(targetPos);
+        saveData.markDirty();
 
         List<ElementalWizardEntity> existingWizards = world.getEntitiesByClass(
                 ElementalWizardEntity.class,
-                new net.minecraft.util.math.Box(villagePos).expand(48.0),
+                new net.minecraft.util.math.Box(targetPos).expand(64.0),
                 e -> true);
 
         if (existingWizards.isEmpty()) {
             if (!saveData.isWizardSpawned()) {
-                spawnWizard(world, villagePos);
+                spawnWizard(world, targetPos);
                 saveData.setWizardSpawned(true);
                 saveData.markDirty();
             }
         } else {
             ElementalWizardEntity wizard = existingWizards.get(0);
+            saveData.setWizardUuid(wizard.getUuid());
+            saveData.markDirty();
             BlockPos currentPos = wizard.getBlockPos();
             if (!world.getBlockState(currentPos).isAir()) {
-                world.setBlockState(villagePos, Blocks.AIR.getDefaultState());
-                world.setBlockState(villagePos.up(), Blocks.AIR.getDefaultState());
-                wizard.refreshPositionAndAngles(villagePos.getX() + 0.5, villagePos.getY(), villagePos.getZ() + 0.5, 0.0f, 0.0f);
+                world.setBlockState(targetPos, Blocks.AIR.getDefaultState());
+                world.setBlockState(targetPos.up(), Blocks.AIR.getDefaultState());
+                wizard.refreshPositionAndAngles(targetPos.getX() + 0.5, targetPos.getY(), targetPos.getZ() + 0.5, 0.0f, 0.0f);
             }
             if (existingWizards.size() > 1) {
                 for (int i = 1; i < existingWizards.size(); i++) {
@@ -864,8 +931,8 @@ public class NbtStructureManager {
         }
     }
 
-    private static void spawnWizard(ServerWorld world, BlockPos safeVillagePos) {
-        BlockPos npcPos = safeVillagePos;
+    private static void spawnWizard(ServerWorld world, BlockPos safePos) {
+        BlockPos npcPos = safePos;
         world.setBlockState(npcPos, Blocks.AIR.getDefaultState());
         world.setBlockState(npcPos.up(), Blocks.AIR.getDefaultState());
         world.setBlockState(npcPos.up(2), Blocks.AIR.getDefaultState());
@@ -873,9 +940,13 @@ public class NbtStructureManager {
         ElementalWizardEntity wizard = ModEntities.ELEMENTAL_WIZARD.create(world);
         if (wizard != null) {
             wizard.refreshPositionAndAngles(npcPos.getX() + 0.5, npcPos.getY(), npcPos.getZ() + 0.5, 0.0f, 0.0f);
-            wizard.setHomePos(safeVillagePos);
+            wizard.setHomePos(safePos);
             wizard.setPersistent();
             world.spawnEntity(wizard);
+            QuestSaveData saveData = QuestSaveData.getServerState(world.getServer());
+            saveData.setWizardUuid(wizard.getUuid());
+            saveData.setWizardLocation(safePos);
+            saveData.markDirty();
         }
     }
 
@@ -889,14 +960,27 @@ public class NbtStructureManager {
         world.setBlockState(telePos, Blocks.AIR.getDefaultState());
         world.setBlockState(telePos.up(), Blocks.AIR.getDefaultState());
 
-        List<ElementalWizardEntity> wizards = world.getEntitiesByClass(
-                ElementalWizardEntity.class,
-                new net.minecraft.util.math.Box(player.getBlockPos()).expand(10000.0),
-                e -> true);
+        QuestSaveData saveData = QuestSaveData.getServerState(world.getServer());
 
-        ElementalWizardEntity wizard;
-        if (!wizards.isEmpty()) {
-            wizard = wizards.get(0);
+        ElementalWizardEntity wizard = null;
+        if (saveData.getWizardUuid() != null) {
+            net.minecraft.entity.Entity entity = world.getEntity(saveData.getWizardUuid());
+            if (entity instanceof ElementalWizardEntity w && w.isAlive()) {
+                wizard = w;
+            }
+        }
+
+        if (wizard == null) {
+            List<ElementalWizardEntity> wizards = world.getEntitiesByClass(
+                    ElementalWizardEntity.class,
+                    new net.minecraft.util.math.Box(player.getBlockPos()).expand(96.0),
+                    e -> true);
+            if (!wizards.isEmpty()) {
+                wizard = wizards.get(0);
+            }
+        }
+
+        if (wizard != null) {
             wizard.teleport(world, telePos.getX() + 0.5, telePos.getY(), telePos.getZ() + 0.5, java.util.Collections.emptySet(), player.getYaw() + 180.0f, 0.0f);
         } else {
             wizard = ModEntities.ELEMENTAL_WIZARD.create(world);
@@ -908,6 +992,8 @@ public class NbtStructureManager {
         }
 
         if (wizard != null) {
+            saveData.setWizardUuid(wizard.getUuid());
+            saveData.markDirty();
             wizard.setHomePos(telePos);
             world.spawnParticles(ParticleTypes.PORTAL, telePos.getX() + 0.5, telePos.getY() + 1.0, telePos.getZ() + 0.5, 40, 0.5, 1.0, 0.5, 0.1);
             world.spawnParticles(ParticleTypes.ENCHANT, telePos.getX() + 0.5, telePos.getY() + 1.0, telePos.getZ() + 0.5, 30, 0.4, 0.8, 0.4, 0.2);
@@ -917,6 +1003,47 @@ public class NbtStructureManager {
         }
 
         return wizard;
+    }
+
+    public static BlockPos findNearestSnowVillageOrBiome(ServerWorld world, BlockPos nearPos) {
+        QuestSaveData saveData = QuestSaveData.getServerState(world.getServer());
+        BlockPos existing = saveData.getSnowBiomeLocation();
+        if (existing != null) {
+            return existing;
+        }
+
+        BlockPos center = null;
+        // 1. Try locating a vanilla Snowy Village first
+        try {
+            var structureRegistry = world.getRegistryManager().get(RegistryKeys.STRUCTURE);
+            var villageEntry = structureRegistry.getEntry(StructureKeys.VILLAGE_SNOWY);
+            if (villageEntry.isPresent()) {
+                var result = world.getChunkManager().getChunkGenerator().locateStructure(
+                        world,
+                        net.minecraft.registry.entry.RegistryEntryList.of(villageEntry.get()),
+                        nearPos,
+                        100,
+                        false
+                );
+                if (result != null) {
+                    BlockPos villagePos = result.getFirst();
+                    BlockPos ground = findTrueGroundSurface(world, villagePos.getX(), villagePos.getZ());
+                    center = ground != null ? ground : villagePos;
+                    Elemental.LOGGER.info("Located vanilla Snowy Village at: {}", center);
+                }
+            }
+        } catch (Exception e) {
+            Elemental.LOGGER.warn("Could not locate snowy village structure: ", e);
+        }
+
+        // 2. Fallback to Snowy Biomes
+        if (center == null) {
+            center = findNearestSnowBiome(world, nearPos);
+        }
+
+        saveData.setSnowBiomeLocation(center);
+        saveData.markDirty();
+        return center;
     }
 
     public static BlockPos findNearestSnowBiome(ServerWorld world, BlockPos nearPos) {
@@ -1011,6 +1138,34 @@ public class NbtStructureManager {
             return existing;
         }
 
+        // 1. Try locating naturally generated worldgen structure first
+        try {
+            var structureRegistry = world.getRegistryManager().get(RegistryKeys.STRUCTURE);
+            net.minecraft.registry.RegistryKey<net.minecraft.world.gen.structure.Structure> structureKey =
+                    net.minecraft.registry.RegistryKey.of(RegistryKeys.STRUCTURE, EVERLIVING_ARENA_ID);
+            var entry = structureRegistry.getEntry(structureKey);
+            if (entry.isPresent()) {
+                var result = world.getChunkManager().getChunkGenerator().locateStructure(
+                        world,
+                        net.minecraft.registry.entry.RegistryEntryList.of(entry.get()),
+                        nearPos,
+                        100,
+                        false
+                );
+                if (result != null) {
+                    BlockPos structurePos = result.getFirst();
+                    BlockPos ground = findTrueGroundSurface(world, structurePos.getX(), structurePos.getZ());
+                    BlockPos arenaCenter = ground != null ? ground : structurePos;
+                    saveData.setEverlivingArenaLocation(arenaCenter);
+                    saveData.markDirty();
+                    Elemental.LOGGER.info("Located naturally generated Everliving Knight Arena at: {}", arenaCenter);
+                    return arenaCenter;
+                }
+            }
+        } catch (Exception e) {
+            Elemental.LOGGER.warn("Could not locate naturally generated everliving arena: ", e);
+        }
+
         BlockPos arenaCenter = findLargePlainAreaForArena(world, nearPos);
         generateEverlivingArenaAt(world, arenaCenter);
 
@@ -1023,9 +1178,6 @@ public class NbtStructureManager {
     public static BlockPos findLargePlainAreaForArena(ServerWorld world, BlockPos nearPos) {
         final int halfX = 35;
         final int halfZ = 36;
-
-        BlockPos bestCandidate = null;
-        int bestScore = Integer.MIN_VALUE;
 
         // 1. Locate nearby large plains/meadow/savanna biome
         BlockPos plainsBiomePos = null;
@@ -1048,26 +1200,28 @@ public class NbtStructureManager {
         }
 
         List<BlockPos> candidatePoints = new java.util.ArrayList<>();
-
-        // Search around located plains biome in a grid
         if (plainsBiomePos != null) {
-            for (int dx = -160; dx <= 160; dx += 32) {
-                for (int dz = -160; dz <= 160; dz += 32) {
-                    candidatePoints.add(new BlockPos(plainsBiomePos.getX() + dx, 0, plainsBiomePos.getZ() + dz));
-                }
-            }
+            candidatePoints.add(plainsBiomePos);
+            candidatePoints.add(plainsBiomePos.add(48, 0, 0));
+            candidatePoints.add(plainsBiomePos.add(-48, 0, 0));
+            candidatePoints.add(plainsBiomePos.add(0, 0, 48));
+            candidatePoints.add(plainsBiomePos.add(0, 0, -48));
+        } else {
+            candidatePoints.add(nearPos.add(350, 0, 320));
+            candidatePoints.add(nearPos.add(400, 0, 200));
+            candidatePoints.add(nearPos.add(200, 0, 400));
         }
 
-        // Also test concentric rings around nearPos (from 280 to 700 blocks out)
-        int[] radii = new int[] { 320, 400, 480, 560, 640 };
-        for (int r : radii) {
-            for (int angleDeg = 0; angleDeg < 360; angleDeg += 30) {
-                double rad = Math.toRadians(angleDeg);
-                int testX = nearPos.getX() + (int) (r * Math.cos(rad));
-                int testZ = nearPos.getZ() + (int) (r * Math.sin(rad));
-                candidatePoints.add(new BlockPos(testX, 0, testZ));
-            }
-        }
+        BlockPos bestCandidate = null;
+        int bestDiff = Integer.MAX_VALUE;
+
+        int[][] sampleOffsets = new int[][] {
+                {0, 0},
+                {-halfX, -halfZ},
+                {halfX, -halfZ},
+                {-halfX, halfZ},
+                {halfX, halfZ}
+        };
 
         for (BlockPos cand : candidatePoints) {
             BlockPos groundCenter = findTrueGroundSurface(world, cand.getX(), cand.getZ());
@@ -1076,69 +1230,34 @@ public class NbtStructureManager {
             int cx = groundCenter.getX();
             int cz = groundCenter.getZ();
 
-            // Evaluate the 69x72 footprint using 49 sample points
             int minH = Integer.MAX_VALUE;
             int maxH = Integer.MIN_VALUE;
-            int sumH = 0;
-            int count = 0;
             boolean valid = true;
 
-            for (int sx = -halfX; sx <= halfX; sx += 11) {
-                for (int sz = -halfZ; sz <= halfZ; sz += 12) {
-                    int sampleX = cx + sx;
-                    int sampleZ = cz + sz;
-                    world.getChunk(sampleX >> 4, sampleZ >> 4);
-                    int sampleY = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, sampleX, sampleZ);
-                    BlockPos p = new BlockPos(sampleX, sampleY, sampleZ);
+            for (int[] offset : sampleOffsets) {
+                int sx = cx + offset[0];
+                int sz = cz + offset[1];
+                int sy = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, sx, sz);
+                BlockPos p = new BlockPos(sx, sy, sz);
 
-                    if (isLiquidOrWater(world, p) || isLiquidOrWater(world, p.down()) || isWaterBiome(world, p)) {
-                        valid = false;
-                        break;
-                    }
-
-                    if (sampleY < minH) minH = sampleY;
-                    if (sampleY > maxH) maxH = sampleY;
-                    sumH += sampleY;
-                    count++;
+                if (isLiquidOrWater(world, p) || isLiquidOrWater(world, p.down()) || isWaterBiome(world, p)) {
+                    valid = false;
+                    break;
                 }
-                if (!valid) break;
+
+                if (sy < minH) minH = sy;
+                if (sy > maxH) maxH = sy;
             }
 
-            if (!valid || count == 0) continue;
+            if (!valid) continue;
 
             int diff = maxH - minH;
-            if (diff > 8) continue;
-
-            int avgH = sumH / count;
-            int variance = 0;
-            for (int sx = -halfX; sx <= halfX; sx += 11) {
-                for (int sz = -halfZ; sz <= halfZ; sz += 12) {
-                    int sampleY = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, cx + sx, cz + sz);
-                    variance += Math.abs(sampleY - avgH);
-                }
-            }
-
-            var biome = world.getBiome(groundCenter);
-            boolean isPlains = biome.matchesKey(BiomeKeys.PLAINS)
-                    || biome.matchesKey(BiomeKeys.SUNFLOWER_PLAINS)
-                    || biome.matchesKey(BiomeKeys.MEADOW)
-                    || biome.matchesKey(BiomeKeys.SAVANNA);
-
-            double dist = Math.sqrt(groundCenter.getSquaredDistance(nearPos));
-
-            int score = 6000 - (diff * 500) - (variance * 20);
-            if (isPlains) {
-                score += 3000;
-            }
-            score -= (int) (Math.abs(dist - 420) * 2);
-
-            if (diff <= 2 && isPlains && dist >= 300 && dist <= 650) {
-                return groundCenter;
-            }
-
-            if (score > bestScore) {
-                bestScore = score;
+            if (diff < bestDiff) {
+                bestDiff = diff;
                 bestCandidate = groundCenter;
+                if (diff <= 5) {
+                    return groundCenter;
+                }
             }
         }
 
@@ -1158,20 +1277,9 @@ public class NbtStructureManager {
         final int altarOffsetY = 2; // Floor is at local Y = 2
         final int altarOffsetZ = 36;
 
-        // 1. Calculate the median ground height across the 69x72 area
-        List<Integer> groundHeights = new java.util.ArrayList<>();
+        int floorY = arenaCenter.getY();
         int startX = arenaCenter.getX() - altarOffsetX;
         int startZ = arenaCenter.getZ() - altarOffsetZ;
-
-        for (int x = startX; x < startX + sizeX; x += 4) {
-            for (int z = startZ; z < startZ + sizeZ; z += 4) {
-                world.getChunk(x >> 4, z >> 4);
-                int ty = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, x, z);
-                groundHeights.add(ty);
-            }
-        }
-        java.util.Collections.sort(groundHeights);
-        int floorY = groundHeights.isEmpty() ? arenaCenter.getY() : groundHeights.get(groundHeights.size() / 2);
 
         int originX = startX;
         int originY = floorY - altarOffsetY;
@@ -1186,6 +1294,8 @@ public class NbtStructureManager {
         }
 
         // 2. Foundation: fill underneath the arena structure down to natural ground so it NEVER floats
+        // Use flags 18 (NOTIFY_LISTENERS | FORCE_STATE) to avoid cascading neighbor physics updates
+        final int setBlockFlags = Block.NOTIFY_LISTENERS | Block.FORCE_STATE;
         for (int x = originX; x < originX + sizeX; x++) {
             for (int z = originZ; z < originZ + sizeZ; z++) {
                 int naturalY = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, x, z);
@@ -1193,9 +1303,9 @@ public class NbtStructureManager {
                     for (int y = originY - 1; y >= naturalY - 2; y--) {
                         BlockPos fillPos = new BlockPos(x, y, z);
                         if (y >= originY - 2) {
-                            world.setBlockState(fillPos, Blocks.POLISHED_DEEPSLATE.getDefaultState(), Block.NOTIFY_LISTENERS);
+                            world.setBlockState(fillPos, Blocks.POLISHED_DEEPSLATE.getDefaultState(), setBlockFlags);
                         } else {
-                            world.setBlockState(fillPos, Blocks.DEEPSLATE.getDefaultState(), Block.NOTIFY_LISTENERS);
+                            world.setBlockState(fillPos, Blocks.DEEPSLATE.getDefaultState(), setBlockFlags);
                         }
                     }
                 }
@@ -1205,7 +1315,7 @@ public class NbtStructureManager {
                     for (int y = originY + 3; y <= Math.min(naturalY + 1, originY + sizeY - 1); y++) {
                         BlockPos clearPos = new BlockPos(x, y, z);
                         if (!world.getBlockState(clearPos).isAir()) {
-                            world.setBlockState(clearPos, Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+                            world.setBlockState(clearPos, Blocks.AIR.getDefaultState(), setBlockFlags);
                         }
                     }
                 }
@@ -1226,6 +1336,7 @@ public class NbtStructureManager {
         int maxZ = originPos.getZ() + sizeZ - 1;
 
         int stepRings = 5;
+        final int flags = Block.NOTIFY_LISTENERS | Block.FORCE_STATE;
 
         for (int x = minX - stepRings; x <= maxX + stepRings; x++) {
             for (int z = minZ - stepRings; z <= maxZ + stepRings; z++) {
@@ -1244,9 +1355,9 @@ public class NbtStructureManager {
                     for (int y = targetStepY - 1; y >= naturalY - 2; y--) {
                         BlockPos fillPos = new BlockPos(x, y, z);
                         if (y >= targetStepY - 2) {
-                            world.setBlockState(fillPos, Blocks.POLISHED_BLACKSTONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+                            world.setBlockState(fillPos, Blocks.POLISHED_BLACKSTONE_BRICKS.getDefaultState(), flags);
                         } else {
-                            world.setBlockState(fillPos, Blocks.COBBLESTONE.getDefaultState(), Block.NOTIFY_LISTENERS);
+                            world.setBlockState(fillPos, Blocks.COBBLESTONE.getDefaultState(), flags);
                         }
                     }
 
@@ -1263,18 +1374,18 @@ public class NbtStructureManager {
                         } else {
                             stairState = Blocks.POLISHED_BLACKSTONE_BRICK_SLAB.getDefaultState();
                         }
-                        world.setBlockState(stepPos, stairState, Block.NOTIFY_LISTENERS);
+                        world.setBlockState(stepPos, stairState, flags);
                     } else {
                         // Level with natural ground: blend into grass
-                        world.setBlockState(stepPos, Blocks.GRASS_BLOCK.getDefaultState(), Block.NOTIFY_LISTENERS);
-                        world.setBlockState(stepPos.down(), Blocks.DIRT.getDefaultState(), Block.NOTIFY_LISTENERS);
+                        world.setBlockState(stepPos, Blocks.GRASS_BLOCK.getDefaultState(), flags);
+                        world.setBlockState(stepPos.down(), Blocks.DIRT.getDefaultState(), flags);
                     }
 
                     // Clear air above step
                     for (int y = targetStepY + 1; y <= floorY + 4; y++) {
                         BlockPos clearPos = new BlockPos(x, y, z);
                         if (!world.getBlockState(clearPos).isAir()) {
-                            world.setBlockState(clearPos, Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+                            world.setBlockState(clearPos, Blocks.AIR.getDefaultState(), flags);
                         }
                     }
                 } else if (naturalY > floorY) {
@@ -1283,26 +1394,26 @@ public class NbtStructureManager {
 
                     BlockPos stepPos = new BlockPos(x, targetStepY, z);
                     if (dist <= 2) {
-                        world.setBlockState(stepPos, Blocks.POLISHED_BLACKSTONE_BRICKS.getDefaultState(), Block.NOTIFY_LISTENERS);
+                        world.setBlockState(stepPos, Blocks.POLISHED_BLACKSTONE_BRICKS.getDefaultState(), flags);
                     } else {
-                        world.setBlockState(stepPos, Blocks.GRASS_BLOCK.getDefaultState(), Block.NOTIFY_LISTENERS);
-                        world.setBlockState(stepPos.down(), Blocks.DIRT.getDefaultState(), Block.NOTIFY_LISTENERS);
+                        world.setBlockState(stepPos, Blocks.GRASS_BLOCK.getDefaultState(), flags);
+                        world.setBlockState(stepPos.down(), Blocks.DIRT.getDefaultState(), flags);
                     }
 
                     // Clear terrain above the terrace
                     for (int y = targetStepY + 1; y <= naturalY + 2; y++) {
                         BlockPos clearPos = new BlockPos(x, y, z);
                         if (!world.getBlockState(clearPos).isAir()) {
-                            world.setBlockState(clearPos, Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+                            world.setBlockState(clearPos, Blocks.AIR.getDefaultState(), flags);
                         }
                     }
                 } else {
                     // Exactly level with floorY
                     BlockPos borderPos = new BlockPos(x, floorY, z);
                     if (dist == 1) {
-                        world.setBlockState(borderPos, Blocks.POLISHED_BLACKSTONE_BRICK_SLAB.getDefaultState(), Block.NOTIFY_LISTENERS);
+                        world.setBlockState(borderPos, Blocks.POLISHED_BLACKSTONE_BRICK_SLAB.getDefaultState(), flags);
                     } else {
-                        world.setBlockState(borderPos, Blocks.GRASS_BLOCK.getDefaultState(), Block.NOTIFY_LISTENERS);
+                        world.setBlockState(borderPos, Blocks.GRASS_BLOCK.getDefaultState(), flags);
                     }
                 }
             }
@@ -1314,6 +1425,34 @@ public class NbtStructureManager {
         BlockPos existing = saveData.getSeismicGolemArenaLocation();
         if (existing != null) {
             return existing;
+        }
+
+        // 1. Try locating naturally generated worldgen structure first
+        try {
+            var structureRegistry = world.getRegistryManager().get(RegistryKeys.STRUCTURE);
+            net.minecraft.registry.RegistryKey<net.minecraft.world.gen.structure.Structure> structureKey =
+                    net.minecraft.registry.RegistryKey.of(RegistryKeys.STRUCTURE, SEISMIC_GOLEM_ARENA_ID);
+            var entry = structureRegistry.getEntry(structureKey);
+            if (entry.isPresent()) {
+                var result = world.getChunkManager().getChunkGenerator().locateStructure(
+                        world,
+                        net.minecraft.registry.entry.RegistryEntryList.of(entry.get()),
+                        nearPos,
+                        100,
+                        false
+                );
+                if (result != null) {
+                    BlockPos structurePos = result.getFirst();
+                    BlockPos ground = findTrueGroundSurface(world, structurePos.getX(), structurePos.getZ());
+                    BlockPos arenaCenter = ground != null ? ground : structurePos;
+                    saveData.setSeismicGolemArenaLocation(arenaCenter);
+                    saveData.markDirty();
+                    Elemental.LOGGER.info("Located naturally generated Seismic Golem Arena at: {}", arenaCenter);
+                    return arenaCenter;
+                }
+            }
+        } catch (Exception e) {
+            Elemental.LOGGER.warn("Could not locate naturally generated seismic golem arena: ", e);
         }
 
         BlockPos arenaCenter = findLargePlainAreaForArena(world, nearPos.add(300, 0, 300));
