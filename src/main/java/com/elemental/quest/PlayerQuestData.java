@@ -109,14 +109,16 @@ public class PlayerQuestData {
     }
 
     public BlockPos getTargetWaypoint() {
-        return parent != null ? parent.getCollectiveTargetWaypoint() : targetWaypoint;
+        if (this.targetWaypoint != null) {
+            return this.targetWaypoint;
+        }
+        return parent != null ? parent.getCollectiveTargetWaypoint() : null;
     }
 
     public void setTargetWaypoint(BlockPos targetWaypoint) {
+        this.targetWaypoint = targetWaypoint;
         if (parent != null) {
-            parent.setCollectiveTargetWaypoint(targetWaypoint);
-        } else {
-            this.targetWaypoint = targetWaypoint;
+            parent.markDirty();
         }
     }
 

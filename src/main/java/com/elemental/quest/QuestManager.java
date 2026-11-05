@@ -246,10 +246,8 @@ public class QuestManager {
             }
             data.setTargetWaypoint(snowPos);
             player.sendMessage(Text.literal("§b✦ Waypoint updated: Snow Village / Biome [X: " + snowPos.getX() + ", Z: " + snowPos.getZ() + "]").formatted(Formatting.AQUA, Formatting.BOLD), false);
-            for (ServerPlayerEntity p : player.server.getPlayerManager().getPlayerList()) {
-                p.playSound(ModSounds.QUEST_ACCEPTED, SoundCategory.PLAYERS, 1.0f, 1.0f);
-            }
-            syncToAll(player.server);
+            player.playSound(ModSounds.QUEST_ACCEPTED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+            syncToClient(player);
         } else if ("rootbound_axe".equalsIgnoreCase(weaponId)) {
             BlockPos forestPos = saveData.getForestBiomeLocation();
             if (forestPos == null) {
@@ -257,10 +255,8 @@ public class QuestManager {
             }
             data.setTargetWaypoint(forestPos);
             player.sendMessage(Text.literal("§a✦ Waypoint updated: Dark Forest [X: " + forestPos.getX() + ", Z: " + forestPos.getZ() + "]").formatted(Formatting.GREEN, Formatting.BOLD), false);
-            for (ServerPlayerEntity p : player.server.getPlayerManager().getPlayerList()) {
-                p.playSound(ModSounds.QUEST_ACCEPTED, SoundCategory.PLAYERS, 1.0f, 1.0f);
-            }
-            syncToAll(player.server);
+            player.playSound(ModSounds.QUEST_ACCEPTED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+            syncToClient(player);
         } else if ("sunforged_scimitar".equalsIgnoreCase(weaponId)) {
             BlockPos desertPos = saveData.getDesertLocation();
             if (desertPos == null) {
@@ -268,10 +264,8 @@ public class QuestManager {
             }
             data.setTargetWaypoint(desertPos);
             player.sendMessage(Text.literal("§6✦ Waypoint updated: Desert Village [X: " + desertPos.getX() + ", Z: " + desertPos.getZ() + "]").formatted(Formatting.GOLD, Formatting.BOLD), false);
-            for (ServerPlayerEntity p : player.server.getPlayerManager().getPlayerList()) {
-                p.playSound(ModSounds.QUEST_ACCEPTED, SoundCategory.PLAYERS, 1.0f, 1.0f);
-            }
-            syncToAll(player.server);
+            player.playSound(ModSounds.QUEST_ACCEPTED, SoundCategory.PLAYERS, 1.0f, 1.0f);
+            syncToClient(player);
         }
     }
 
