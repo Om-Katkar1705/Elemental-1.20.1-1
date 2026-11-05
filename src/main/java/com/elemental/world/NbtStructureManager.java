@@ -156,14 +156,17 @@ public class NbtStructureManager {
                 );
                 if (result != null) {
                     BlockPos structurePos = result.getFirst();
-                    BlockPos ground = findTrueGroundSurface(world, structurePos.getX(), structurePos.getZ());
-                    BlockPos campPos = ground != null ? ground : structurePos;
-                    saveData.setAeronsTentLocation(campPos);
+                    world.getChunk(structurePos.getX() >> 4, structurePos.getZ() >> 4);
+                    BlockPos ground = findTrueGroundSurface(world, structurePos.getX() + 2, structurePos.getZ() + 3);
+                    BlockPos campPos = ground != null ? ground : new BlockPos(structurePos.getX() + 2, Math.max(world.getSeaLevel(), structurePos.getY()), structurePos.getZ() + 3);
+                    BlockPos safeAeronPos = findSafeAeronPosition(world, campPos);
+                    BlockPos finalPos = safeAeronPos != null ? safeAeronPos : campPos;
+                    saveData.setAeronsTentLocation(finalPos);
                     saveData.setTentGenerated(true);
                     saveData.setGuideSpawned(true);
                     saveData.markDirty();
-                    spawnAeron(world, campPos);
-                    Elemental.LOGGER.info("Located naturally generated Aeron's Camp at: {}", campPos);
+                    spawnAeron(world, finalPos);
+                    Elemental.LOGGER.info("Located naturally generated Aeron's Camp at: {}", finalPos);
                     return;
                 }
             }
@@ -174,14 +177,14 @@ public class NbtStructureManager {
         BlockPos worldSpawn = world.getSpawnPos();
         BlockPos safeCampPos = findSafeSurface(world, worldSpawn);
 
-        // Camp template offset (center at safeCampPos)
-        BlockPos placePos = safeCampPos.add(-4, -1, -4);
-        CampGroundMaterial groundMaterial = sampleSurroundingGroundMaterial(world, safeCampPos);
         int campY = safeCampPos.getY();
+        // Camp template 5x4x5 centered at safeCampPos:
+        BlockPos placePos = new BlockPos(safeCampPos.getX() - 2, campY, safeCampPos.getZ() - 2);
+        CampGroundMaterial groundMaterial = sampleSurroundingGroundMaterial(world, safeCampPos);
 
         // Level ground and lay foundation matching surrounding blocks
-        for (int dx = -4; dx <= 4; dx++) {
-            for (int dz = -4; dz <= 4; dz++) {
+        for (int dx = -3; dx <= 3; dx++) {
+            for (int dz = -3; dz <= 3; dz++) {
                 // Clear air above camp floor (dy from 0 to 6)
                 for (int dy = 0; dy <= 6; dy++) {
                     world.setBlockState(new BlockPos(safeCampPos.getX() + dx, campY + dy, safeCampPos.getZ() + dz),
@@ -202,16 +205,77 @@ public class NbtStructureManager {
             }
         }
 
-        // Place directly from aerons_camp.nbt
+        // Place directly from aerons_camp.nbt - layer Y=0 rests on campY (just above normal ground at campY - 1)
         placeNbtStructure(world, AERONS_CAMP_ID, placePos);
 
-        saveData.setAeronsTentLocation(safeCampPos);
+        BlockPos aeronPos = placePos.add(2, 0, 3);
+        saveData.setAeronsTentLocation(aeronPos);
         saveData.setTentGenerated(true);
         saveData.setGuideSpawned(true);
         saveData.markDirty();
 
-        spawnAeron(world, safeCampPos);
-        Elemental.LOGGER.info("Aeron's Camp initialized from NBT at safe dry land: {}", safeCampPos);
+        spawnAeron(world, aeronPos);
+        Elemental.LOGGER.info("Aeron's Camp initialized from NBT at safe dry land: {}", aeronPos);
+    }
+
+    public static BlockPos findSafeAeronPosition(ServerWorld world, BlockPos campPos) {
+        if (campPos == null) {
+            return null;
+        }
+
+        // 1. Search for the camp's campfire within a 7x5x7 box around campPos
+        BlockPos campfirePos = null;
+        for (BlockPos test : BlockPos.iterate(campPos.add(-6, -4, -6), campPos.add(6, 4, 6))) {
+            if (world.getBlockState(test).isOf(Blocks.CAMPFIRE)) {
+                campfirePos = test.toImmutable();
+                break;
+            }
+        }
+
+        if (campfirePos != null) {
+            // In aerons_camp.nbt, campfire is flanked on two sides by oak logs (x=1 and x=3 at z=4),
+            // and the tent with the bed/chest/wool is perpendicular (z=2, z=1).
+            // We inspect the 4 horizontal directions around the campfire to find the opening towards the tent.
+            Direction bestDir = Direction.NORTH;
+            for (Direction dir : Direction.Type.HORIZONTAL) {
+                BlockPos testPos = campfirePos.offset(dir);
+                BlockPos interiorPos = testPos.offset(dir);
+                if (world.getBlockState(interiorPos).isIn(net.minecraft.registry.tag.BlockTags.BEDS)
+                        || world.getBlockState(interiorPos.offset(dir.rotateYClockwise())).isIn(net.minecraft.registry.tag.BlockTags.BEDS)
+                        || world.getBlockState(interiorPos.offset(dir.rotateYCounterclockwise())).isIn(net.minecraft.registry.tag.BlockTags.BEDS)
+                        || world.getBlockState(interiorPos).isOf(Blocks.CHEST)
+                        || world.getBlockState(interiorPos).isOf(Blocks.CRAFTING_TABLE)) {
+                    bestDir = dir;
+                    break;
+                }
+            }
+
+            BlockPos pathPos = campfirePos.offset(bestDir);
+            // Ensure pathPos and head are air, and floor underneath is solid
+            BlockPos groundBelow = pathPos.down();
+            if (world.getBlockState(groundBelow).isAir() || isLiquidOrWater(world, groundBelow)) {
+                CampGroundMaterial mat = sampleSurroundingGroundMaterial(world, campfirePos);
+                world.setBlockState(groundBelow, mat.surfaceBlock().getDefaultState());
+            }
+            world.setBlockState(pathPos, Blocks.AIR.getDefaultState());
+            world.setBlockState(pathPos.up(), Blocks.AIR.getDefaultState());
+            return pathPos;
+        }
+
+        // 2. Fallback if campfire not yet found: sample true ground surface
+        BlockPos ground = findTrueGroundSurface(world, campPos.getX(), campPos.getZ());
+        if (ground != null && ground.getY() >= world.getSeaLevel() - 15) {
+            world.setBlockState(ground, Blocks.AIR.getDefaultState());
+            world.setBlockState(ground.up(), Blocks.AIR.getDefaultState());
+            return ground;
+        }
+
+        // 3. Fallback to campPos at safe surface height (never deep underground)
+        int safeY = Math.max(campPos.getY(), world.getSeaLevel());
+        BlockPos fallback = new BlockPos(campPos.getX(), safeY, campPos.getZ());
+        world.setBlockState(fallback, Blocks.AIR.getDefaultState());
+        world.setBlockState(fallback.up(), Blocks.AIR.getDefaultState());
+        return fallback;
     }
 
     private static long lastGuideCampCheckTick = 0;
@@ -227,9 +291,9 @@ public class NbtStructureManager {
             return;
         }
 
-        // Throttle checks when guide is already spawned to avoid repeated heavy entity searches
+        // Throttle checks to avoid repeated heavy entity searches
         long currentTick = world.getTime();
-        if (saveData.isGuideSpawned() && currentTick - lastGuideCampCheckTick < 60) {
+        if (currentTick - lastGuideCampCheckTick < 60) {
             return;
         }
         lastGuideCampCheckTick = currentTick;
@@ -240,19 +304,19 @@ public class NbtStructureManager {
                 e -> true);
 
         if (existingGuides.isEmpty()) {
-            if (!saveData.isGuideSpawned()) {
-                spawnAeron(world, campPos);
-                saveData.setGuideSpawned(true);
-                saveData.markDirty();
-            }
+            spawnAeron(world, campPos);
+            saveData.setGuideSpawned(true);
+            saveData.markDirty();
         } else {
-            // Ensure first guide is not stuck inside any block
+            // Ensure first guide is not stuck inside any block or underground
             ChronicleGuideEntity guide = existingGuides.get(0);
             BlockPos currentPos = guide.getBlockPos();
-            if (!world.getBlockState(currentPos).isAir()) {
-                world.setBlockState(campPos, Blocks.AIR.getDefaultState());
-                world.setBlockState(campPos.up(), Blocks.AIR.getDefaultState());
-                guide.refreshPositionAndAngles(campPos.getX() + 0.5, campPos.getY(), campPos.getZ() + 0.5, 0.0f, 0.0f);
+            if (!world.getBlockState(currentPos).isAir() || currentPos.getY() < world.getSeaLevel() - 10) {
+                BlockPos safePos = findSafeAeronPosition(world, campPos);
+                if (safePos != null) {
+                    guide.refreshPositionAndAngles(safePos.getX() + 0.5, safePos.getY(), safePos.getZ() + 0.5, guide.getYaw(), 0.0f);
+                    guide.setHomePos(safePos);
+                }
             }
             // Keep exactly one guide entity, discard any duplicate guides
             if (existingGuides.size() > 1) {
@@ -263,18 +327,18 @@ public class NbtStructureManager {
         }
     }
 
-    private static void spawnAeron(ServerWorld world, BlockPos safeCampPos) {
-        // Center of camp at template coordinate (4, 1, 4): open dirt path directly
-        // between campfire and tent
-        BlockPos npcPos = safeCampPos;
+    private static void spawnAeron(ServerWorld world, BlockPos campPos) {
+        BlockPos npcPos = findSafeAeronPosition(world, campPos);
+        if (npcPos == null) {
+            return;
+        }
         world.setBlockState(npcPos, Blocks.AIR.getDefaultState());
         world.setBlockState(npcPos.up(), Blocks.AIR.getDefaultState());
-        world.setBlockState(npcPos.up(2), Blocks.AIR.getDefaultState());
 
         ChronicleGuideEntity guide = ModEntities.CHRONICLE_GUIDE.create(world);
         if (guide != null) {
             guide.refreshPositionAndAngles(npcPos.getX() + 0.5, npcPos.getY(), npcPos.getZ() + 0.5, 0.0f, 0.0f);
-            guide.setHomePos(safeCampPos);
+            guide.setHomePos(npcPos);
             guide.setPersistent();
             world.spawnEntity(guide);
         }
@@ -618,8 +682,10 @@ public class NbtStructureManager {
                     );
                     if (result != null) {
                         BlockPos structurePos = result.getFirst();
+                        world.getChunk(structurePos.getX() >> 4, structurePos.getZ() >> 4);
                         BlockPos ground = findTrueGroundSurface(world, structurePos.getX(), structurePos.getZ());
-                        existing = ground != null ? ground : structurePos;
+                        int surfaceY = ground != null ? ground.getY() : Math.max(world.getSeaLevel(), structurePos.getY());
+                        existing = new BlockPos(structurePos.getX(), surfaceY - 8, structurePos.getZ());
                         saveData.setSkyforgeAirshipLocation(existing);
                         saveData.markDirty();
                         Elemental.LOGGER.info("Located naturally generated Skyforge Ship at: {}", existing);

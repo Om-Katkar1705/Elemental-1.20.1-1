@@ -6,7 +6,7 @@
   "size": 1,
   "spawn_overrides": {},
   "start_height": {
-    "absolute": -1
+    "absolute": -8
   },
   "start_pool": "elemental:crashed_skyforge_ship",
   "step": "surface_structures",

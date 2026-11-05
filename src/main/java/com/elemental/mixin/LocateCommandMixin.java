@@ -155,11 +155,13 @@ public abstract class LocateCommandMixin {
             }
         }
         BlockPos safe = NbtStructureManager.findSafeSurface(world, world.getSpawnPos());
-        saveData.setAeronsTentLocation(safe);
+        BlockPos placePos = new BlockPos(safe.getX() - 2, safe.getY(), safe.getZ() - 2);
+        NbtStructureManager.placeNbtStructure(world, NbtStructureManager.AERONS_CAMP_ID, placePos);
+        BlockPos aeronPos = placePos.add(2, 0, 3);
+        saveData.setAeronsTentLocation(aeronPos);
         saveData.setTentGenerated(true);
         saveData.markDirty();
-        NbtStructureManager.placeNbtStructure(world, NbtStructureManager.AERONS_CAMP_ID, safe.add(-4, -1, -4));
-        return safe;
+        return aeronPos;
     }
 
     private static BlockPos getOrLocateAirship(ServerWorld world, QuestSaveData saveData, BlockPos originPos) {
