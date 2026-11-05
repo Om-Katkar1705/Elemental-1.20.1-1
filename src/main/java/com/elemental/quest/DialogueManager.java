@@ -81,7 +81,12 @@ public class DialogueManager {
                 conv.onComplete.run();
             }
             if (player.server != null) {
-                player.server.getPlayerManager().broadcast(Text.literal("§7[Dialogue skipped by " + player.getName().getString() + "]"), false);
+                double radiusSq = 32.0 * 32.0;
+                for (ServerPlayerEntity p : player.server.getPlayerManager().getPlayerList()) {
+                    if (p.getWorld() == player.getWorld() && p.squaredDistanceTo(player) <= radiusSq) {
+                        p.sendMessage(Text.literal("§7[Dialogue skipped by " + player.getName().getString() + "]"), false);
+                    }
+                }
             }
         }
     }
@@ -107,12 +112,14 @@ public class DialogueManager {
 
             if (conv.currentIndex < conv.lines.size()) {
                 DialogueEntry line = conv.lines.get(conv.currentIndex);
-                // Broadcast to whole chat across the server
-                server.getPlayerManager().broadcast(line.text(), false);
-
-                if (line.sound() != null) {
-                    for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
-                        p.playSound(line.sound(), SoundCategory.PLAYERS, 0.8f, line.pitch());
+                // Localized dialogue: send to active player and nearby companions within 32m
+                double radiusSq = 32.0 * 32.0;
+                for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+                    if (p.getWorld() == player.getWorld() && p.squaredDistanceTo(player) <= radiusSq) {
+                        p.sendMessage(line.text(), false);
+                        if (line.sound() != null) {
+                            p.playSound(line.sound(), SoundCategory.PLAYERS, 0.8f, line.pitch());
+                        }
                     }
                 }
 

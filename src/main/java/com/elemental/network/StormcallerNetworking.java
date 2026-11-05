@@ -49,7 +49,8 @@ public class StormcallerNetworking {
         // Lightning Release
         ServerPlayNetworking.registerGlobalReceiver(C2S_LIGHTNING_RELEASE, (server, player, handler, buf, responseSender) -> {
             int targetEntityId = buf.readInt();
-            float chargeProgress = buf.readFloat();
+            float rawCharge = buf.readFloat();
+            float chargeProgress = Float.isFinite(rawCharge) ? net.minecraft.util.math.MathHelper.clamp(rawCharge, 0.0f, 1.0f) : 0.0f;
             server.execute(() -> StormcallerServerCombatHandler.releaseLightningStrike(player, targetEntityId, chargeProgress));
         });
 

@@ -106,7 +106,9 @@ public class RootboundScheduler {
                 ServerWorld world = server.getWorld(wall.worldKey);
                 if (world != null) {
                     for (java.util.Map.Entry<BlockPos, BlockState> entry : wall.originalBlocks.entrySet()) {
-                        world.setBlockState(entry.getKey(), entry.getValue());
+                        if (world.getBlockState(entry.getKey()).isOf(Blocks.OAK_LOG)) {
+                            world.setBlockState(entry.getKey(), entry.getValue());
+                        }
                     }
                 }
             }
@@ -114,6 +116,30 @@ public class RootboundScheduler {
             ACTIVE_CAGES.clear();
             ACTIVE_ROOTS.clear();
         });
+
+        // Anti-Duplication: Prevent item drops when players break temporary Timber Bastion logs
+        net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, blockEntity) -> {
+            if (state.isOf(Blocks.OAK_LOG) && isBlockInActiveTimberWall(pos)) {
+                world.setBlockState(pos, Blocks.AIR.getDefaultState());
+                world.playSound(null, pos, SoundEvents.BLOCK_WOOD_BREAK, SoundCategory.BLOCKS, 1.0f, 0.8f);
+                if (world instanceof ServerWorld serverWorld) {
+                    serverWorld.spawnParticles(new net.minecraft.particle.BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.OAK_LOG.getDefaultState()),
+                            pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, 10, 0.25, 0.25, 0.25, 0.05);
+                }
+                return false; // Cancels default drop generation
+            }
+            return true;
+        });
+    }
+
+    public static boolean isBlockInActiveTimberWall(BlockPos pos) {
+        if (pos == null || ACTIVE_WALLS.isEmpty()) return false;
+        for (TimberBastionWall wall : ACTIVE_WALLS) {
+            if (wall.originalBlocks.containsKey(pos)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static void scheduleTimberWall(ServerWorld world, java.util.Map<BlockPos, BlockState> originalBlocks, int durationTicks) {
@@ -267,9 +293,11 @@ public class RootboundScheduler {
                     BlockPos pos = entry.getKey();
                     if (firstPos == null) firstPos = pos;
                     if (world.isChunkLoaded(pos.getX() >> 4, pos.getZ() >> 4)) {
-                        world.setBlockState(pos, entry.getValue());
-                        world.spawnParticles(new net.minecraft.particle.BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.OAK_LOG.getDefaultState()),
-                                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, 4, 0.2, 0.2, 0.2, 0.05);
+                        if (world.getBlockState(pos).isOf(Blocks.OAK_LOG)) {
+                            world.setBlockState(pos, entry.getValue());
+                            world.spawnParticles(new net.minecraft.particle.BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.OAK_LOG.getDefaultState()),
+                                    pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, 4, 0.2, 0.2, 0.2, 0.05);
+                        }
                     }
                 }
                 if (firstPos != null) {

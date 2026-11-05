@@ -62,6 +62,16 @@ public class EverlivingAltarBlockEntity extends BlockEntity {
 
         // If all 3 elements are thrown onto the altar
         if (dryHeatEntity != null && snowEntity != null && treeEntity != null) {
+            // Prevent duplicate boss summoning if Sir Solvane is already active in the arena
+            Box arenaBox = new Box(pos).expand(64.0, 32.0, 64.0);
+            List<EverlivingKnightEntity> activeKnights = world.getEntitiesByClass(
+                    EverlivingKnightEntity.class, arenaBox, net.minecraft.entity.LivingEntity::isAlive);
+            if (!activeKnights.isEmpty()) {
+                blockEntity.cooldown = 60; // 3-second reminder interval without consuming items
+                world.playSound(null, pos, SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.BLOCKS, 0.8f, 1.5f);
+                return;
+            }
+
             consumeItem(dryHeatEntity);
             consumeItem(snowEntity);
             consumeItem(treeEntity);

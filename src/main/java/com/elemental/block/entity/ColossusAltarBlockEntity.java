@@ -78,6 +78,16 @@ public class ColossusAltarBlockEntity extends BlockEntity {
         if (dryHeatEntity != null && snowEntity != null && treeEntity != null &&
             oceanEntity != null && mountainEntity != null && fireEntity != null) {
 
+            // Prevent duplicate boss spawning if Terrakon is already active in the arena
+            Box arenaBox = new Box(pos).expand(80.0, 40.0, 80.0);
+            List<com.elemental.entity.SeismicColossusEntity> activeColossi = world.getEntitiesByClass(
+                    com.elemental.entity.SeismicColossusEntity.class, arenaBox, net.minecraft.entity.LivingEntity::isAlive);
+            if (!activeColossi.isEmpty()) {
+                blockEntity.cooldown = 60; // 3-second reminder interval without consuming items
+                world.playSound(null, pos, SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.BLOCKS, 0.8f, 1.5f);
+                return;
+            }
+
             consumeItem(dryHeatEntity);
             consumeItem(snowEntity);
             consumeItem(treeEntity);

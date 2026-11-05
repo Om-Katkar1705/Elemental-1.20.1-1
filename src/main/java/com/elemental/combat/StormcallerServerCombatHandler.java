@@ -267,6 +267,11 @@ public class StormcallerServerCombatHandler {
         ItemStack stack = player.getMainHandStack();
         if (!(stack.getItem() instanceof StormcallerHammerItem)) return false;
 
+        if (!Float.isFinite(chargeProgress)) {
+            chargeProgress = 0.0f;
+        }
+        chargeProgress = net.minecraft.util.math.MathHelper.clamp(chargeProgress, 0.0f, 1.0f);
+
         AIMING_PLAYERS.remove(player.getUuid());
 
         ServerWorld world = player.getServerWorld();

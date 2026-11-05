@@ -122,6 +122,13 @@ public class Elemental implements ModInitializer {
 
 			// Sync extra jetpack slot to connecting player
 			QuestNetworking.sendExtraSlotSync(player);
+
+			// Unlock crafting recipes for late-joining players if quest reached jetpack tasks or beyond
+			com.elemental.quest.QuestSaveData saveData = com.elemental.quest.QuestSaveData.getServerState(server);
+			if (saveData.getCollectiveState().getId() >= com.elemental.quest.QuestState.CRAFT_PNEUMATIC_PISTON.getId()) {
+				com.elemental.entity.ChronicleGuideEntity.unlockJetpackRecipes(player);
+				com.elemental.entity.ElementalWizardEntity.unlockElementCoreRecipes(player);
+			}
 		});
 
 		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {

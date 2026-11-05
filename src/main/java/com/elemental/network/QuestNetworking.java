@@ -23,7 +23,7 @@ public class QuestNetworking {
 
     public static void registerServerReceivers() {
         ServerPlayNetworking.registerGlobalReceiver(SELECT_WEAPON_QUEST_PACKET_ID, (server, player, handler, buf, responseSender) -> {
-            String weaponId = buf.readString();
+            String weaponId = buf.readString(64);
             server.execute(() -> com.elemental.quest.QuestManager.handleSelectWeaponQuest(player, weaponId));
         });
         ServerPlayNetworking.registerGlobalReceiver(JETPACK_THRUST_PACKET_ID, (server, player, handler, buf, responseSender) -> {

@@ -12,7 +12,8 @@
 		"FilledMapItemMixin",
 		"EntityTrackerEntryMixin",
 		"AnvilScreenHandlerMixin",
-		"LocateCommandMixin"
+		"LocateCommandMixin",
+		"ServerPlayNetworkHandlerMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
